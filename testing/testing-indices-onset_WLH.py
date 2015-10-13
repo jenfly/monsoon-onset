@@ -65,35 +65,12 @@ plt.legend()
 
 
 
-wlh = onset_WLH(precip, axis, dt)
+wlh = onset_WLH(precip, axis)
 onset = wlh['onset']
 retreat = wlh['retreat']
 peak = wlh['peak']
 precip_sm = wlh['precip_sm']
-precip_ann = wlh['precip_ann']
-precip_rel = wlh['precip_rel']
 
-# Check timeseries for single grid point
-#lat0, lon0 = 12.5, 90.0
-
-
-pcp = precip[:, ilat0, ilon0]
-psm = precip_sm[:, ilat0, ilon0]
-pan = precip_ann[:, ilat0, ilon0]
-prel = precip_rel[:, ilat0, ilon0]
-i_onset = int(onset[ilat0, ilon0] - 1)
-i_retreat = int(retreat[ilat0, ilon0] - 1)
-i_peak = int(peak[ilat0, ilon0] - 1)
-
-plt.figure()
-plt.plot(pcp, color='grey', label='raw')
-plt.plot(psm, color='black', label='smoothed')
-plt.plot(pan, color='red', label='annual')
-plt.plot(i_onset, psm[i_onset], 'r*')
-plt.plot(i_peak, psm[i_peak], 'bd')
-plt.plot(i_retreat, psm[i_retreat], 'go')
-plt.grid()
-plt.legend()
 
 plt.figure()
 clev = np.arange(20, 60)
