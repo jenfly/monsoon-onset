@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import atmos as atm
 import precipdat
-from indices import onset_WLH
+from indices import onset_WLH, onset_WLH_1D
 
 
 datadir = '/home/jennifer/datastore/cmap/'
@@ -23,17 +23,48 @@ yearmax = 1997
 # Calculate each year individually or use climatological precip
 climatology = True
 
-precip = precipdat.read_cmap(cmap_file, yearmin, yearmax)
-lat = atm.get_coord(precip, 'lat')
-lon = atm.get_coord(precip, 'lon')
+# Smoothing parameters
+kmax = 12
+kann = 4
+
+# Threshold for onset criteria
+threshold = 5.0
+
+cmap = precipdat.read_cmap(cmap_file, yearmin, yearmax)
+lat = atm.get_coord(cmap, 'lat')
+lon = atm.get_coord(cmap, 'lon')
 
 if climatology:
-    precip = precip.mean(dim='year')
+    precip = cmap.mean(dim='year')
     axis = 0
 else:
+    precip = cmap
     axis = 1
 
-dt = 5.0/365
+# Single grid point
+sz = 8
+lat0, lon0 = 11.25, 91.25
+latval, ilat0 = atm.find_closest(precip.lat, lat0)
+lonval, ilon0 = atm.find_closest(precip.lon, lon0)
+pcp = precip[:, ilat0, ilon0]
+pcp_sm = atm.fourier_smooth(pcp, kmax)
+pcp_ann = atm.fourier_smooth(pcp, kann)
+i_onset, i_retreat, i_peak = onset_WLH_1D(pcp_sm, threshold)
+i_onset = int(i_onset)
+i_retreat = int(i_retreat)
+i_peak = int(i_peak)
+plt.figure()
+plt.plot(pcp, color='grey', label='raw')
+plt.plot(pcp_ann, color='red', label='annual')
+plt.plot(pcp_sm, color='blue', label='smoothed')
+plt.plot(i_onset, pcp_sm[i_onset], 'bd', markersize=sz, label='onset')
+plt.plot(i_peak, pcp_sm[i_peak], 'r*', markersize=sz, label='peak')
+plt.plot(i_retreat, pcp_sm[i_retreat], 'go', markersize=sz, label='retreat')
+plt.grid()
+plt.legend()
+
+
+
 wlh = onset_WLH(precip, axis, dt)
 onset = wlh['onset']
 retreat = wlh['retreat']
@@ -44,9 +75,7 @@ precip_rel = wlh['precip_rel']
 
 # Check timeseries for single grid point
 #lat0, lon0 = 12.5, 90.0
-lat0, lon0 = 11.25, 91.25
-latval, ilat0 = atm.find_closest(precip.lat, lat0)
-lonval, ilon0 = atm.find_closest(precip.lon, lon0)
+
 
 pcp = precip[:, ilat0, ilon0]
 psm = precip_sm[:, ilat0, ilon0]

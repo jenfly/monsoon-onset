@@ -7,6 +7,54 @@ import pandas as pd
 import atmos as atm
 
 
+def onset_WLH_1D(precip_sm, threshold=5.0):
+    """Return monsoon onset index computed by Wang & LinHo 2002 method.
+
+    For a single pentad timeseries (e.g. one year of pentads at one grid
+    point).
+    Parameters
+    ----------
+    precip : 1-D array
+        Smoothed pentad precipitation data.
+    threshold : float, optional
+        Threshold for onset/withdrawal criteria.  Same units as precip.
+
+    Returns
+    -------
+    i_onset, i_retreat, i_peak : float
+        Index of monsoon onset, retreat and peak, or np.nan if data
+        does not fit the criteria for monsoon.
+    """
+    # January mean precip
+    weights = np.zeros(precip_sm.shape, dtype=float)
+    weights[:6] = 5.0 / 31
+    weights[6] = 1.0 / 31
+    precip_jan = np.mean(precip_sm * weights)
+
+    precip_rel = precip_sm - precip_jan
+
+    above = (precip_rel > threshold).any()
+    below = (precip_rel < threshold).any()
+    if not above or not below:
+        i_onset, i_retreat, i_peak = np.nan, np.nan, np.nan
+    else:
+        # Onset index is first pentad exceeding the threshold
+        i_onset = np.where(precip_rel > threshold)[0][0]
+
+        # Retreat index is first pentad after onset below the threshold
+        inds = np.where(precip_rel <= threshold)[0]
+        if len(inds) == 0:
+            i_retreat = np.nan
+        else:
+            ind2 = (inds > i_onset).argmax()
+            i_retreat = inds[ind2]
+
+        # Peak rainfall rate
+        i_peak = precip_rel.argmax()
+
+    return i_onset, i_retreat, i_peak
+
+
 def onset_WLH(precip, axis=1, dt=5.0/365, kann=4, kmax=12, threshold=5.0):
     """Return monsoon onset index computed by Wang & LinHo 2002 method.
 
