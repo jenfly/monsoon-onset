@@ -1,11 +1,16 @@
 from __future__ import division
+
+import sys
+sys.path.append('/home/jwalker/dynamics/python/atmos-tools')
+sys.path.append('/home/jwalker/dynamics/python/atmos-read')
+
 import xray
 import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt
 import pandas as pd
 import atmos as atm
-
+import precipdat
 
 def onset_WLH_1D(precip_sm, threshold=5.0):
     """Return monsoon onset index computed by Wang & LinHo 2002 method.
@@ -25,6 +30,11 @@ def onset_WLH_1D(precip_sm, threshold=5.0):
     i_onset, i_retreat, i_peak : float
         Pentad index of monsoon onset, retreat and peak, or np.nan if
         data does not fit the criteria for monsoon.  Indexed from 0.
+
+    Reference
+    ---------
+    Wang, B., & LinHo. (2002). Rainy Season of the Asian-Pacific
+        Summer Monsoon. Journal of Climate, 15(4), 386-398.
     """
     # January mean precip
     weights = np.zeros(precip_sm.shape, dtype=float)
@@ -56,11 +66,11 @@ def onset_WLH_1D(precip_sm, threshold=5.0):
     return i_onset, i_retreat, i_peak
 
 
+# ----------------------------------------------------------------------
 def onset_WLH(precip, axis=1, kmax=12, threshold=5.0):
     """Return monsoon onset index computed by Wang & LinHo 2002 method.
 
-
-    Smooths multi-dimensional pentad precipitation data and computes
+    Smoothes multi-dimensional pentad precipitation data and computes
     onset indices at each point.
 
     Parameters
@@ -80,25 +90,31 @@ def onset_WLH(precip, axis=1, kmax=12, threshold=5.0):
     output : dict
         Dict with the following fields:
           precip_sm : ndarray, smoothed precip data
+          Rsq : R-squared for smoothed data
           onset : ndarray, pentad index of onset
           retreat : ndarray, pentad index of retreat
           peak : ndarray, pentad index of peak rainfall
           smoothing_kmax, threshold : values used in computation
         Pentads are indexed 0-72.
+
+    Reference
+    ---------
+    Wang, B., & LinHo. (2002). Rainy Season of the Asian-Pacific
+        Summer Monsoon. Journal of Climate, 15(4), 386-398.
     """
     nmax = 4
     ndim = precip.ndim
     if ndim > nmax:
         raise ValueError('Too many dimensions in precip. Max %dD' % nmax)
-    if axis == 0:
-        precip = np.expand_dims(precip, 0)
-    elif axis != 1:
-        raise ValueError('Invalid axis %d. Must be 0 or 1.' % axis)
 
-    precip_fft = atm.Fourier(precip, axis=1)
-    precip_sm = precip_fft.smooth(kmax)
+    # Smooth with truncated Fourier series
+    precip_sm, Rsq = atm.fourier_smooth(precip, kmax, axis=axis)
 
     # Add singleton dimension for looping
+    if axis == 0:
+        precip_sm = np.expand_dims(precip_sm, 0)
+    elif axis != 1:
+        raise ValueError('Invalid axis %d. Must be 0 or 1.' % axis)
     while precip_sm.ndim < nmax:
         precip_sm = np.expand_dims(precip_sm, -1)
 
@@ -130,12 +146,12 @@ def onset_WLH(precip, axis=1, kmax=12, threshold=5.0):
             output[key] = atm.collapse(0, output[key])
     while onset.ndim > ndim:
         for key in output:
-            output[key] = atm.collapse(-1, output[key])
+            if key != 'Rsq':
+                output[key] = atm.collapse(-1, output[key])
 
-    # Add some metadata
+    # Some more data to output
+    output['Rsq'] = Rsq
     output['smoothing_kmax'] = kmax
     output['threshold'] = threshold
 
     return output
-
-# ----------------------------------------------------------------------
