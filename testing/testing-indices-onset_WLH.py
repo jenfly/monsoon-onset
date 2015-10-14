@@ -16,89 +16,120 @@ datadir = '/home/jennifer/datastore/cmap/'
 #datadir = '/home/jwalker/datastore/cmap/'
 cmap_file = datadir + 'cmap.precip.pentad.mean.nc'
 
-# Years to include
-yearmin = 1979
-yearmax = 1997
-
-# Calculate each year individually or use climatological precip
-climatology = True
-
-# Smoothing parameters
+# Smoothing parameters and threshold for onset criteria
 kmax = 12
 kann = 4
-
-# Threshold for onset criteria
 threshold = 5.0
 
-cmap = precipdat.read_cmap(cmap_file, yearmin, yearmax)
-lat = atm.get_coord(cmap, 'lat')
-lon = atm.get_coord(cmap, 'lon')
+def all_WLH(cmap_file, yearmin=None, yearmax=None, climatology=False,
+            kmax=12, threshold=5.0):
+    precip = precipdat.read_cmap(cmap_file, yearmin, yearmax)
+    lat = atm.get_coord(precip, 'lat')
+    lon = atm.get_coord(precip, 'lon')
+    years = precip.year
+    if climatology:
+        precip = precip.mean(dim='year')
+        axis = 0
+    else:
+        precip = cmap
+        axis = 1
+    wlh = onset_WLH(precip, axis)
+    wlh['precip'] = precip
+    wlh['lat'] = lat
+    wlh['lon'] = lon
+    wlh['years'] = years
+    wlh['climatology'] = climatology
+    return wlh
 
-if climatology:
-    precip = cmap.mean(dim='year')
-    axis = 0
-else:
-    precip = cmap
-    axis = 1
+def plot_all_WLH(wlh, y=0, axlims=(0,50,50,180), cmap='jet'):
+    onset = wlh['onset']
+    Rsq = wlh['Rsq']
+    lat = wlh['lat']
+    lon = wlh['lon']
+    kmax = wlh['smoothing_kmax']
+    years=wlh['years']
+    if wlh['climatology']:
+        titlestr = 'CMAP %d-%d Climatology' % (years.min(), years.max())
+    else:
+        onset = onset[y]
+        Rsq = wlh[y]
+        titlestr = 'CMAP %d' % years[0]
 
-# Single grid point
-sz = 8
-lat0, lon0 = 11.25, 91.25
-latval, ilat0 = atm.find_closest(precip.lat, lat0)
-lonval, ilon0 = atm.find_closest(precip.lon, lon0)
-pcp = precip[:, ilat0, ilon0]
-pcp_sm = atm.fourier_smooth(pcp, kmax)
-pcp_ann = atm.fourier_smooth(pcp, kann)
-i_onset, i_retreat, i_peak = onset_WLH_1D(pcp_sm, threshold)
-i_onset = int(i_onset)
-i_retreat = int(i_retreat)
-i_peak = int(i_peak)
-plt.figure()
-plt.plot(pcp, color='grey', label='raw')
-plt.plot(pcp_ann, color='red', label='annual')
-plt.plot(pcp_sm, color='blue', label='smoothed')
-plt.plot(i_onset, pcp_sm[i_onset], 'bd', markersize=sz, label='onset')
-plt.plot(i_peak, pcp_sm[i_peak], 'r*', markersize=sz, label='peak')
-plt.plot(i_retreat, pcp_sm[i_retreat], 'go', markersize=sz, label='retreat')
-plt.grid()
-plt.legend()
+    plt.figure(figsize=(10,8))
+    clev = np.arange(20, 60)
+    plt.subplot(211)
+    atm.contourf_latlon(onset, lat, lon, clev=clev, cmap=cmap,
+                        axlims=axlims, symmetric=False)
+    plt.title(titlestr + ' Onset Pentad')
+    plt.subplot(212)
+    clev = np.arange(0, 1.1, 0.025)
+    atm.contourf_latlon(Rsq, lat, lon, clev=clev, cmap=cmap, axlims=axlims,
+                        symmetric=False)
+    plt.title('$R^2$ for kmax = %d' % kmax)
 
+def single_WLH(cmap_file, yrmin, yrmax, lat0, lon0, loc_nm, kmax, kann):
+    # Single grid point and single year/climatology
+    precip = precipdat.read_cmap(cmap_file, yrmin, yrmax)
+    if yrmax > yrmin:
+        precip = precip.mean(axis=0)
+        titlestr = 'CMAP %d-%d' % (yrmin, yrmax)
+    else:
+        titlestr = 'CMAP %d' % yrmin
 
+    latval, ilat0 = atm.find_closest(precip.lat, lat0)
+    lonval, ilon0 = atm.find_closest(precip.lon, lon0)
+    latstr = atm.latlon_labels([latval], 'lat', '%.1f', deg_symbol=False)[0]
+    lonstr = atm.latlon_labels([lonval], 'lon', '%.1f', deg_symbol=False)[0]
+    titlestr = '%s %s (%s, %s)' % (titlestr, loc_nm, latstr, lonstr)
 
-wlh = onset_WLH(precip, axis)
-onset = wlh['onset']
-retreat = wlh['retreat']
-peak = wlh['peak']
-precip_sm = wlh['precip_sm']
+    pcp = precip[:, ilat0, ilon0]
+    pcp_sm, Rsq = atm.fourier_smooth(pcp, kmax)
+    pcp_ann, Rsq_ann = atm.fourier_smooth(pcp, kann)
+    i_onset, i_retreat, i_peak = onset_WLH_1D(pcp_sm, threshold)
+    i_onset = int(i_onset)
+    i_retreat = int(i_retreat)
+    i_peak = int(i_peak)
 
+    sz = 8
+    fnt = 8
+    loc = 'upper left'
+    label_ann = 'kmax=%d, $R^2$=%.2f' % (kann, Rsq_ann)
+    label = 'kmax=%d, $R^2$=%.2f' % (kmax, Rsq)
+    plt.plot(pcp, color='grey', label='unsmoothed')
+    plt.plot(pcp_ann, 'k--', label=label_ann)
+    plt.plot(pcp_sm, 'k', linewidth=2, label=label)
+    plt.plot(i_onset, pcp_sm[i_onset], 'ro', markersize=sz)
+    plt.plot(i_peak, pcp_sm[i_peak], 'ro', markersize=sz)
+    plt.plot(i_retreat, pcp_sm[i_retreat], 'ro', markersize=sz)
+    plt.grid()
+    plt.legend(loc=loc, fontsize=fnt)
+    plt.title(titlestr, fontsize=fnt+2)
+    plt.xlim(0, 72)
 
-plt.figure()
-clev = np.arange(20, 60)
-atm.contourf_latlon(onset, lat, lon, clev=clev, cmap='jet',
-                    axlims=(0,50,50,180), symmetric=False)
-
+    return pcp, pcp_sm, pcp_ann, Rsq, Rsq_ann, i_onset, i_retreat, i_peak
 
 
 # ----------------------------------------------------------------------
-# Test with multi-dim data
+# Compare 1979-1997 climatology with Wang and LinHo
+yrmin, yrmax = 1979, 1997
+climatology = True
+wlh = all_WLH(cmap_file, yrmin, yrmax, climatology, kmax, threshold)
+plot_all_WLH(wlh)
 
-# cmap = ds['precip']
-# npentad = 73 # pentads/year
-# dt = 5.0/365
-# nyears = 1
-# precip = cmap[:nyears*npentad]
-# y = precip.values
-# ntrunc = 12
-# nharm = 3
-#
-# spec1 = Fourier(y, dt, axis=0)
-# print(spec1)
-#
-# # Extract one grid point
-# spec1.tseries = spec1.tseries[:, ilat0, ilon0]
-# spec1.C_k = spec1.C_k[:, ilat0, ilon0]
-# spec1.ps_k = spec1.ps_k[:, ilat0, ilon0]
-# print(spec1)
-#
-# spec1 = test_fourier(spec1, ntrunc)
-# plot_fourier(spec1, nharm, ntrunc)
+d = 1.25
+pts =[('Arabian Sea', 12.5-d, 70-d),
+      ('Bay of Bengal', 12.5-d, 90-d),
+      ('South China Sea', 12.5-d, 115-d),
+      ('Western North Pacific', 15-d, 140-d)]
+plt.figure(figsize=(8,10))
+for i, pt in enumerate(pts):
+    plt.subplot(4, 1, i+1)
+    loc_nm, lat0, lon0 = pt
+    single_WLH(cmap_file, yrmin, yrmax, lat0, lon0, loc_nm, kmax, kann)
+    if i < 3:
+        plt.xticks(np.arange(0, 72, 10), [])
+    else:
+        plt.xlabel('Pentad')
+
+# ----------------------------------------------------------------------
+# Individual years
