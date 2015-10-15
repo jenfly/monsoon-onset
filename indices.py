@@ -12,7 +12,7 @@ import pandas as pd
 import atmos as atm
 import precipdat
 
-def onset_WLH_1D(precip_sm, threshold=5.0):
+def onset_WLH_1D(precip_sm, threshold=5.0, onset_min=20):
     """Return monsoon onset index computed by Wang & LinHo 2002 method.
 
     For a single pentad timeseries (e.g. one year of pentads at one grid
@@ -24,6 +24,8 @@ def onset_WLH_1D(precip_sm, threshold=5.0):
         Smoothed pentad precipitation data.
     threshold : float, optional
         Threshold for onset/withdrawal criteria.  Same units as precip.
+    onset_min: int, optional
+        Minimum pentad index allowed for onset.
 
     Returns
     -------
@@ -43,31 +45,34 @@ def onset_WLH_1D(precip_sm, threshold=5.0):
     precip_jan = np.mean(precip_sm * weights)
 
     precip_rel = precip_sm - precip_jan
+    pentads = np.arange(len(precip_sm))
 
-    above = (precip_rel > threshold).any()
-    below = (precip_rel < threshold).any()
-    if not above or not below:
+    above = (precip_rel > threshold) & (pentads >= onset_min)
+    below = (precip_rel < threshold) & (pentads >= onset_min)
+    if not above.any() or not below.any():
         i_onset, i_retreat, i_peak = np.nan, np.nan, np.nan
     else:
         # Onset index is first pentad exceeding the threshold
-        i_onset = np.where(precip_rel > threshold)[0][0]
+        i_onset = np.where(above)[0][0]
 
-        # Retreat index is first pentad after onset below the threshold
-        inds = np.where(precip_rel <= threshold)[0]
+        # Peak rainfall rate
+        i_peak = precip_rel.argmax()
+
+        # Retreat index is first pentad after peak below the threshold
+        inds = np.where((precip_rel < threshold) & (pentads > i_peak))[0]
         if len(inds) == 0:
             i_retreat = np.nan
         else:
             ind2 = (inds > i_onset).argmax()
             i_retreat = inds[ind2]
 
-        # Peak rainfall rate
-        i_peak = precip_rel.argmax()
+
 
     return i_onset, i_retreat, i_peak
 
 
 # ----------------------------------------------------------------------
-def onset_WLH(precip, axis=1, kmax=12, threshold=5.0):
+def onset_WLH(precip, axis=1, kmax=12, threshold=5.0, onset_min=20):
     """Return monsoon onset index computed by Wang & LinHo 2002 method.
 
     Smoothes multi-dimensional pentad precipitation data and computes
@@ -84,6 +89,8 @@ def onset_WLH(precip, axis=1, kmax=12, threshold=5.0):
         Maximum Fourier harmonic for smoothing the input data.
     threshold : float, optional
         Threshold for onset/withdrawal criteria.  Same units as precip.
+    onset_min: int, optional
+        Minimum pentad index allowed for onset.
 
     Returns
     -------
@@ -128,7 +135,7 @@ def onset_WLH(precip, axis=1, kmax=12, threshold=5.0):
     for y in range(dims[0]):
         for i in range(dims[2]):
             for j in range(dims[3]):
-                inds = onset_WLH_1D(precip_sm[y,:,i,j], threshold)
+                inds = onset_WLH_1D(precip_sm[y,:,i,j], threshold, onset_min)
                 onset[y,i,j] = inds[0]
                 retreat[y,i,j] = inds[1]
                 peak[y,i,j] = inds[2]

@@ -14,13 +14,8 @@ from indices import onset_WLH, onset_WLH_1D
 datadir = atm.homedir() + 'datastore/cmap/'
 cmap_file = datadir + 'cmap.precip.pentad.mean.nc'
 
-# Smoothing parameters and threshold for onset criteria
-kmax = 12
-kann = 4
-threshold = 5.0
-
 def all_WLH(cmap_file, yearmin=None, yearmax=None, climatology=False,
-            kmax=12, threshold=5.0):
+            kmax=12, threshold=5.0, onset_min=20):
     precip = precipdat.read_cmap(cmap_file, yearmin, yearmax)
     lat = atm.get_coord(precip, 'lat')
     lon = atm.get_coord(precip, 'lon')
@@ -30,7 +25,7 @@ def all_WLH(cmap_file, yearmin=None, yearmax=None, climatology=False,
         axis = 0
     else:
         axis = 1
-    wlh = onset_WLH(precip, axis)
+    wlh = onset_WLH(precip, axis, kmax, threshold, onset_min)
     wlh['precip'] = precip
     wlh['lat'] = lat
     wlh['lon'] = lon
@@ -38,7 +33,7 @@ def all_WLH(cmap_file, yearmin=None, yearmax=None, climatology=False,
     wlh['climatology'] = climatology
     return wlh
 
-def plot_all_WLH(wlh, y=0, axlims=(0,50,50,180), cmap='jet'):
+def plot_all_WLH(wlh, y=0, axlims=(0,50,50,180), cmap='jet', clines=True):
     onset = wlh['onset']
     Rsq = wlh['Rsq']
     lat = wlh['lat']
@@ -50,12 +45,12 @@ def plot_all_WLH(wlh, y=0, axlims=(0,50,50,180), cmap='jet'):
     else:
         onset = onset[y]
         Rsq = Rsq[y]
-        titlestr = 'CMAP %d' % years[0]
+        titlestr = 'CMAP %d' % years[y]
 
     # Note:  add 1 to pentad indices to index from 1-73 for comparison
     # with Wang & LinHo
     onset = onset + 1
-    
+
     # Calculate onset dates from pentads
     nlat, nlon = onset.shape
     onset_date = np.nan * np.ones((nlat, nlon))
@@ -64,29 +59,40 @@ def plot_all_WLH(wlh, y=0, axlims=(0,50,50,180), cmap='jet'):
             jday = atm.pentad_to_jday(onset[i, j], pmin=1)
             mon, day = atm.jday_to_mmdd(jday)
             onset_date[i, j] = 100*mon + day
-    clev_date = [501, 511, 521, 601, 611, 621, 701, 711, 721]
+    # -- Smooth with cubic spline
+    # lat_i = np.arange(-89.5, 90, 0.5)
+    # lon_i = np.arange(0, 360, 0.5)
+    lat_i = np.arange(-90, 90, 4.)
+    lon_i = np.arange(0, 360, 4.)
+    onset_date = atm.interp_latlon(onset_date, lat_i, lon_i, lat, lon, order=3)
+    clev_date = [501, 511, 521, 601, 611, 621, 701, 711]
     clev_label = {}
     for d in clev_date:
         clev_label[d] = '%02d-%02d' % (d//100, d%100)
-    
+
     # Plot maps
-    plt.figure(figsize=(10,8))
-    clev = np.arange(20, 60)
+    manual = True
+    plt.figure(figsize=(14,10))
+    cmin, cmax = 20, 55
     plt.subplot(211)
-    atm.contourf_latlon(onset, lat, lon, clev=clev, cmap=cmap,
-                        axlims=axlims, symmetric=False)
-    _, cs = atm.contour_latlon(onset_date, lat, lon, clev=clev_date,
-                               axlims=axlims)
-    plt.clabel(cs, clev_date, fmt=clev_label, manual=True)
-    plt.title(titlestr + ' Onset Pentad & Day')
-    
+    _, pc = atm.pcolor_latlon(onset, lat, lon, cmap=cmap, axlims=axlims)
+    pc.set_clim(cmin, cmax)
+    if clines:
+        _, cs = atm.contour_latlon(onset_date, lat_i, lon_i, clev=clev_date,
+                                   axlims=axlims)
+        plt.clabel(cs, clev_date, fmt=clev_label, manual=manual)
+        plt.title(titlestr + ' Onset Pentad & Day')
+    else:
+        plt.title(titlestr + ' Onset Pentad')
+
     plt.subplot(212)
     clev = np.arange(0, 1.1, 0.025)
-    atm.contourf_latlon(Rsq, lat, lon, clev=clev, cmap=cmap, axlims=axlims,
-                        symmetric=False)
+    _, pc = atm.pcolor_latlon(Rsq, lat, lon, cmap=cmap, axlims=axlims)
+    pc.set_clim(0., 1.)
     plt.title('$R^2$ for kmax = %d' % kmax)
 
-def single_WLH(cmap_file, yrmin, yrmax, lat0, lon0, loc_nm, kmax, kann):
+def single_WLH(cmap_file, yrmin, yrmax, lat0, lon0, loc_nm, kmax, kann,
+               onset_min=20):
     # Single grid point and single year/climatology
     precip = precipdat.read_cmap(cmap_file, yrmin, yrmax)
     if yrmax > yrmin:
@@ -106,7 +112,7 @@ def single_WLH(cmap_file, yrmin, yrmax, lat0, lon0, loc_nm, kmax, kann):
     pcp = precip[:, ilat0, ilon0]
     pcp_sm, Rsq = atm.fourier_smooth(pcp, kmax)
     pcp_ann, Rsq_ann = atm.fourier_smooth(pcp, kann)
-    i_onset, i_retreat, i_peak = onset_WLH_1D(pcp_sm, threshold)
+    i_onset, i_retreat, i_peak = onset_WLH_1D(pcp_sm, threshold, onset_min)
     i_onset = int(i_onset)
     i_retreat = int(i_retreat)
     i_peak = int(i_peak)
@@ -137,6 +143,12 @@ def single_WLH(cmap_file, yrmin, yrmax, lat0, lon0, loc_nm, kmax, kann):
 # Compare 1979-1997 climatology with Wang and LinHo
 yrmin, yrmax = 1979, 1997
 climatology = True
+
+# Smoothing parameters and threshold for onset criteria
+kmax = 12
+kann = 4
+threshold = 5.0
+
 wlh = all_WLH(cmap_file, yrmin, yrmax, climatology, kmax, threshold)
 plot_all_WLH(wlh)
 
@@ -163,11 +175,17 @@ for i, pt in enumerate(pts):
 
 yrmin, yrmax = None, None
 climatology = False
+
+# Smoothing parameters and threshold for onset criteria
+kmax = 12
+kann = 4
+threshold = 5.0
+
 wlh = all_WLH(cmap_file, yrmin, yrmax, climatology, kmax, threshold)
 
 y = 35 # Index of year to plot
 years = wlh['years']
-plot_all_WLH(wlh)
+plot_all_WLH(wlh, y, clines=False)
 
 ylim1, ylim2 = -10, 50
 yticks = np.arange(-10, 51, 10)
