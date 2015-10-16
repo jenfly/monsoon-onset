@@ -71,7 +71,7 @@ def plot_all_WLH(wlh, y=0, axlims=(0,50,50,180), cmap='jet', clines=True):
         clev_label[d] = '%02d-%02d' % (d//100, d%100)
 
     # Plot maps
-    manual = True
+    manual = False
     plt.figure(figsize=(14,10))
     cmin, cmax = 20, 55
     plt.subplot(211)
@@ -113,9 +113,6 @@ def single_WLH(cmap_file, yrmin, yrmax, lat0, lon0, loc_nm, kmax, kann,
     pcp_sm, Rsq = atm.fourier_smooth(pcp, kmax)
     pcp_ann, Rsq_ann = atm.fourier_smooth(pcp, kann)
     i_onset, i_retreat, i_peak = onset_WLH_1D(pcp_sm, threshold, onset_min)
-    i_onset = int(i_onset)
-    i_retreat = int(i_retreat)
-    i_peak = int(i_peak)
 
     # Note:  add 1 to pentad indices to index from 1-73 for comparison
     # with Wang & LinHo
@@ -128,9 +125,10 @@ def single_WLH(cmap_file, yrmin, yrmax, lat0, lon0, loc_nm, kmax, kann,
     plt.plot(x, pcp, color='grey', label='unsmoothed')
     plt.plot(x, pcp_ann, 'k--', label=label_ann)
     plt.plot(x, pcp_sm, 'k', linewidth=2, label=label)
-    plt.plot(i_onset+1, pcp_sm[i_onset], 'ro', markersize=sz)
-    plt.plot(i_peak+1, pcp_sm[i_peak], 'ro', markersize=sz)
-    plt.plot(i_retreat+1, pcp_sm[i_retreat], 'ro', markersize=sz)
+    for ind in [i_onset, i_peak, i_retreat]:
+        if not np.isnan(ind):
+            ind = int(ind)
+            plt.plot(ind + 1, pcp_sm[ind], 'ro', markersize=sz)
     plt.grid()
     plt.legend(loc=loc, fontsize=fnt)
     plt.title(titlestr, fontsize=fnt+2)
@@ -140,8 +138,10 @@ def single_WLH(cmap_file, yrmin, yrmax, lat0, lon0, loc_nm, kmax, kann,
 
 
 # ----------------------------------------------------------------------
-# Compare 1979-1997 climatology with Wang and LinHo
-yrmin, yrmax = 1979, 1997
+# Compare climatology with Wang and LinHo
+
+yrmin, yrmax = 1979, 2014
+#yrmin, yrmax = 1979, 1997
 climatology = True
 
 # Smoothing parameters and threshold for onset criteria
