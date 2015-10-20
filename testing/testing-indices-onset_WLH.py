@@ -91,6 +91,28 @@ def plot_all_WLH(wlh, y=0, axlims=(0,50,50,180), cmap='jet', clines=True):
     pc.set_clim(0., 1.)
     plt.title('$R^2$ for kmax = %d' % kmax)
 
+
+def plot_single_WLH(pcp, pcp_sm, pcp_ann, Rsq, Rsq_ann, i_onset, i_retreat, i_peak, kmax, kann, titlestr)
+    # Note:  add 1 to pentad indices to index from 1-73 for comparison
+    # with Wang & LinHo
+    sz = 8
+    fnt = 8
+    loc = 'upper left'
+    label_ann = 'kmax=%d, $R^2$=%.2f' % (kann, Rsq_ann)
+    label = 'kmax=%d, $R^2$=%.2f' % (kmax, Rsq)
+    x = np.arange(1, 74)
+    plt.plot(x, pcp, color='grey', label='unsmoothed')
+    plt.plot(x, pcp_ann, 'k--', label=label_ann)
+    plt.plot(x, pcp_sm, 'k', linewidth=2, label=label)
+    for ind in [i_onset, i_peak, i_retreat]:
+        if not np.isnan(ind):
+            ind = int(ind)
+            plt.plot(ind + 1, pcp_sm[ind], 'ro', markersize=sz)
+    plt.grid()
+    plt.legend(loc=loc, fontsize=fnt)
+    plt.title(titlestr, fontsize=fnt+2)
+    plt.xlim(0, 74)
+
 def single_WLH(cmap_file, yrmin, yrmax, lat0, lon0, loc_nm, kmax, kann,
                onset_min=20):
     # Single grid point and single year/climatology
@@ -114,25 +136,7 @@ def single_WLH(cmap_file, yrmin, yrmax, lat0, lon0, loc_nm, kmax, kann,
     pcp_ann, Rsq_ann = atm.fourier_smooth(pcp, kann)
     i_onset, i_retreat, i_peak = onset_WLH_1D(pcp_sm, threshold, onset_min)
 
-    # Note:  add 1 to pentad indices to index from 1-73 for comparison
-    # with Wang & LinHo
-    sz = 8
-    fnt = 8
-    loc = 'upper left'
-    label_ann = 'kmax=%d, $R^2$=%.2f' % (kann, Rsq_ann)
-    label = 'kmax=%d, $R^2$=%.2f' % (kmax, Rsq)
-    x = np.arange(1, 74)
-    plt.plot(x, pcp, color='grey', label='unsmoothed')
-    plt.plot(x, pcp_ann, 'k--', label=label_ann)
-    plt.plot(x, pcp_sm, 'k', linewidth=2, label=label)
-    for ind in [i_onset, i_peak, i_retreat]:
-        if not np.isnan(ind):
-            ind = int(ind)
-            plt.plot(ind + 1, pcp_sm[ind], 'ro', markersize=sz)
-    plt.grid()
-    plt.legend(loc=loc, fontsize=fnt)
-    plt.title(titlestr, fontsize=fnt+2)
-    plt.xlim(0, 74)
+    plot_single_WLH(pcp, pcp_sm, pcp_ann, Rsq, Rsq_ann, i_onset, i_retreat, i_peak, kmax, kann, titlestr)
 
     return pcp, pcp_sm, pcp_ann, Rsq, Rsq_ann, i_onset, i_retreat, i_peak
 
@@ -202,6 +206,38 @@ for i, pt in enumerate(pts):
     plt.ylim(ylim1, ylim2)
     plt.yticks(yticks)
     if i < 3:
+        plt.xticks(np.arange(0, 74, 4), [])
+    else:
+        plt.xticks(np.arange(0, 74, 4))
+        plt.xlabel('Pentad')
+
+# ----------------------------------------------------------------------
+# Average over box
+lon1, lon2 = 60, 100
+lat1, lat2 = 10, 30
+precip = precipdat.read_cmap(cmap_file)
+
+precipbar = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)
+nyears, npentad = precipbar.shape
+years = precipbar.year
+pentads = precipbar.pentad
+
+pcp_sm, Rsq = atm.fourier_smooth(precipbar, kmax)
+pcp_ann, Rsq_ann = atm.fourier_smooth(precipbar, kann)
+i_onset = np.zeros(nyears)
+i_retreat = np.zeros(nyears)
+i_peak = np.zeros(nyears)
+for y, year in enumerate(years):
+    i_onset[y], i_retreat[y], i_peak[y] = onset_WLH_1D(pcp_sm[y])
+
+iplot = 0
+for y, yr in enumerate(years):
+    if y % 4 == 0:
+        plt.figure(figsize=(8, 10))
+    iplot = y % 4 + 1
+    plt.subplot(4, 1, iplot)
+    plot_single_WLH(precipbar[y], pcp_sm[y], pcp_ann[y], Rsq[y], Rsq_ann[y], i_onset[y], i_retreat[y], i_peak[y], kmax, kann, yr)
+    if iplot < 4:
         plt.xticks(np.arange(0, 74, 4), [])
     else:
         plt.xticks(np.arange(0, 74, 4))
