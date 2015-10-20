@@ -18,6 +18,7 @@ def slice_premidpost(imid, n):
     inds['post'] = slice(imid + n2, imid + n2 + n)
     return inds
 
+
 def composite_premidpost(data, onset, n):
     dims = list(data.shape)
     dims[1] = n
