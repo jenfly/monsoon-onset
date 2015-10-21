@@ -92,7 +92,8 @@ def plot_all_WLH(wlh, y=0, axlims=(0,50,50,180), cmap='jet', clines=True):
     plt.title('$R^2$ for kmax = %d' % kmax)
 
 
-def plot_single_WLH(pcp, pcp_sm, pcp_ann, Rsq, Rsq_ann, i_onset, i_retreat, i_peak, kmax, kann, titlestr)
+def plot_single_WLH(pcp, pcp_sm, pcp_ann, Rsq, Rsq_ann, i_onset, i_retreat,
+                    i_peak, kmax, kann, titlestr):
     # Note:  add 1 to pentad indices to index from 1-73 for comparison
     # with Wang & LinHo
     sz = 8
@@ -219,7 +220,7 @@ precip = precipdat.read_cmap(cmap_file)
 
 precipbar = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)
 nyears, npentad = precipbar.shape
-years = precipbar.year
+years = precipbar.year.values
 pentads = precipbar.pentad
 
 pcp_sm, Rsq = atm.fourier_smooth(precipbar, kmax)
@@ -231,12 +232,13 @@ for y, year in enumerate(years):
     i_onset[y], i_retreat[y], i_peak[y] = onset_WLH_1D(pcp_sm[y])
 
 iplot = 0
-for y, yr in enumerate(years):
+for y in range(len(years)):
     if y % 4 == 0:
         plt.figure(figsize=(8, 10))
     iplot = y % 4 + 1
     plt.subplot(4, 1, iplot)
-    plot_single_WLH(precipbar[y], pcp_sm[y], pcp_ann[y], Rsq[y], Rsq_ann[y], i_onset[y], i_retreat[y], i_peak[y], kmax, kann, yr)
+    plot_single_WLH(precipbar[y], pcp_sm[y], pcp_ann[y], Rsq[y], Rsq_ann[y],
+        i_onset[y], i_retreat[y], i_peak[y], kmax, kann, years[y])
     if iplot < 4:
         plt.xticks(np.arange(0, 74, 4), [])
     else:
