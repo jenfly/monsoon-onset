@@ -42,11 +42,13 @@ def onset_WLH_1D(precip_sm, threshold=5.0, onset_min=20):
     weights = np.zeros(precip_sm.shape, dtype=float)
     weights[:6] = 5.0 / 31
     weights[6] = 1.0 / 31
+    weights = np.ma.masked_array(weights, np.isnan(precip_sm))
+    weights = weights / np.sum(weights)
     precip_jan = np.mean(precip_sm * weights)
-
     precip_rel = precip_sm - precip_jan
-    pentads = np.arange(len(precip_sm))
+    precip_rel = np.ma.masked_array(precip_rel, np.isnan(precip_rel))
 
+    pentads = np.arange(len(precip_sm))
     above = (precip_rel > threshold) & (pentads >= onset_min)
     below = (precip_rel < threshold) & (pentads >= onset_min)
     if not above.any() or not below.any():
@@ -65,8 +67,6 @@ def onset_WLH_1D(precip_sm, threshold=5.0, onset_min=20):
         else:
             ind2 = (inds > i_onset).argmax()
             i_retreat = inds[ind2]
-
-
 
     return i_onset, i_retreat, i_peak
 
