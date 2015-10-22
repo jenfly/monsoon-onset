@@ -86,6 +86,7 @@ precip = precipdat.read_cmap(cmap_file)
 precipbar = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)
 nyears, npentad = precipbar.shape
 years = precipbar.year.values
+nyears = len(years)
 pentads = precipbar.pentad
 onset = {}
 
@@ -95,7 +96,7 @@ kann = 4
 pcp_sm, Rsq = atm.fourier_smooth(precipbar, kmax)
 pcp_ann, Rsq_ann = atm.fourier_smooth(precipbar, kann)
 label_sm, label_ann = [], []
-for y, year in enumerate(years):
+for y in range(nyears):
     label_sm.append('kmax=%d, $R^2$=%.2f' % (kmax, Rsq[y]))
     label_ann.append('kmax=%d, $R^2$=%.2f' % (kann, Rsq_ann[y]))
 
@@ -103,13 +104,13 @@ i_onset, i_retreat, i_peak = get_onset(years, pcp_sm)
 
 plot_years(years, precipbar, pcp_sm, label_sm, i_onset, i_peak, i_retreat,
             titlestr, pcp_ann, label_ann)
-onset['fourier'] = i_onset + 1
+onset['fourier'] = i_onset
 
 # Smooth with rolling mean
 nroll = 4
 pcp_sm = np.zeros(precipbar.shape)
 label_sm = []
-for y in range(len(years)):
+for y in range(nyears):
     pcp_sm[y] = pd.rolling_mean(precipbar[y].values, nroll)
     label_sm.append('%d-pentad rolling' % nroll)
 
@@ -117,10 +118,57 @@ i_onset, i_retreat, i_peak = get_onset(years, pcp_sm)
 
 plot_years(years, precipbar, pcp_sm, label_sm, i_onset, i_peak, i_retreat,
             titlestr)
-onset['rolling'] = i_onset + 1
+onset['rolling'] = i_onset
 
+# Compare the smoothing methods
+plt.figure(figsize=(8,10))
+plt.subplot(311)
+plt.scatter(years, onset['fourier'])
+plt.title('Fourier smoothing kmax=%d' % kmax)
+plt.xlabel('Year')
+plt.ylabel('Onset Index')
+plt.subplot(312)
+plt.scatter(years, onset['rolling'])
+plt.title('Smoothing with %d-pentad rolling mean' % nroll)
+plt.xlabel('Year')
+plt.ylabel('Onset Index')
+plt.subplot(313)
+plt.scatter(onset['fourier'], onset['rolling'])
+plt.xlabel('Onset from Fourier smoothing')
+plt.ylabel('Onset from rolling mean smoothing')
 
+# ----------------------------------------------------------------------
+# Convert onset index from pentad to day of year
+p_onset = onset['fourier']
+# d_onset = np.zeros(nyears)
+# for y in range(nyears):
+#     d_onset[y] = atm.pentad_to_jday(p_onset[y], pmin=1)
 
+ncomp = 10
+inds = slice_premidpost(p_onset, ncomp)
 
-plt.figure()
-plt.scatter(years, i_onset)
+comp = {}
+for y, yr in enumerate(years):
+    pre = precip[y, inds['pre'][y]].mean(axis=0)
+    ons = precip[y, inds['mid'][y]].mean(axis=0)
+    post = precip[y, inds['post'][y]].mean(axis=0)
+    if y == 0:
+        comp['pre-onset'] = pre
+        comp['onset'] = ons
+        comp['post-onset'] = post
+    else:
+        comp['pre-onset'] = xray.concat((comp['pre-onset'], pre), dim='year')
+        comp['onset'] = xray.concat((comp['onset'], ons), dim='year')
+        comp['post-onset'] = xray.concat((comp['post-onset'], post),
+                                          dim='year')
+
+cmap = 'hot_r'
+clim1, clim2 = 0, 20
+iplot = 1
+plt.figure(figsize=(7,10))
+for key in ['pre-onset', 'onset', 'post-onset']:
+    plt.subplot(3, 1, iplot)
+    _, pc = atm.pcolor_latlon(comp[key].mean(axis=0), cmap=cmap)
+    pc.set_clim(clim1, clim2)
+    plt.title(key)
+    iplot += 1
