@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import atmos as atm
 import precipdat
+import merra
 from indices import onset_WLH, onset_WLH_1D
 
 datadir = atm.homedir() + 'datastore/cmap/'
