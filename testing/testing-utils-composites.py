@@ -11,7 +11,7 @@ import atmos as atm
 import precipdat
 import merra
 import indices
-from utils import slice_premidpost, composite_premidpost
+from utils import days_premidpost, composite_premidpost
 
 
 # ----------------------------------------------------------------------
@@ -43,40 +43,38 @@ d_onset = np.zeros(nyears)
 for y in range(nyears):
     d_onset[y] = atm.pentad_to_jday(p_onset[y], pmin=0)
 
-# Index days from zero
-i_onset = d_onset - 1
-
 # ----------------------------------------------------------------------
 # Read daily mean MERRA data
 
-def add_yeardim(data, year):
-    name, attrs, coords, dims = atm.meta(data)
-    vals = data.values
-    vals = np.expand_dims(vals, 0)
-    coords = atm.odict_insert(coords, 'Year', yr)
-    #dims = ['Year'] + list(dims)
-    data_out = xray.DataArray(vals, name=name, attrs=attrs,coords=coords)
-    return data_out
-
 datadir = atm.homedir() + 'datastore/merra/daily/'
 filestr = datadir + 'merra_uv200_40E-120E_60S-60N_%d.nc'
+files = []
+for yr in years:
+    files.append(filestr % yr)
 
-ndays = 10
-varlist = ['U', 'V', 'Ro']
-comp = {}
-for y, yr in enumerate(years):
-    filn = filestr % yr
-    print('Loading ' + filn)
-    with xray.open_dataset(filn) as ds:
-        for varnm in varlist:
-            print(varnm)
-            var = ds[varnm]
-            var.coords['Year'] = yr
-            comp_in = composite_premidpost(var, d_onset[y], ndays)
-            if y == 0:
-                comp[varnm] = comp_in
-            else:
-                for key in comp_in:
-                    comp[varnm] = xray.concat((comp[varnm][key], comp_in[key]),
-                                              dim='Year')
-print('Done!')
+ds = atm.combine_daily_years(['U', 'V', 'Ro'], files, years)
+u = ds['U']
+v = ds['V']
+Ro = ds['Ro']
+
+
+
+# ndays = 10
+# varlist = ['U', 'V', 'Ro']
+# comp = {}
+# for y, yr in enumerate(years):
+#     filn = filestr % yr
+#     print('Loading ' + filn)
+#     with xray.open_dataset(filn) as ds:
+#         for varnm in varlist:
+#             print(varnm)
+#             var = ds[varnm]
+#             var.coords['Year'] = yr
+#             comp_in = composite_premidpost(var, d_onset[y], ndays)
+#             if y == 0:
+#                 comp[varnm] = comp_in
+#             else:
+#                 for key in comp_in:
+#                     comp[varnm] = xray.concat((comp[varnm][key], comp_in[key]),
+#                                               dim='Year')
+# print('Done!')

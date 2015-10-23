@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 import atmos as atm
 import merra
 
+# ----------------------------------------------------------------------
+
 #datadir = '/home/jennifer/datastore/merra/daily/'
 datadir = '/home/jwalker/eady/datastore/merra/daily/'
 filestr = 'merra_uv200_40E-120E_60S-60N_'
@@ -61,15 +63,15 @@ def plot_timeseries_year(dsbar, year, nroll=None):
     plt.figure(figsize=(12, 9))
     plt.suptitle(year)
     for nm in dsbar.data_vars:
-        var = dsbar[nm].sel(Year=year)        
+        var = dsbar[nm].sel(Year=year)
         plt.subplot(2, 2, iplot[nm])
         plt.plot(var.Day, var, color='gray')
         if nroll is not None:
             data = pd.rolling_mean(np.squeeze(var.values), nroll)
             plt.plot(var.Day, data, color='black')
         plt.title(nm)
-    
-       
+
+
 # ----------------------------------------------------------------------
 
 dsbar = timeseries_allyears(pathstr, years, lat1, lat2, lon1, lon2)
