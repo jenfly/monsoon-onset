@@ -10,48 +10,41 @@ import atmos as atm
 import merra
 
 # ----------------------------------------------------------------------
-def slice_premidpost(imid, n):
-    """Return slices to index for pre, mid, and post composites.
+def days_premidpost(dmid, n):
+    """Return days of year for pre, mid, and post-onset composites.
 
     Parameters
     ----------
-    imid : int or list of ints
-        Mid-point index of range to define composites.
+    dmid : int
+        Day of year of monsoon onset.
     n : int
-        Size of range to define composites.
+        Size of range (number of days) to define composites.
 
     Returns
     -------
-    inds : dict of slices (or lists of slices)
-        For each i in imid, the slices are:
-          'pre' : slice(i - n1 - n, i - n1)
-          'mid' : slice(i - n1, i + n2)
-          'post' : slice(i + n2, i + n2 + n)
-        where n1 = n // 2 and n2 = n-n1
+    days : dict of arrays
+        Keys are 'pre', 'mid', and 'post'.  Values are arrays of days
+        for each composite.
     """
 
     n1 = n // 2
     n2 = n - n1
-    inds = {'pre' : [], 'mid' : [], 'post' : []}
-    for i in atm.makelist(imid):
-        i0 = int(i - n1 - n)
-        i1 = int(i - n1)
-        i2 = int(i + n2)
-        i3 = int(i + n2 + n)
-        inds['pre'].append(slice(i0, i1))
-        inds['mid'].append(slice(i1, i2))
-        inds['post'].append(slice(i2, i3))
 
-    # Collapse lists if input imid was a single value
-    if len(atm.makelist(imid)) == 1:
-        for key in inds:
-            inds[key] = inds[key][0]
+    d0 = int(dmid - n1 - n)
+    d1 = int(dmid - n1)
+    d2 = int(dmid + n2)
+    d3 = int(dmid + n2 + n)
 
-    return inds
+    days = {}
+    days['pre'] = np.arange(d0, d1)
+    days['mid'] = np.arange(d1, d2)
+    days['post'] = np.arange(d2, d3)
+
+    return days
 
 
 # ----------------------------------------------------------------------
-def composite_premidpost(data, onset, n):
+def composite_premidpost(data, i_onset, n):
     """Return composite data fields relative to onset index.
 
     """
@@ -65,8 +58,8 @@ def composite_premidpost(data, onset, n):
     comp['mid'] = np.zeros(dims, dtype=float)
     comp['post'] = np.zeros(dims, dtype=float)
 
-    for y, d in enumerate(onset):
-        inds = slice_premidpost(d - 1, n)
+    for y, i in enumerate(i_onset):
+        inds = slice_premidpost(i, n)
         for key in comp:
             comp[key][y] = data[y, inds[key]]
     for key in comp:
