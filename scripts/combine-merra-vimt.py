@@ -27,10 +27,8 @@ def savefile(datadir, years, months, pmin):
     filn = filn % (pmin/100, mon1, mon2, yr1, yr2)
     return filn
 
-# years = range(1979, 2015)
-# months = [5, 6, 7, 8, 9]
-years = range(1979, 2004)
-months = [5, 6, 7, 8]
+years = range(1979, 2015)
+months = [5, 6, 7, 8, 9]
 
 # Read daily data from each year and month and concatenate together
 for y, year in enumerate(years):
