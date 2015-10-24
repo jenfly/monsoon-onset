@@ -162,3 +162,137 @@ def onset_WLH(precip, axis=1, kmax=12, threshold=5.0, onset_min=20):
     output['threshold'] = threshold
 
     return output
+
+
+# ----------------------------------------------------------------------
+def onset_HOWI(uq_int, vq_int, npts=50, nroll=7, days_pre=range(138, 145),
+               days_post=range(159, 166), yearnm='year', daynm='day'):
+    """Return monsoon Hydrologic Onset/Withdrawal Index.
+
+    Parameters
+    ----------
+    uq_int, vq_int : xray.DataArrays
+    npts : int, optional
+    nroll : int, optional
+    days_pre, days_post : list of ints, optional
+        Default values correspond to May 18-24 and June 8-14 (numbered
+        as non-leap year).
+    yearnm, daynm : str, optional
+
+    Returns
+    -------
+
+    Reference
+    ---------
+    J. Fasullo and P. J. Webster, 2003: A hydrological definition of
+        Indian monsoon onset and withdrawal. J. Climate, 16, 3200-3211.
+    """
+
+    _, _, coords, _ = atm.meta(uq_int)
+    latnm = atm.get_coord(uq_int, 'lat', 'name')
+    lonnm = atm.get_coord(uq_int, 'lon', 'name')
+
+    ds = xray.Dataset()
+    ds['uq'] = uq_int
+    ds['vq'] = vq_int
+    ds['vimt'] = np.sqrt(ds['uq']**2 + ds['vq']**2)
+
+    # Climatological moisture fluxes
+    dsbar = ds.mean(dim=yearnm)
+    ds['uq_bar'], ds['vq_bar'] = dsbar['uq'], dsbar['vq']
+    ds['vimt_bar'] = np.sqrt(ds['uq_bar']**2 + ds['vq_bar']**2)
+
+    # Pre- and post- monsoon climatology composites
+    dspre = atm.subset(dsbar, daynm, days_pre).mean(dim=daynm)
+    dspost = atm.subset(dsbar, daynm, days_post).mean(dim=daynm)
+    dsdiff = dspost - dspre
+    ds['uq_bar_pre'], ds['vq_bar_pre'] = dspre['uq'], dspre['vq']
+    ds['uq_bar_post'], ds['vq_bar_post'] = dspost['uq'], dspost['vq']
+    ds['uq_bar_diff'], ds['vq_bar_diff'] = dsdiff['uq'], dsdiff['vq']
+
+    # Magnitude of vector difference
+    vimt_bar_diff = np.sqrt(dsdiff['uq']**2 + dsdiff['vq']**2)
+    ds['vimt_bar_diff'] = vimt_bar_diff
+
+    # Top N difference vectors
+    def top_n(data, n):
+        """Return a mask with the highest n values in 2D array."""
+        vals = data.copy()
+        mask = np.ones(vals.shape, dtype=bool)
+        for k in range(n):
+            i, j = np.unravel_index(np.nanargmax(vals), vals.shape)
+            mask[i, j] = False
+            vals[i, j] = np.nan
+        return mask
+
+    # Mask to extract top N points
+    mask = top_n(vimt_bar_diff, npts)
+    ds['mask'] = xray.DataArray(mask, coords={latnm: coords[latnm],
+                                              lonnm: coords[lonnm]})
+
+    # Apply mask to DataArrays
+    def applymask(data, mask):
+        _, _, coords, _ = atm.meta(data)
+        maskbig = atm.biggify(mask, data, tile=True)
+        vals = np.ma.masked_array(data, maskbig).filled(np.nan)
+        data_out = xray.DataArray(vals, coords=coords)
+        return data_out
+
+    ds['vimt_bar_masked'] = applymask(ds['vimt_bar'], mask)
+    ds['vimt_bar_diff_masked'] = applymask(vimt_bar_diff, mask)
+    ds['uq_masked'] = applymask(ds['uq'], mask)
+    ds['vq_masked'] = applymask(ds['vq'], mask)
+    ds['vimt_masked'] = np.sqrt(ds['uq_masked']**2 + ds['vq_masked']**2)
+
+    # Timeseries data averaged over selected N points
+    ds['howi_clim_raw'] = ds['vimt_bar_masked'].mean(dim=latnm).mean(dim=lonnm)
+    ds['howi_raw'] = ds['vimt_masked'].mean(dim=latnm).mean(dim=lonnm)
+
+    # Normalize
+    howi_min = ds['howi_clim_raw'].min().values
+    howi_max = ds['howi_clim_raw'].max().values
+    def applynorm(data):
+        return 2 * (data - howi_min) / (howi_max - howi_min) - 1
+    ds['howi_norm'] = applynorm(ds['howi_raw'])
+    ds['howi_clim_norm'] = applynorm(ds['howi_clim_raw'])
+
+    # Apply n-day rolling mean
+    def rolling(data, nroll):
+        _, _, coords, _ = atm.meta(data)
+        dims = data.shape
+        vals = np.zeros(dims)
+        if len(dims) > 1:
+            nyears = dims[0]
+            for y in range(nyears):
+                vals[y] = pd.rolling_mean(data.values[y], nroll)
+        else:
+            vals = pd.rolling_mean(data.values, nroll)
+        data_out = xray.DataArray(vals, coords=coords)
+        return data_out
+
+    ds['howi_norm_roll'] = rolling(ds['howi_norm'], nroll)
+    ds['howi_clim_norm_roll'] = rolling(ds['howi_clim_norm'], nroll)
+
+    # Index dataset
+    howi = xray.Dataset()
+    howi['index'] = ds['howi_norm_roll']
+    howi['index_clim'] = ds['howi_clim_norm_roll']
+
+    # Find zero crossings for onset and withdrawal indices
+    nyears = len(howi[yearnm])
+    onset = np.zeros(nyears, dtype=int)
+    retreat = np.zeros(nyears, dtype=int)
+    for y in range(nyears):
+        monsoon = howi[daynm].values[howi['index'][y].values > 0]
+        onset[y] = monsoon[0]
+
+        # Retreat = first day where index falls below zero
+        consec = np.diff(monsoon) == 1
+        if consec.all():
+            retreat[y] = monsoon[-1]
+        else:
+            retreat[y] = monsoon[consec.argmin()]
+    howi['onset'] = xray.DataArray(onset, coords={yearnm : howi[yearnm]})
+    howi['retreat'] = xray.DataArray(retreat, coords={yearnm : howi[yearnm]})
+
+    return howi, ds
