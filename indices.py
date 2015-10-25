@@ -258,15 +258,16 @@ def onset_HOWI(uq_int, vq_int, npts=50, nroll=7, days_pre=range(138, 145),
 
     # Apply n-day rolling mean
     def rolling(data, nroll):
+        center = True
         _, _, coords, _ = atm.meta(data)
         dims = data.shape
         vals = np.zeros(dims)
         if len(dims) > 1:
             nyears = dims[0]
             for y in range(nyears):
-                vals[y] = pd.rolling_mean(data.values[y], nroll)
+                vals[y] = pd.rolling_mean(data.values[y], nroll, center=center)
         else:
-            vals = pd.rolling_mean(data.values, nroll)
+            vals = pd.rolling_mean(data.values, nroll, center=center)
         data_out = xray.DataArray(vals, coords=coords)
         return data_out
 
@@ -291,8 +292,10 @@ def onset_HOWI(uq_int, vq_int, npts=50, nroll=7, days_pre=range(138, 145),
         if consec.all():
             retreat[y] = monsoon[-1]
         else:
-            retreat[y] = monsoon[consec.argmin()]
+            retreat[y] = monsoon[consec.argmin()] + 1
     howi['onset'] = xray.DataArray(onset, coords={yearnm : howi[yearnm]})
     howi['retreat'] = xray.DataArray(retreat, coords={yearnm : howi[yearnm]})
+    howi.attrs['npts'] = npts
+    howi.attrs['nroll'] = nroll
 
     return howi, ds
