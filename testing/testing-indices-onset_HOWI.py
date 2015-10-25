@@ -22,75 +22,173 @@ with xray.open_dataset(datafile) as ds:
     uq_int = ds['uq_int'].load()
     vq_int = ds['vq_int'].load()
 
-npts = 100
+#npts = 100
+npts = 50
+pre_days = 'May 18-24'
+post_days = 'June 8-14'
+namestr = 'HOWI_%dpts_' % npts
+exts = ['png', 'eps']
+
 howi, ds = onset_HOWI(uq_int, vq_int, npts)
+
+# ----------------------------------------------------------------------
+# MAPS
+# ----------------------------------------------------------------------
+# Plot climatological VIMT composites
+lat = atm.get_coord(ds, 'lat')
+lon = atm.get_coord(ds, 'lon')
+x, y = np.meshgrid(lon, lat)
+axlims = (lat1, lat2, lon1, lon2)
+plt.figure(figsize=(12,10))
+plt.subplot(221)
+m = atm.init_latlon(lat1, lat2, lon1, lon2)
+m.quiver(x, y, ds['uq_bar_pre'], ds['vq_bar_pre'])
+plt.title(pre_days + ' VIMT Climatology')
+plt.subplot(223)
+m = atm.init_latlon(lat1, lat2, lon1, lon2)
+m.quiver(x, y, ds['uq_bar_post'], ds['vq_bar_post'])
+plt.title(post_days + ' VIMT Climatology')
+
+# Plot difference between pre- and post- composites
+plt.subplot(222)
+m = atm.init_latlon(lat1, lat2, lon1, lon2)
+#m, _ = atm.pcolor_latlon(ds['vimt_bar_diff'], axlims=axlims, cmap='hot_r')
+m.quiver(x, y, ds['uq_bar_diff'], ds['vq_bar_diff'])
+plt.title(post_days + ' minus ' + pre_days + ' VIMT Climatology')
+
+# Top N difference vectors
+plt.subplot(224)
+m, _ = atm.pcolor_latlon(ds['vimt_bar_diff_masked'],axlims=axlims, cmap='hot_r')
+plt.title('Magnitude of Top %d Difference Fluxes' % npts)
+
+# Plot vector VIMT fluxes for a few individual years
+ylist = [0, 1, 2, 3]
+plt.figure(figsize=(12, 10))
+for yr in ylist:
+    plt.subplot(2, 2, yr + 1)
+    m = atm.init_latlon(lat1, lat2, lon1, lon2)
+    m.quiver(x, y, ds['uq'][yr].mean(dim='day'), ds['vq'][yr].mean(dim='day'))
+    m.contour(x, y, ds['mask'].astype(float), [0.99], colors='red')
+    plt.title('%d May-Sep VIMT Fluxes' % ds.year[yr])
+
+# ----------------------------------------------------------------------
+# TIMESERIES
+# ----------------------------------------------------------------------
 
 onset = howi.onset
 retreat = howi.retreat
-y=0
+length = retreat - onset
+days = howi.day
+years = howi.year.values
+yearstr = '%d-%d' % (years[0], years[-1])
+nroll = howi.attrs['nroll']
 
-plt.figure()
-plt.plot(howi.day, howi.index[y])
-plt.plot(onset[y], howi.index[y].sel(day=onset[y]), 'r*')
-plt.plot(retreat[y], howi.index[y].sel(day=retreat[y]), 'r*')
+# Timeseries with and without rolling mean
+def index_tseries(days, ind, ind_roll, titlestr):
+    plt.plot(days, ind, label='daily')
+    plt.plot(days, ind_roll, label='%d-day rolling' % nroll)
+    plt.grid()
+    plt.legend(loc='lower right')
+    plt.title(titlestr)
+
+plt.figure(figsize=(12, 10))
+plt.subplot(221)
+index_tseries(days, ds.howi_clim_norm, ds.howi_clim_norm_roll,
+              'HOWI ' + yearstr + ' Climatology')
+for yr in [0, 1, 2]:
+    plt.subplot(2, 2, yr + 2)
+    index_tseries(days, ds.howi_norm[yr], ds.howi_norm_roll[yr],
+                  'HOWI %d' % years[yr])
+
+# HOWI index with onset and retreat in individual years
+def onset_tseries(days, ind, d_onset, d_retreat):
+    ylim1, ylim2 = -1, 2
+    plt.plot(days, ind)
+    plt.plot(d_onset, ind.sel(day=d_onset), 'ro', label='onset')
+    plt.plot(d_onset-1, ind.sel(day=d_onset-1), 'k.', label='onset-1')
+    plt.plot(d_retreat, ind.sel(day=d_retreat), 'bo', label='retreat')
+    plt.plot(d_retreat-1, ind.sel(day=d_retreat-1), 'k.', label='retreat')
+    plt.grid()
+    plt.ylim(ylim1, ylim2)
+
+ylist = range(4)
+titlestr = ['', '', '', '']
+ylist = ylist + [int(onset.argmin()), int(onset.argmax()),
+                 int(retreat.argmin()), int(retreat.argmax())]
+titlestr = titlestr + ['Earliest Onset', 'Latest Onset', 'Earliest Retreat',
+                       'Latest Retreat']
+for i, yr in enumerate(ylist):
+    if i % 4 == 0:
+        plt.figure(figsize=(12, 10))
+        yplot = 1
+    else:
+        yplot += 1
+    plt.subplot(2, 2, yplot)
+    onset_tseries(days, howi.index[yr], onset[yr], retreat[yr])
+    plt.title('%d %s' % (years[yr], titlestr[i]))
+
+# ----------------------------------------------------------------------
+# Onset and retreat indices
+def daystr(day):
+    mm, dd = atm.jday_to_mmdd(day)
+    mon = atm.month_str(mm)
+    return '%d (%s-%.0f)' % (day, mon, dd)
+
+def plot_hist(ind, bin_edges, incl_daystr=True):
+    n, bins, _ = plt.hist(ind, bin_edges)
+    plt.xlabel('Day of Year')
+    plt.ylabel('Num of Occurrences')
+    x1 = bins[0] + 1
+    y1 = n.max() - 1
+    if incl_daystr:
+        dmean = daystr(ind.mean())
+        dmin = daystr(ind.min())
+        dmax = daystr(ind.max())
+    else:
+        dmean = '%.0f' % ind.mean()
+        dmin = '%.0f' % ind.min()
+        dmax = '%.0f' % ind.max()
+    plt.text(x1, y1, 'Mean %s' % dmean)
+    plt.text(x1, y1 - 1, 'Std %.0f' % ind.std())
+    plt.text(x1, y1 - 2, 'Min %s' % dmin)
+    plt.text(x1, y1 - 3, 'Max %s' % dmax)
+
+plt.figure(figsize=(16,10))
+plt.subplot(231)
+plt.plot(years, onset)
+plt.xlabel('Year')
+plt.ylabel('Onset Day')
+plt.title('HOWI Onset')
 plt.grid()
 
+plt.subplot(234)
+plot_hist(onset.values, range(120, 171, 5))
+plt.title('HOWI Onset')
 
-# Climatological moisture fluxes
-dsbar = ds.mean(dim='year')
+plt.subplot(232)
+plt.plot(years, retreat)
+plt.xlabel('Year')
+plt.ylabel('Retreat Day')
+plt.title('HOWI Retreat')
+plt.grid()
 
-# Pre- and post- monsoon climatology composites
-days_pre = range(138, 145)  # May 18-24
-days_post = range(159, 166) # June 8-14
-dspre = atm.subset(dsbar, 'day', days_pre).mean(dim='day')
-dspost = atm.subset(dsbar, 'day', days_post).mean(dim='day')
-dsdiff = dspost - dspre
+plt.subplot(235)
+plot_hist(retreat.values, range(130, 271, 5))
+plt.title('HOWI Retreat')
 
-# Magnitude of vector fluxes
-vimt = np.sqrt(dsdiff['uq_int']**2 + dsdiff['vq_int']**2)
+plt.subplot(233)
+plt.plot(years, length)
+plt.xlabel('Year')
+plt.ylabel('# Days')
+plt.title('Monsoon Length')
+plt.grid()
 
-# Top N difference vectors
-def top_n(data, n):
-    """Return a mask with the highest n values in 2D array."""
-    vals = data.copy()
-    mask = np.ones(vals.shape, dtype=bool)
-    for k in range(n):
-        i, j = np.unravel_index(np.nanargmax(vals), vals.shape)
-        print(i, j)
-        mask[i, j] = False
-        vals[i, j] = np.nan
-    return mask
+plt.subplot(236)
+plot_hist(length.values, range(0, 130, 5), incl_daystr=False)
+plt.xlabel('# Days')
+plt.title('Monsoon Length')
 
-N = 50
-mask = top_n(vimt, N)
-vimt_top = np.ma.masked_array(vimt, mask)
-
-# Plot climatological VIMT composites
-lat = atm.get_coord(dsbar, 'lat')
-lon = atm.get_coord(dsbar, 'lon')
-x, y = np.meshgrid(lon, lat)
-axlims = (lat1, lat2, lon1, lon2)
-plt.figure(figsize=(7,10))
-plt.subplot(211)
-m = atm.init_latlon(lat1, lat2, lon1, lon2)
-m.quiver(x, y, dspre['uq_int'], dspre['vq_int'])
-plt.title('May 18-24 VIMT Climatology')
-plt.subplot(212)
-m = atm.init_latlon(lat1, lat2, lon1, lon2)
-m.quiver(x, y, dspost['uq_int'], dspost['vq_int'])
-plt.title('June 8-14 VIMT Climatology')
-
-# Plot difference between pre- and post- composites
-plt.figure(figsize=(7,10))
-plt.subplot(211)
-m = atm.init_latlon(lat1, lat2, lon1, lon2)
-m.quiver(x, y, dsdiff['uq_int'], dsdiff['vq_int'])
-plt.title('June 8-14 minus May 18-24 VIMT Climatology')
-plt.subplot(212)
-atm.pcolor_latlon(vimt, axlims=axlims, cmap='hot_r')
-plt.title('Magnitude of vector difference')
-
-# Top N difference vectors
-plt.figure()
-atm.pcolor_latlon(vimt_top, lat, lon, axlims=axlims, cmap='hot_r')
-plt.title('Top %d Magnitude of vector difference' % npts)
+# ----------------------------------------------------------------------
+# Save figures
+for ext in exts:
+    atm.savefigs(namestr, ext)
