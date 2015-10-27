@@ -28,6 +28,7 @@ pre_days = 'May 18-24'
 post_days = 'June 8-14'
 namestr = 'HOWI_%dpts_' % npts
 exts = ['png', 'eps']
+isave = False
 
 howi, ds = onset_HOWI(uq_int, vq_int, npts)
 
@@ -124,7 +125,7 @@ for i, yr in enumerate(ylist):
     else:
         yplot += 1
     plt.subplot(2, 2, yplot)
-    onset_tseries(days, howi.index[yr], onset[yr], retreat[yr])
+    onset_tseries(days, howi.tseries[yr], onset[yr], retreat[yr])
     plt.title('%d %s' % (years[yr], titlestr[i]))
 
 # ----------------------------------------------------------------------
@@ -190,5 +191,8 @@ plt.title('Monsoon Length')
 
 # ----------------------------------------------------------------------
 # Save figures
-for ext in exts:
-    atm.savefigs(namestr, ext)
+if isave:
+    for ext in exts:
+        atm.savefigs(namestr, ext)
+
+# ----------------------------------------------------------------------

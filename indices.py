@@ -274,25 +274,33 @@ def onset_HOWI(uq_int, vq_int, npts=50, nroll=7, days_pre=range(138, 145),
     ds['howi_norm_roll'] = rolling(ds['howi_norm'], nroll)
     ds['howi_clim_norm_roll'] = rolling(ds['howi_clim_norm'], nroll)
 
-    # Index dataset
+    # Index timeseries dataset
     howi = xray.Dataset()
-    howi['index'] = ds['howi_norm_roll']
-    howi['index_clim'] = ds['howi_clim_norm_roll']
+    howi['tseries'] = ds['howi_norm_roll']
+    howi['tseries_clim'] = ds['howi_clim_norm_roll']
 
     # Find zero crossings for onset and withdrawal indices
     nyears = len(howi[yearnm])
     onset = np.zeros(nyears, dtype=int)
     retreat = np.zeros(nyears, dtype=int)
     for y in range(nyears):
-        monsoon = howi[daynm].values[howi['index'][y].values > 0]
-        onset[y] = monsoon[0]
+        #monsoon = howi[daynm].values[howi['tseries'][y].values > 0]
+        pos = howi[daynm].values[howi['tseries'][y].values > 0]
 
-        # Retreat = first day where index falls below zero
-        consec = np.diff(monsoon) == 1
-        if consec.all():
-            retreat[y] = monsoon[-1]
-        else:
-            retreat[y] = monsoon[consec.argmin()] + 1
+        # In case of extra zero crossings, find the longest set of days
+        # with positive index
+        splitpos = atm.splitdays(pos)
+        lengths = np.array([len(v) for v in splitpos])
+        monsoon = splitpos[lengths.argmax()]
+        onset[y] = monsoon[0]
+        retreat[y] = monsoon[-1] + 1
+
+        # # Retreat = first day where index falls below zero
+        # consec = np.diff(monsoon) == 1
+        # if consec.all():
+        #     retreat[y] = monsoon[-1]
+        # else:
+        #     retreat[y] = monsoon[consec.argmin()] + 1
     howi['onset'] = xray.DataArray(onset, coords={yearnm : howi[yearnm]})
     howi['retreat'] = xray.DataArray(retreat, coords={yearnm : howi[yearnm]})
     howi.attrs['npts'] = npts
