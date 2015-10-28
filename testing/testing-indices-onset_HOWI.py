@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 import atmos as atm
 import merra
-from indices import onset_HOWI
+from indices import onset_HOWI, summarize_indices
 
 # ----------------------------------------------------------------------
 # Compute HOWI indices (Webster and Fasullo 2003)
@@ -115,9 +115,10 @@ def onset_tseries(days, ind, d_onset, d_retreat):
 ylist = range(4)
 titlestr = ['', '', '', '']
 ylist = ylist + [int(onset.argmin()), int(onset.argmax()),
-                 int(retreat.argmin()), int(retreat.argmax())]
+                 int(retreat.argmin()), int(retreat.argmax()),
+                 int(length.argmin()), int(length.argmax())]
 titlestr = titlestr + ['Earliest Onset', 'Latest Onset', 'Earliest Retreat',
-                       'Latest Retreat']
+                       'Latest Retreat', 'Shortest Monsoon', 'Longest Monsoon']
 for i, yr in enumerate(ylist):
     if i % 4 == 0:
         plt.figure(figsize=(12, 10))
@@ -130,64 +131,8 @@ for i, yr in enumerate(ylist):
 
 # ----------------------------------------------------------------------
 # Onset and retreat indices
-def daystr(day):
-    mm, dd = atm.jday_to_mmdd(day)
-    mon = atm.month_str(mm)
-    return '%d (%s-%.0f)' % (day, mon, dd)
 
-def plot_hist(ind, bin_edges, incl_daystr=True):
-    n, bins, _ = plt.hist(ind, bin_edges)
-    plt.xlabel('Day of Year')
-    plt.ylabel('Num of Occurrences')
-    x1 = bins[0] + 1
-    y1 = n.max() - 1
-    if incl_daystr:
-        dmean = daystr(ind.mean())
-        dmin = daystr(ind.min())
-        dmax = daystr(ind.max())
-    else:
-        dmean = '%.0f' % ind.mean()
-        dmin = '%.0f' % ind.min()
-        dmax = '%.0f' % ind.max()
-    plt.text(x1, y1, 'Mean %s' % dmean)
-    plt.text(x1, y1 - 1, 'Std %.0f' % ind.std())
-    plt.text(x1, y1 - 2, 'Min %s' % dmin)
-    plt.text(x1, y1 - 3, 'Max %s' % dmax)
-
-plt.figure(figsize=(16,10))
-plt.subplot(231)
-plt.plot(years, onset)
-plt.xlabel('Year')
-plt.ylabel('Onset Day')
-plt.title('HOWI Onset')
-plt.grid()
-
-plt.subplot(234)
-plot_hist(onset.values, range(120, 171, 5))
-plt.title('HOWI Onset')
-
-plt.subplot(232)
-plt.plot(years, retreat)
-plt.xlabel('Year')
-plt.ylabel('Retreat Day')
-plt.title('HOWI Retreat')
-plt.grid()
-
-plt.subplot(235)
-plot_hist(retreat.values, range(130, 271, 5))
-plt.title('HOWI Retreat')
-
-plt.subplot(233)
-plt.plot(years, length)
-plt.xlabel('Year')
-plt.ylabel('# Days')
-plt.title('Monsoon Length')
-plt.grid()
-
-plt.subplot(236)
-plot_hist(length.values, range(0, 130, 5), incl_daystr=False)
-plt.xlabel('# Days')
-plt.title('Monsoon Length')
+summarize_indices(years, onset, retreat, 'HOWI')
 
 # ----------------------------------------------------------------------
 # Save figures

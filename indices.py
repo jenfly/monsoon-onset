@@ -337,3 +337,78 @@ def onset_HOWI(uq_int, vq_int, npts=50, nroll=7, days_pre=range(138, 145),
     howi.attrs['nroll'] = nroll
 
     return howi, ds
+
+
+# ----------------------------------------------------------------------
+def summarize_indices(years, onset, retreat, indname='', binwidth=5,
+                      figsize=(16, 10)):
+    """Summarize monsoon onset/retreat days in timeseries and histogram.
+    """
+
+    if isinstance(onset, xray.DataArray):
+        onset = onset.values
+    if isinstance(retreat, xray.DataArray):
+        retreat = retreat.values
+    length = retreat - onset
+
+    def daystr(day):
+        mm, dd = atm.jday_to_mmdd(day)
+        mon = atm.month_str(mm)
+        return '%d (%s-%.0f)' % (day, mon, dd)
+
+    def plot_hist(ind, binwidth, incl_daystr=True):
+        b1 = np.floor(ind.min() / binwidth) * binwidth
+        b2 = np.ceil(ind.max() / binwidth) * binwidth
+        bin_edges = np.arange(b1, b2 + 1, binwidth)
+        n, bins, _ = plt.hist(ind, bin_edges)
+        plt.xlabel('Day of Year')
+        plt.ylabel('Num of Occurrences')
+        x1 = bins[0] + 0.05 * (bins[-1] - bins[0])
+        y1 = n.max() * 0.9
+        if incl_daystr:
+            dmean = daystr(ind.mean())
+            dmin = daystr(ind.min())
+            dmax = daystr(ind.max())
+        else:
+            dmean = '%.0f' % ind.mean()
+            dmin = '%.0f' % ind.min()
+            dmax = '%.0f' % ind.max()
+        plt.text(x1, y1, 'Mean %s' % dmean)
+        plt.text(x1, y1 * 0.9, 'Std %.0f' % ind.std())
+        plt.text(x1, y1 * 0.8, 'Min %s' % dmin)
+        plt.text(x1, y1 * 0.7, 'Max %s' % dmax)
+
+    plt.figure(figsize=(16,10))
+    plt.subplot(231)
+    plt.plot(years, onset)
+    plt.xlabel('Year')
+    plt.ylabel('Onset Day')
+    plt.title(indname + ' Onset')
+    plt.grid()
+
+    plt.subplot(234)
+    plot_hist(onset, binwidth)
+    plt.title(indname + ' Onset')
+
+    plt.subplot(232)
+    plt.plot(years, retreat)
+    plt.xlabel('Year')
+    plt.ylabel('Retreat Day')
+    plt.title(indname + ' Retreat')
+    plt.grid()
+
+    plt.subplot(235)
+    plot_hist(retreat, binwidth)
+    plt.title(indname + ' Retreat')
+
+    plt.subplot(233)
+    plt.plot(years, length)
+    plt.xlabel('Year')
+    plt.ylabel('# Days')
+    plt.title('Monsoon Length')
+    plt.grid()
+
+    plt.subplot(236)
+    plot_hist(length, binwidth, incl_daystr=False)
+    plt.xlabel('# Days')
+    plt.title('Monsoon Length')
