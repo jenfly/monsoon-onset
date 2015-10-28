@@ -352,9 +352,10 @@ def summarize_indices(years, onset, retreat, indname='', binwidth=5,
     length = retreat - onset
 
     def daystr(day):
+        day = round(day)
         mm, dd = atm.jday_to_mmdd(day)
         mon = atm.month_str(mm)
-        return '%d (%s-%.0f)' % (day, mon, dd)
+        return '%.0f (%s-%.0f)' % (day, mon, dd)
 
     def plot_hist(ind, binwidth, incl_daystr=True):
         b1 = np.floor(ind.min() / binwidth) * binwidth
@@ -363,7 +364,7 @@ def summarize_indices(years, onset, retreat, indname='', binwidth=5,
         n, bins, _ = plt.hist(ind, bin_edges)
         plt.xlabel('Day of Year')
         plt.ylabel('Num of Occurrences')
-        x1 = bins[0] + 0.05 * (bins[-1] - bins[0])
+        x1 = bins[0] + 0.03 * (bins[-1] - bins[0])
         y1 = n.max() * 0.9
         if incl_daystr:
             dmean = daystr(ind.mean())
@@ -412,3 +413,7 @@ def summarize_indices(years, onset, retreat, indname='', binwidth=5,
     plot_hist(length, binwidth, incl_daystr=False)
     plt.xlabel('# Days')
     plt.title('Monsoon Length')
+
+    
+# ----------------------------------------------------------------------    
+def plot_index_allyears(index):
