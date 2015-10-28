@@ -413,7 +413,7 @@ def summarize_indices(years, onset, retreat, indname='', binwidth=5,
     plt.subplot(236)
     plot_hist(length, binwidth, incl_daystr=False)
     plt.xlabel('# Days')
-    plt.title(indname + 'Monsoon Length')
+    plt.title(indname + ' Monsoon Length')
 
 
 # ----------------------------------------------------------------------
