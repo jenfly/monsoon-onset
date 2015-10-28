@@ -407,20 +407,20 @@ def summarize_indices(years, onset, retreat, indname='', binwidth=5,
     plt.plot(years, length)
     plt.xlabel('Year')
     plt.ylabel('# Days')
-    plt.title('Monsoon Length')
+    plt.title(indname + ' Monsoon Length')
     plt.grid()
 
     plt.subplot(236)
     plot_hist(length, binwidth, incl_daystr=False)
     plt.xlabel('# Days')
-    plt.title('Monsoon Length')
+    plt.title(indname + 'Monsoon Length')
 
-    
-# ----------------------------------------------------------------------    
+
+# ----------------------------------------------------------------------
 def plot_index_years(index, years=None, figsize=(12,10), nrow=2, ncol=2):
     """Plot daily timeseries of monsoon index/onset/retreat each year.
     """
-    
+
     days = index.day
     if years is None:
         # All years
@@ -433,19 +433,19 @@ def plot_index_years(index, years=None, figsize=(12,10), nrow=2, ncol=2):
         tseries = index.tseries.sel(year=years)
         onset = index.onset.sel(year=years).values
         retreat = index.retreat.sel(year=years).values
-    
+
     # Earliest/latest onset/retreat, shortest/longest seasons
     length = retreat - onset
     yrs_extreme = collections.defaultdict(str)
     yrs_ex = [years[onset.argmin()], years[onset.argmax()],
               years[retreat.argmin()], years[retreat.argmax()],
               years[length.argmin()], years[length.argmax()]]
-    nms_ex = ['Earliest Onset', 'Latest Onset', 
+    nms_ex = ['Earliest Onset', 'Latest Onset',
               'Earliest Retreat', 'Latest Retreat',
               'Shortest Monsoon', 'Longest Monsoon']
     for yr, nm in zip(yrs_ex, nms_ex):
         yrs_extreme[yr] = yrs_extreme[yr] + ' - ' + nm
-    
+
     # Monsoon index with onset and retreat in individual years
     def onset_tseries(days, ind, d_onset, d_retreat):
         plt.plot(days, ind)
@@ -469,9 +469,5 @@ def plot_index_years(index, years=None, figsize=(12,10), nrow=2, ncol=2):
         else:
             titlestr = str(year)
         plt.title(titlestr)
-        
+
     return yrs_extreme
-    
-    
-
-
