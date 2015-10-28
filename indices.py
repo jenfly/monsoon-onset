@@ -166,26 +166,45 @@ def onset_WLH(precip, axis=1, kmax=12, threshold=5.0, onset_min=20):
 
 # ----------------------------------------------------------------------
 def onset_HOWI(uq_int, vq_int, npts=50, nroll=7, days_pre=range(138, 145),
-               days_post=range(159, 166), yearnm='year', daynm='day'):
+               days_post=range(159, 166), yearnm='year', daynm='day',
+               maxbreak=7):
     """Return monsoon Hydrologic Onset/Withdrawal Index.
 
     Parameters
     ----------
     uq_int, vq_int : xray.DataArrays
+        Vertically integrated moisture fluxes.
     npts : int, optional
+        Number of points to use to define HOWI index.
     nroll : int, optional
+        Number of days for rolling mean.
     days_pre, days_post : list of ints, optional
         Default values correspond to May 18-24 and June 8-14 (numbered
         as non-leap year).
     yearnm, daynm : str, optional
+        Name of year and day dimensions in DataArray
+    maxbreak:
+        Maximum number of days with index <=0 to consider a break in
+        monsoon season rather than end of monsoon season.
 
     Returns
     -------
+    howi : xray.Dataset
+        HOWI daily timeseries for each year and monsoon onset and retreat
+        days for each year.
 
     Reference
     ---------
     J. Fasullo and P. J. Webster, 2003: A hydrological definition of
         Indian monsoon onset and withdrawal. J. Climate, 16, 3200-3211.
+
+    Notes
+    -----
+    In some years the HOWI index can give a bogus onset or bogus retreat
+    when the index briefly goes above or below 0 for a few days.  To deal
+    with these cases, I'm defining the monsoon season as the longest set
+    of consecutive days with HOWI that is positive or has been negative
+    for no more than `maxbreak` number of days (monsoon break).
     """
 
     _, _, coords, _ = atm.meta(uq_int)
@@ -284,23 +303,34 @@ def onset_HOWI(uq_int, vq_int, npts=50, nroll=7, days_pre=range(138, 145),
     onset = np.zeros(nyears, dtype=int)
     retreat = np.zeros(nyears, dtype=int)
     for y in range(nyears):
-        #monsoon = howi[daynm].values[howi['tseries'][y].values > 0]
+        # List of days with positive HOWI index
         pos = howi[daynm].values[howi['tseries'][y].values > 0]
 
         # In case of extra zero crossings, find the longest set of days
         # with positive index
         splitpos = atm.splitdays(pos)
         lengths = np.array([len(v) for v in splitpos])
-        monsoon = splitpos[lengths.argmax()]
+        imonsoon = lengths.argmax()
+        monsoon = splitpos[imonsoon]
+
+        # In case there is a break in the monsoon season, check the
+        # sets of days before and after and add to monsoon season
+        # if applicable
+        if imonsoon > 0:
+            predays = splitpos[imonsoon - 1]
+            if monsoon.min() - predays.max() <= maxbreak:
+                predays = np.arange(predays.min(), monsoon.min())
+                monsoon = np.concatenate([predays, monsoon])
+        if imonsoon < len(splitpos) - 1:
+            postdays = splitpos[imonsoon + 1]
+            if postdays.min() - monsoon.max() <= maxbreak:
+                postdays = np.arange(monsoon.max() + 1, postdays.max() + 1)
+                monsoon = np.concatenate([monsoon, postdays])
+
+        # Onset and retreat days
         onset[y] = monsoon[0]
         retreat[y] = monsoon[-1] + 1
 
-        # # Retreat = first day where index falls below zero
-        # consec = np.diff(monsoon) == 1
-        # if consec.all():
-        #     retreat[y] = monsoon[-1]
-        # else:
-        #     retreat[y] = monsoon[consec.argmin()] + 1
     howi['onset'] = xray.DataArray(onset, coords={yearnm : howi[yearnm]})
     howi['retreat'] = xray.DataArray(retreat, coords={yearnm : howi[yearnm]})
     howi.attrs['npts'] = npts
