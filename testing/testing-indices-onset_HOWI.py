@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 import atmos as atm
 import merra
-from indices import onset_HOWI, summarize_indices
+from indices import onset_HOWI, summarize_indices, plot_index_years
 
 # ----------------------------------------------------------------------
 # Compute HOWI indices (Webster and Fasullo 2003)
@@ -141,3 +141,12 @@ if isave:
         atm.savefigs(namestr, ext)
 
 # ----------------------------------------------------------------------
+# Plot timeseries of each year
+namestr = namestr + 'tseries_'
+plt.close('all')
+plot_index_years(howi)
+
+if isave:
+    for ext in exts:
+        atm.savefigs(namestr, ext)
+

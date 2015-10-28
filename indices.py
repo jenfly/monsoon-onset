@@ -8,6 +8,7 @@ import xray
 import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt
+import collections
 import pandas as pd
 import atmos as atm
 import precipdat
@@ -416,4 +417,61 @@ def summarize_indices(years, onset, retreat, indname='', binwidth=5,
 
     
 # ----------------------------------------------------------------------    
-def plot_index_allyears(index):
+def plot_index_years(index, years=None, figsize=(12,10), nrow=2, ncol=2):
+    """Plot daily timeseries of monsoon index/onset/retreat each year.
+    """
+    
+    days = index.day
+    if years is None:
+        # All years
+        tseries = index.tseries
+        years = tseries.year.values
+        onset = index.onset.values
+        retreat = index.retreat.values
+    else:
+        # Subset of years
+        tseries = index.tseries.sel(year=years)
+        onset = index.onset.sel(year=years).values
+        retreat = index.retreat.sel(year=years).values
+    
+    # Earliest/latest onset/retreat, shortest/longest seasons
+    length = retreat - onset
+    yrs_extreme = collections.defaultdict(str)
+    yrs_ex = [years[onset.argmin()], years[onset.argmax()],
+              years[retreat.argmin()], years[retreat.argmax()],
+              years[length.argmin()], years[length.argmax()]]
+    nms_ex = ['Earliest Onset', 'Latest Onset', 
+              'Earliest Retreat', 'Latest Retreat',
+              'Shortest Monsoon', 'Longest Monsoon']
+    for yr, nm in zip(yrs_ex, nms_ex):
+        yrs_extreme[yr] = yrs_extreme[yr] + ' - ' + nm
+    
+    # Monsoon index with onset and retreat in individual years
+    def onset_tseries(days, ind, d_onset, d_retreat):
+        plt.plot(days, ind)
+        plt.plot(d_onset, ind.sel(day=d_onset), 'ro', label='onset')
+        plt.plot(d_onset-1, ind.sel(day=d_onset-1), 'k.', label='onset-1')
+        plt.plot(d_retreat, ind.sel(day=d_retreat), 'bo', label='retreat')
+        plt.plot(d_retreat-1, ind.sel(day=d_retreat-1), 'k.', label='retreat')
+        plt.grid()
+
+    # Plot each year
+    for y, year in enumerate(years):
+        if y % (nrow * ncol) == 0:
+            plt.figure(figsize=figsize)
+            yplot = 1
+        else:
+            yplot += 1
+        plt.subplot(nrow, ncol, yplot)
+        onset_tseries(days, tseries[y], onset[y], retreat[y])
+        if year in yrs_extreme.keys():
+            titlestr = str(year) + yrs_extreme[year]
+        else:
+            titlestr = str(year)
+        plt.title(titlestr)
+        
+    return yrs_extreme
+    
+    
+
+
