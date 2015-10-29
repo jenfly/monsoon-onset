@@ -14,6 +14,9 @@ import merra
 
 datadir = atm.homedir() + 'datastore/merra/daily/'
 
+years = range(1979, 2015)
+months = [4, 5, 6, 7, 8, 9]
+
 def datafile(datadir, year, mon):
     filn = datadir + 'merra_vimt_%d%02d.nc' % (year, mon)
     return filn
@@ -26,9 +29,6 @@ def savefile(datadir, years, months, pmin):
     filn = datadir + 'merra_vimt_ps-%.0fmb_%s-%s_%d-%d.nc'
     filn = filn % (pmin/100, mon1, mon2, yr1, yr2)
     return filn
-
-years = range(1979, 2015)
-months = [5, 6, 7, 8, 9]
 
 # Read daily data from each year and month and concatenate together
 for y, year in enumerate(years):
