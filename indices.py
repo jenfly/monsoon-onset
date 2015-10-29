@@ -464,6 +464,7 @@ def plot_index_years(index, years=None, figsize=(12,10), nrow=2, ncol=2,
             plt.plot(d_retreat, ind.sel(day=d_retreat), 'bo', label='retreat')
             #plt.plot(d_retreat-1, ind.sel(day=d_retreat-1), 'k.', label='retreat')
         plt.grid()
+        plt.xlim(days.min() - 1, days.max() + 1)
 
     # Plot each year
     for y, year in enumerate(years):
