@@ -137,3 +137,26 @@ for key in tseries:
         for ext in exts:
             atm.savefigs('tseries_' + key + '_', ext)
         plt.close('all')
+
+# Compare onset indices to each other
+short = { 'HOWI_50' : 'HOWI50',
+          'HOWI_100' : 'HOWI100',
+          'WLH_CMAP_kmax12' : 'W_C_k12',
+          'WLH_CMAP_nroll3' : 'W_C_n3',
+          'WLH_CMAP_unsmth' : 'W_C_u',
+          'WLH_MERRA_MFC_kmax12' : 'W_M_k12',
+          'WLH_MERRA_MFC_nroll7' : 'W_M_n7',
+          'WLH_MERRA_MFC_unsmth' : 'W_M_u' }
+keys = index.keys()
+shortkeys = [short[key] for key in keys]
+years = index[keys[0]].year.values
+onset = np.reshape(index[keys[0]].onset.values, (len(years), 1))
+for key in keys[1:]:
+    ind = np.reshape(index[key].onset.values, (len(years), 1))
+    onset = np.concatenate([onset, ind], axis=1)
+onset = pd.DataFrame(onset, index=years, columns=shortkeys)
+pd.scatter_matrix(onset, figsize=(16, 10))
+plt.suptitle('Onset Day')
+if isave:
+    for ext in exts:
+        atm.savefigs('onset_scatter', ext)
