@@ -18,13 +18,23 @@ isave = True
 exts = ['png', 'eps']
 index = collections.OrderedDict()
 
+datadir = atm.homedir() + 'datastore/merra/daily/'
+vimtfile = datadir + 'merra_vimt_ps-300mb_apr-sep_1979-2014.nc'
+precipfile = datadir + 'merra_precip_40E-120E_60S-60N_days91-274_1979-2014.nc'
+cmapfile = atm.homedir() + 'datastore/cmap/cmap.precip.pentad.mean.nc'
+
+# Lat-lon box for WLH method
+lon1, lon2 = 60, 100
+lat1, lat2 = 10, 30
+
 # ----------------------------------------------------------------------
 # Compute HOWI indices (Webster and Fasullo 2003)
-datadir = atm.homedir() + 'datastore/merra/daily/'
-datafile = datadir + 'merra_vimt_ps-300mb_apr-sep_1979-2014.nc'
+
 maxbreak = 10
 
-ds = atm.ncload(datafile)
+with xray.open_dataset(vimtfile) as ds:
+    ds.load()
+
 for npts in [50, 100]:
     howi, _ = onset_HOWI(ds['uq_int'], ds['vq_int'], npts, maxbreak=maxbreak)
     howi.attrs['title'] = 'HOWI (N=%d)' % npts
@@ -48,8 +58,10 @@ def get_onset_WLH(years, days, pcp_sm, threshold, titlestr, pentad=True,
         d_onset = [int(atm.pentad_to_jday(i, pmin=0)) for i in i_onset]
         d_retreat = [int(atm.pentad_to_jday(i, pmin=0)) for i in i_retreat]
     else:
-        d_onset = days[i_onset.astype(int)]
-        d_retreat = days[i_retreat.astype(int)]
+        d_onset = [np.nan if np.isnan(i) else days[int(i)] for i in i_onset]
+        d_retreat = [np.nan if np.isnan(i) else days[int(i)] for i in i_retreat]
+        # d_onset = days[i_onset.astype(int)]
+        # d_retreat = days[i_retreat.astype(int)]
 
     # Pack into Dataset
     index = xray.Dataset()
@@ -62,31 +74,33 @@ def get_onset_WLH(years, days, pcp_sm, threshold, titlestr, pentad=True,
     index.attrs['title'] = titlestr
     return index
 
-# Lat-lon box
-lon1, lon2 = 60, 100
-lat1, lat2 = 10, 30
 
 # Threshold and smoothing parameters
 threshold = 5.0
 kmax = 12
-nroll = {'CMAP' : 3, 'MERRA_MFC' : 7}
+nroll = {'CMAP' : 3, 'MERRA_MFC' : 7, 'MERRA_PRECIP' : 7}
 
 # Read CMAP pentad precip
-datafile = atm.homedir() + 'datastore/cmap/cmap.precip.pentad.mean.nc'
-precip = precipdat.read_cmap(datafile)
-precipbar = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)
-cmapdays = [atm.pentad_to_jday(p, pmin=1) for p in precip.pentad.values]
+cmap = precipdat.read_cmap(cmapfile)
+cmapbar = atm.mean_over_geobox(cmap, lat1, lat2, lon1, lon2)
+cmapdays = [atm.pentad_to_jday(p, pmin=1) for p in cmap.pentad.values]
 
 # MERRA moisture flux convergence
 print('Calculating MFC')
 mfc = atm.moisture_flux_conv(ds['uq_int'], ds['vq_int'], already_int=True)
 mfcbar = atm.mean_over_geobox(mfc, lat1, lat2, lon1, lon2)
 
+# MERRA precip
+print('Reading MERRA precip ' + precipfile)
+with xray.open_dataset(precipfile) as dsprecip:
+    precip = dsprecip['PRECTOT']
+    precipbar = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)    
+
 # Compute indices for each dataset
-for name in ['CMAP', 'MERRA_MFC']:
+for name in ['CMAP', 'MERRA_MFC', 'MERRA_PRECIP']:
     print('****' + name + '******')
     if name == 'CMAP':
-        pcp = precipbar
+        pcp = cmapbar
         days = cmapdays
         pentad = True
         precip_jan = None # Calculate from pentad data
@@ -95,6 +109,12 @@ for name in ['CMAP', 'MERRA_MFC']:
         days = mfcbar.day.values
         pentad = False
         precip_jan = 0.0 # Use zero for now
+    elif name == 'MERRA_PRECIP':
+        pcp = precipbar
+        days = precipbar.day.values
+        pentad = False
+        precip_jan = 0.0 # Use zero for now
+        
     years = pcp.year.values
 
     key = 'WLH_%s_kmax%d' % (name, kmax)
@@ -144,10 +164,16 @@ short = { 'HOWI_50' : 'HOWI50',
           'WLH_CMAP_kmax12' : 'W_C_k12',
           'WLH_CMAP_nroll3' : 'W_C_n3',
           'WLH_CMAP_unsmth' : 'W_C_u',
-          'WLH_MERRA_MFC_kmax12' : 'W_M_k12',
-          'WLH_MERRA_MFC_nroll7' : 'W_M_n7',
-          'WLH_MERRA_MFC_unsmth' : 'W_M_u' }
-keys = index.keys()
+          'WLH_MERRA_MFC_kmax12' : 'W_MM_k12',
+          'WLH_MERRA_MFC_nroll7' : 'W_MM_n7',
+          'WLH_MERRA_MFC_unsmth' : 'W_MM_u', 
+          'WLH_MERRA_PRECIP_kmax12' : 'W_MP_k12',
+          'WLH_MERRA_PRECIP_nroll7' : 'W_MP_n7',
+          'WLH_MERRA_PRECIP_unsmth' : 'W_MP_u'}
+
+# Subset of keys to include in correlation calcs
+keys = ['HOWI_100', 'HOWI_50', 'WLH_CMAP_kmax12', 'WLH_CMAP_nroll3',
+        'WLH_CMAP_unsmth', 'WLH_MERRA_MFC_nroll7', 'WLH_MERRA_PRECIP_nroll7']
 shortkeys = [short[key] for key in keys]
 years = index[keys[0]].year.values
 onset = np.reshape(index[keys[0]].onset.values, (len(years), 1))
