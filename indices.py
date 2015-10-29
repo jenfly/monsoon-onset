@@ -427,15 +427,17 @@ def plot_index_years(index, years=None, figsize=(12,10), nrow=2, ncol=2):
     days = index.day
     if years is None:
         # All years
-        tseries = index.tseries
         years = tseries.year.values
-        onset = index.onset.values
-        retreat = index.retreat.values
-    else:
-        # Subset of years
-        tseries = index.tseries.sel(year=years)
+
+    tseries = index.tseries.sel(year=years)
+    if 'onset' in index.data_vars:
         onset = index.onset.sel(year=years).values
+    else:
+        onset = np.nan * years
+    if 'retreat' in index.data_vars:
         retreat = index.retreat.sel(year=years).values
+    else:
+        retreat = np.nan * years
 
     # Earliest/latest onset/retreat, shortest/longest seasons
     length = retreat - onset
@@ -452,10 +454,12 @@ def plot_index_years(index, years=None, figsize=(12,10), nrow=2, ncol=2):
     # Monsoon index with onset and retreat in individual years
     def onset_tseries(days, ind, d_onset, d_retreat):
         plt.plot(days, ind)
-        plt.plot(d_onset, ind.sel(day=d_onset), 'ro', label='onset')
-        #plt.plot(d_onset-1, ind.sel(day=d_onset-1), 'k.', label='onset-1')
-        plt.plot(d_retreat, ind.sel(day=d_retreat), 'bo', label='retreat')
-        #plt.plot(d_retreat-1, ind.sel(day=d_retreat-1), 'k.', label='retreat')
+        if d_onset is not None and not np.isnan(d_onset):
+            plt.plot(d_onset, ind.sel(day=d_onset), 'ro', label='onset')
+            #plt.plot(d_onset-1, ind.sel(day=d_onset-1), 'k.', label='onset-1')
+        if d_retreat is not None and not np.isnan(d_retreat):
+            plt.plot(d_retreat, ind.sel(day=d_retreat), 'bo', label='retreat')
+            #plt.plot(d_retreat-1, ind.sel(day=d_retreat-1), 'k.', label='retreat')
         plt.grid()
 
     # Plot each year
