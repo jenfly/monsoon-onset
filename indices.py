@@ -388,39 +388,42 @@ def summarize_indices(years, onset, retreat, indname='', binwidth=5,
     plt.plot(years, onset)
     plt.xlabel('Year')
     plt.ylabel('Onset Day')
-    plt.title(indname + ' Onset')
+    plt.title('Onset')
     plt.grid()
 
     plt.subplot(234)
     plot_hist(onset, binwidth)
-    plt.title(indname + ' Onset')
+    plt.title('Onset')
 
     plt.subplot(232)
     plt.plot(years, retreat)
     plt.xlabel('Year')
     plt.ylabel('Retreat Day')
-    plt.title(indname + ' Retreat')
+    plt.title('Retreat')
     plt.grid()
 
     plt.subplot(235)
     plot_hist(retreat, binwidth)
-    plt.title(indname + ' Retreat')
+    plt.title('Retreat')
 
     plt.subplot(233)
     plt.plot(years, length)
     plt.xlabel('Year')
     plt.ylabel('# Days')
-    plt.title(indname + ' Monsoon Length')
+    plt.title('Monsoon Length')
     plt.grid()
 
     plt.subplot(236)
     plot_hist(length, binwidth, incl_daystr=False)
     plt.xlabel('# Days')
-    plt.title(indname + ' Monsoon Length')
+    plt.title('Monsoon Length')
+
+    plt.suptitle(indname)
 
 
 # ----------------------------------------------------------------------
-def plot_index_years(index, years=None, figsize=(12,10), nrow=2, ncol=2):
+def plot_index_years(index, years=None, figsize=(12,10), nrow=2, ncol=2,
+                     suptitle=''):
     """Plot daily timeseries of monsoon index/onset/retreat each year.
     """
 
@@ -466,6 +469,7 @@ def plot_index_years(index, years=None, figsize=(12,10), nrow=2, ncol=2):
     for y, year in enumerate(years):
         if y % (nrow * ncol) == 0:
             plt.figure(figsize=figsize)
+            plt.suptitle(suptitle)
             yplot = 1
         else:
             yplot += 1
