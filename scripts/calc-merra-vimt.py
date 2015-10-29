@@ -25,7 +25,8 @@ lat1, lat2 = -20, 30
 varlist = ['u', 'v', 'q']
 pmin = 300e2
 years = range(1979, 2015)
-months = [5, 6, 7, 8]
+#months = [5, 6, 7, 8]
+months = [4]
 
 for year in years:
     for mon in months:
