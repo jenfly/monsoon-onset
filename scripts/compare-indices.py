@@ -22,10 +22,11 @@ index = collections.OrderedDict()
 # Compute HOWI indices (Webster and Fasullo 2003)
 datadir = atm.homedir() + 'datastore/merra/daily/'
 datafile = datadir + 'merra_vimt_ps-300mb_may-sep_1979-2014.nc'
-ds = atm.ncload(datafile)
+maxbreak = 10
 
+ds = atm.ncload(datafile)
 for npts in [50, 100]:
-    howi, _ = onset_HOWI(ds['uq_int'], ds['vq_int'], npts)
+    howi, _ = onset_HOWI(ds['uq_int'], ds['vq_int'], npts, maxbreak=maxbreak)
     howi.attrs['title'] = 'HOWI (N=%d)' % npts
     index['HOWI_%d' % npts] = howi
 
