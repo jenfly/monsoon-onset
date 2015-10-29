@@ -362,8 +362,8 @@ def summarize_indices(years, onset, retreat, indname='', binwidth=5,
         return '%.0f (%s-%.0f)' % (day, mon, dd)
 
     def plot_hist(ind, binwidth, incl_daystr=True):
-        b1 = np.floor(ind.min() / binwidth) * binwidth
-        b2 = np.ceil(ind.max() / binwidth) * binwidth
+        b1 = np.floor(np.nanmin(ind) / binwidth) * binwidth
+        b2 = np.ceil(np.nanmax(ind) / binwidth) * binwidth
         bin_edges = np.arange(b1, b2 + 1, binwidth)
         n, bins, _ = plt.hist(ind, bin_edges)
         plt.xlabel('Day of Year')
