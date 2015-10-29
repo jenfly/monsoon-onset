@@ -427,7 +427,7 @@ def plot_index_years(index, years=None, figsize=(12,10), nrow=2, ncol=2):
     days = index.day
     if years is None:
         # All years
-        years = tseries.year.values
+        years = index.year.values
 
     tseries = index.tseries.sel(year=years)
     if 'onset' in index.data_vars:
