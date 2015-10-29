@@ -458,9 +458,11 @@ def plot_index_years(index, years=None, figsize=(12,10), nrow=2, ncol=2,
     def onset_tseries(days, ind, d_onset, d_retreat):
         plt.plot(days, ind)
         if d_onset is not None and not np.isnan(d_onset):
+            d_onset = int(d_onset)
             plt.plot(d_onset, ind.sel(day=d_onset), 'ro', label='onset')
             #plt.plot(d_onset-1, ind.sel(day=d_onset-1), 'k.', label='onset-1')
         if d_retreat is not None and not np.isnan(d_retreat):
+            d_retreat = int(d_retreat)
             plt.plot(d_retreat, ind.sel(day=d_retreat), 'bo', label='retreat')
             #plt.plot(d_retreat-1, ind.sel(day=d_retreat-1), 'k.', label='retreat')
         plt.grid()
