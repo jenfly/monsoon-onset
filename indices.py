@@ -13,11 +13,13 @@ import pandas as pd
 import atmos as atm
 import precipdat
 
-def onset_WLH_1D(precip_sm, threshold=5.0, onset_min=20):
+def onset_WLH_1D(precip_sm, threshold=5.0, onset_min=20, precip_jan=None):
     """Return monsoon onset index computed by Wang & LinHo 2002 method.
 
     For a single pentad timeseries (e.g. one year of pentads at one grid
-    point).
+    point). Can be used on a daily timeseries, but the January mean
+    precip for each year must be specified in the input (the code here
+    calculates January mean assuming pentad data).
 
     Parameters
     ----------
@@ -40,12 +42,13 @@ def onset_WLH_1D(precip_sm, threshold=5.0, onset_min=20):
         Summer Monsoon. Journal of Climate, 15(4), 386-398.
     """
     # January mean precip
-    weights = np.zeros(precip_sm.shape, dtype=float)
-    weights[:6] = 5.0 / 31
-    weights[6] = 1.0 / 31
-    weights = np.ma.masked_array(weights, np.isnan(precip_sm))
-    weights = weights / np.sum(weights)
-    precip_jan = np.mean(precip_sm * weights)
+    if precip_jan is None:
+        weights = np.zeros(precip_sm.shape, dtype=float)
+        weights[:6] = 5.0 / 31
+        weights[6] = 1.0 / 31
+        weights = np.ma.masked_array(weights, np.isnan(precip_sm))
+        weights = weights / np.sum(weights)
+        precip_jan = np.mean(precip_sm * weights)
     precip_rel = precip_sm - precip_jan
     precip_rel = np.ma.masked_array(precip_rel, np.isnan(precip_rel))
 
