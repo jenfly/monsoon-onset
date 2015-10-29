@@ -21,7 +21,7 @@ index = collections.OrderedDict()
 # ----------------------------------------------------------------------
 # Compute HOWI indices (Webster and Fasullo 2003)
 datadir = atm.homedir() + 'datastore/merra/daily/'
-datafile = datadir + 'merra_vimt_ps-300mb_may-sep_1979-2014.nc'
+datafile = datadir + 'merra_vimt_ps-300mb_apr-sep_1979-2014.nc'
 maxbreak = 10
 
 ds = atm.ncload(datafile)
@@ -155,8 +155,24 @@ for key in keys[1:]:
     ind = np.reshape(index[key].onset.values, (len(years), 1))
     onset = np.concatenate([onset, ind], axis=1)
 onset = pd.DataFrame(onset, index=years, columns=shortkeys)
-pd.scatter_matrix(onset, figsize=(16, 10))
-plt.suptitle('Onset Day')
+
+# Correlation coefficients between indices
+onset_corr_df = onset.corr()
+onset_corr = onset_corr_df.as_matrix()
+
+# Matrix of scatter plots
+ax = pd.scatter_matrix(onset, figsize=(16, 10))
+
+# Annotate with correlation coefficients
+x0, y0 = 0.05, 0.85
+for i in range(ax.shape[0]):
+    for j in range(ax.shape[1]):
+        thisax = ax[i, j]
+        thisax.text(x0, y0, '%.2f' % onset_corr[i, j], fontweight='bold',
+                    color='black', transform=thisax.transAxes)
+plt.draw()
+plt.suptitle('Onset Day - Scatter Plots and Correlation Coefficients')
+
 if isave:
     for ext in exts:
         atm.savefigs('onset_scatter', ext)
