@@ -94,7 +94,7 @@ mfcbar = atm.mean_over_geobox(mfc, lat1, lat2, lon1, lon2)
 print('Reading MERRA precip ' + precipfile)
 with xray.open_dataset(precipfile) as dsprecip:
     precip = dsprecip['PRECTOT']
-    precipbar = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)    
+    precipbar = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)
 
 # Compute indices for each dataset
 for name in ['CMAP', 'MERRA_MFC', 'MERRA_PRECIP']:
@@ -114,7 +114,7 @@ for name in ['CMAP', 'MERRA_MFC', 'MERRA_PRECIP']:
         days = precipbar.day.values
         pentad = False
         precip_jan = 0.0 # Use zero for now
-        
+
     years = pcp.year.values
 
     key = 'WLH_%s_kmax%d' % (name, kmax)
@@ -166,7 +166,7 @@ short = { 'HOWI_50' : 'HOWI50',
           'WLH_CMAP_unsmth' : 'W_C_u',
           'WLH_MERRA_MFC_kmax12' : 'W_MM_k12',
           'WLH_MERRA_MFC_nroll7' : 'W_MM_n7',
-          'WLH_MERRA_MFC_unsmth' : 'W_MM_u', 
+          'WLH_MERRA_MFC_unsmth' : 'W_MM_u',
           'WLH_MERRA_PRECIP_kmax12' : 'W_MP_k12',
           'WLH_MERRA_PRECIP_nroll7' : 'W_MP_n7',
           'WLH_MERRA_PRECIP_unsmth' : 'W_MP_u'}
@@ -193,9 +193,8 @@ ax = pd.scatter_matrix(onset, figsize=(16, 10))
 x0, y0 = 0.05, 0.85
 for i in range(ax.shape[0]):
     for j in range(ax.shape[1]):
-        thisax = ax[i, j]
-        thisax.text(x0, y0, '%.2f' % onset_corr[i, j], fontweight='bold',
-                    color='black', transform=thisax.transAxes)
+        atm.text('%.2f' % onset_corr[i, j], (x0, y0), ax=ax[i, j],
+                 fontweight='bold', color='black')
 plt.draw()
 plt.suptitle('Onset Day - Scatter Plots and Correlation Coefficients')
 
