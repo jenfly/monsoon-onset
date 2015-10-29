@@ -365,23 +365,24 @@ def summarize_indices(years, onset, retreat, indname='', binwidth=5,
         b1 = np.floor(np.nanmin(ind) / binwidth) * binwidth
         b2 = np.ceil(np.nanmax(ind) / binwidth) * binwidth
         bin_edges = np.arange(b1, b2 + 1, binwidth)
-        n, bins, _ = plt.hist(ind, bin_edges)
+        n, bins, _ = plt.hist(ind, bin_edges, alpha=0.2)
         plt.xlabel('Day of Year')
         plt.ylabel('Num of Occurrences')
-        x1 = bins[0] + 0.03 * (bins[-1] - bins[0])
-        y1 = n.max() * 0.9
         if incl_daystr:
-            dmean = daystr(ind.mean())
-            dmin = daystr(ind.min())
-            dmax = daystr(ind.max())
+            dmean = daystr(np.nanmean(ind))
+            dmin = daystr(np.nanmin(ind))
+            dmax = daystr(np.nanmax(ind))
         else:
-            dmean = '%.0f' % ind.mean()
-            dmin = '%.0f' % ind.min()
-            dmax = '%.0f' % ind.max()
-        plt.text(x1, y1, 'Mean %s' % dmean)
-        plt.text(x1, y1 * 0.9, 'Std %.0f' % ind.std())
-        plt.text(x1, y1 * 0.8, 'Min %s' % dmin)
-        plt.text(x1, y1 * 0.7, 'Max %s' % dmax)
+            dmean = '%.0f' % np.nanmean(ind)
+            dmin = '%.0f' % np.nanmin(ind)
+            dmax = '%.0f' % np.nanmax(ind)
+        x0 = 0.05
+        y = [0.9, 0.8, 0.7, 0.6]
+        kwargs = {'horizontalalignment' : 'left'}
+        atm.text('Mean %s' % dmean, (x0, y[0]), **kwargs)
+        atm.text('Std %.0f' % np.nanstd(ind), (x0, y[1]), **kwargs)
+        atm.text('Min %s' % dmin, (x0, y[2]), **kwargs)
+        atm.text('Max %s' % dmax, (x0, y[3]), **kwargs)
 
     plt.figure(figsize=(16,10))
     plt.subplot(231)
