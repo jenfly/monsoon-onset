@@ -182,21 +182,10 @@ for key in keys[1:]:
     onset = np.concatenate([onset, ind], axis=1)
 onset = pd.DataFrame(onset, index=years, columns=shortkeys)
 
-# Correlation coefficients between indices
-onset_corr_df = onset.corr()
-onset_corr = onset_corr_df.as_matrix()
-
-# Matrix of scatter plots
-ax = pd.scatter_matrix(onset, figsize=(16, 10))
-
-# Annotate with correlation coefficients
-x0, y0 = 0.05, 0.85
-for i in range(ax.shape[0]):
-    for j in range(ax.shape[1]):
-        atm.text('%.2f' % onset_corr[i, j], (x0, y0), ax=ax[i, j],
-                 fontweight='bold', color='black')
-plt.draw()
-plt.suptitle('Onset Day - Scatter Plots and Correlation Coefficients')
+# Plot matrix of scatter plots with correlation coeffs
+titlestr = 'Onset Day - Scatter Plots and Correlation Coefficients'
+atm.scatter_matrix(onset, corr_fmt='.2f', corr_pos=(0.1, 0.85), figsize=(16,10),
+                   suptitle=titlestr)
 
 if isave:
     for ext in exts:
