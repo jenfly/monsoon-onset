@@ -8,6 +8,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import collections
 import pandas as pd
+import scipy.signal
 import atmos as atm
 import precipdat
 import merra
@@ -22,6 +23,8 @@ datadir = atm.homedir() + 'datastore/merra/daily/'
 vimtfile = datadir + 'merra_vimt_ps-300mb_apr-sep_1979-2014.nc'
 precipfile = datadir + 'merra_precip_40E-120E_60S-60N_days91-274_1979-2014.nc'
 cmapfile = atm.homedir() + 'datastore/cmap/cmap.precip.pentad.mean.nc'
+eraIfile = atm.homedir() + ('datastore/era_interim/analysis/'
+                            'era_interim_JJAS_60-100E_index.csv')
 
 # Lat-lon box for WLH method
 lon1, lon2 = 60, 100
@@ -190,3 +193,32 @@ atm.scatter_matrix(onset, corr_fmt='.2f', corr_pos=(0.1, 0.85), figsize=(16,10),
 if isave:
     for ext in exts:
         atm.savefigs('onset_scatter', ext)
+        plt.close('all')
+
+# ----------------------------------------------------------------------
+# Monsoon strength indices
+
+def detrend(vals, index):
+    vals_det = scipy.signal.detrend(vals)
+    vals_det = vals_det / np.std(vals_det)
+    output = pd.Series(vals_det, index=index)
+    return output
+
+mfc_JJAS = atm.subset(mfcbar, 'day', atm.season_days('JJAS'))
+mfc_JJAS = mfc_JJAS.mean(dim='day')
+mfc_det = detrend(mfc_JJAS.values, mfc_JJAS.year)
+
+era = pd.read_csv(eraIfile, index_col=0)
+era_det = detrend(era.values.flatten(), era.index)
+
+strength = mfc_JJAS.to_series().to_frame(name='MERRA')
+strength['MERRA_DET'] = mfc_det
+strength['ERAI'] = era
+strength['ERAI_DET'] = era_det
+
+strength.plot()
+plt.title('JJAS Monsoon Strength')
+plt.xlabel('Year')
+plt.ylabel('Index (mm/day)')
+
+atm.scatter_matrix(strength)
