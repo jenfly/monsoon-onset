@@ -423,11 +423,13 @@ def summarize_indices(years, onset, retreat=None, indname='', binwidth=5,
     if isinstance(onset, xray.DataArray):
         onset = onset.values
     if retreat is None:
+        nrows, ncols = 2, 1
         figsize = (7, 10)
     else:
         if isinstance(retreat, xray.DataArray):
             retreat = retreat.values
             length = retreat - onset
+        nrows, ncols = 2, 3
 
     def daystr(day):
         day = round(day)
@@ -459,39 +461,40 @@ def summarize_indices(years, onset, retreat=None, indname='', binwidth=5,
         atm.text('Max %s' % dmax, (x0, y[3]), **kwargs)
 
     plt.figure(figsize=figsize)
-    plt.subplot(231)
+    plt.subplot(nrows, ncols, 1)
     plt.plot(years, onset)
     plt.xlabel('Year')
     plt.ylabel('Onset Day')
     plt.title('Onset')
     plt.grid()
 
-    plt.subplot(234)
+    plt.subplot(nrows, ncols, ncols + 1)
     plot_hist(onset, binwidth)
     plt.title('Onset')
 
-    plt.subplot(232)
-    plt.plot(years, retreat)
-    plt.xlabel('Year')
-    plt.ylabel('Retreat Day')
-    plt.title('Retreat')
-    plt.grid()
+    if retreat is not None:
+        plt.subplot(nrows, ncols, 2)
+        plt.plot(years, retreat)
+        plt.xlabel('Year')
+        plt.ylabel('Retreat Day')
+        plt.title('Retreat')
+        plt.grid()
 
-    plt.subplot(235)
-    plot_hist(retreat, binwidth)
-    plt.title('Retreat')
+        plt.subplot(nrows, ncols, ncols + 2)
+        plot_hist(retreat, binwidth)
+        plt.title('Retreat')
 
-    plt.subplot(233)
-    plt.plot(years, length)
-    plt.xlabel('Year')
-    plt.ylabel('# Days')
-    plt.title('Monsoon Length')
-    plt.grid()
+        plt.subplot(nrows, ncols, 3)
+        plt.plot(years, length)
+        plt.xlabel('Year')
+        plt.ylabel('# Days')
+        plt.title('Monsoon Length')
+        plt.grid()
 
-    plt.subplot(236)
-    plot_hist(length, binwidth, incl_daystr=False)
-    plt.xlabel('# Days')
-    plt.title('Monsoon Length')
+        plt.subplot(nrows, ncols, ncols + 3)
+        plot_hist(length, binwidth, incl_daystr=False)
+        plt.xlabel('# Days')
+        plt.title('Monsoon Length')
 
     plt.suptitle(indname)
 
