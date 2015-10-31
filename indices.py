@@ -501,48 +501,50 @@ def summarize_indices(years, onset, retreat=None, indname='', binwidth=5,
 
 # ----------------------------------------------------------------------
 def plot_index_years(index, years=None, figsize=(12,10), nrow=2, ncol=2,
-                     suptitle=''):
+                     suptitle='', yearnm='year', daynm='day'):
     """Plot daily timeseries of monsoon index/onset/retreat each year.
     """
 
-    days = index.day
+    days = index[daynm]
     if years is None:
         # All years
-        years = index.year.values
+        years = index[yearnm].values
 
-    tseries = index.tseries.sel(year=years)
+    tseries = atm.subset(index['tseries'], yearnm, years)
     if 'onset' in index.data_vars:
-        onset = index.onset.sel(year=years).values
+        onset = atm.subset(index['onset'], yearnm, years).values
     else:
         onset = np.nan * years
     if 'retreat' in index.data_vars:
-        retreat = index.retreat.sel(year=years).values
+        retreat = atm.subset(index['retreat'], yearnm, years).values
     else:
         retreat = np.nan * years
 
     # Earliest/latest onset/retreat, shortest/longest seasons
     length = retreat - onset
+    yrs_ex, nms_ex = [], []
+    if not np.isnan(onset).all():
+        yrs_ex.extend([years[onset.argmin()], years[onset.argmax()]])
+        nms_ex.extend(['Earliest Onset', 'Latest Onset'])
+    if not np.isnan(retreat).all():
+        yrs_ex.extend([years[retreat.argmin()], years[retreat.argmax()]])
+        nms_ex.extend(['Earliest Retreat', 'Latest Retreat'])
+    if not np.isnan(length).all():
+        yrs_ex.extend([years[length.argmin()], years[length.argmax()]])
+        nms_ex.extend(['Shortest Monsoon', 'Longest Monsoon'])
     yrs_extreme = collections.defaultdict(str)
-    yrs_ex = [years[onset.argmin()], years[onset.argmax()],
-              years[retreat.argmin()], years[retreat.argmax()],
-              years[length.argmin()], years[length.argmax()]]
-    nms_ex = ['Earliest Onset', 'Latest Onset',
-              'Earliest Retreat', 'Latest Retreat',
-              'Shortest Monsoon', 'Longest Monsoon']
     for yr, nm in zip(yrs_ex, nms_ex):
         yrs_extreme[yr] = yrs_extreme[yr] + ' - ' + nm
 
     # Monsoon index with onset and retreat in individual years
-    def onset_tseries(days, ind, d_onset, d_retreat):
+    def onset_tseries(days, ind, d_onset, d_retreat, daynm):
         plt.plot(days, ind)
         if d_onset is not None and not np.isnan(d_onset):
             d_onset = int(d_onset)
-            plt.plot(d_onset, ind.sel(day=d_onset), 'ro', label='onset')
-            #plt.plot(d_onset-1, ind.sel(day=d_onset-1), 'k.', label='onset-1')
+            plt.plot(d_onset, atm.subset(ind, daynm, d_onset), 'ro', label='onset')
         if d_retreat is not None and not np.isnan(d_retreat):
             d_retreat = int(d_retreat)
-            plt.plot(d_retreat, ind.sel(day=d_retreat), 'bo', label='retreat')
-            #plt.plot(d_retreat-1, ind.sel(day=d_retreat-1), 'k.', label='retreat')
+            plt.plot(d_retreat, atm.subset(ind, daynm, d_retreat), 'bo', label='retreat')
         plt.grid()
         plt.xlim(days.min() - 1, days.max() + 1)
 
@@ -555,7 +557,7 @@ def plot_index_years(index, years=None, figsize=(12,10), nrow=2, ncol=2,
         else:
             yplot += 1
         plt.subplot(nrow, ncol, yplot)
-        onset_tseries(days, tseries[y], onset[y], retreat[y])
+        onset_tseries(days, tseries[y], onset[y], retreat[y], daynm)
         if year in yrs_extreme.keys():
             titlestr = str(year) + yrs_extreme[year]
         else:
