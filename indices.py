@@ -344,16 +344,90 @@ def onset_HOWI(uq_int, vq_int, npts=50, nroll=7, days_pre=range(138, 145),
 
 
 # ----------------------------------------------------------------------
-def summarize_indices(years, onset, retreat, indname='', binwidth=5,
+def onset_OCI(u, latlon = (5, 15, 40, 80), mmdd_thresh=(6,1),
+              ndays=7, yearnm='Year', daynm='Day'):
+    """Return monsoon Onset Circulation Index.
+
+    Parameters
+    ----------
+    u : xray.DataArray
+        850 hPa zonal wind.
+    latlon : 4-tuple of floats, optional
+        Tuple of (lat1, lat2, lon1, lon2) defining South Arabian Sea
+        region to average over.
+    mmdd_thres : 2-tuple of ints, optional
+        Tuple of (month, day) defining climatological mean onset date
+        to use for threshold value of u.
+    ndays : int, optional
+        Number of consecutive days threshold must be exceeded to
+        define onset.
+    yearnm, daynm : str, optional
+        Name of year and day dimensions in DataArray
+
+    Returns
+    -------
+    oci : xray.Dataset
+        OCI daily timeseries for each year and monsoon onset day for
+        each year.
+
+    Reference
+    ---------
+    Wang, B., Ding, Q., & Joseph, P. V. (2009). Objective Definition
+        of the Indian Summer Monsoon Onset. Journal of Climate, 22(12),
+        3303-3316.
+    """
+
+    days = atm.get_coord(u, coord_name=daynm)
+    years = atm.get_coord(u, coord_name=yearnm)
+    nyears = len(years)
+
+    # Average over South Arabian Sea region
+    lat1, lat2, lon1, lon2 = latlon
+    ubar = atm.mean_over_geobox(u, lat1, lat2, lon1, lon2)
+
+    # Find values at climatological onset
+    m0, d0 = mmdd_thresh
+    d0 = [atm.mmdd_to_jday(m0, d0, year) for year in years]
+    u0 = [ubar.sel(**{daynm : day, yearnm : year}).values
+          for year, day in zip(years, d0)]
+    u0 = np.array(u0).flatten()
+    uthreshold = np.mean(u0)
+
+    # Find first day when OCI exceeds threshold and stays above the
+    # threshold for consecutive ndays
+    def onset_day(tseries, uthreshold, ndays, daynm):
+        above = (tseries.values > uthreshold)
+        d0 = above.argmax()
+        while not above[d0:d0+ndays].all():
+            d0 += 1
+        return tseries[daynm].values[d0]
+
+    # Find onset day for each year
+    onset = [onset_day(ubar[y], uthreshold, ndays, daynm)
+             for y in range(nyears)]
+
+    # Pack into dataset
+    oci = xray.Dataset()
+    oci['tseries'] = ubar
+    oci['onset'] = xray.DataArray(onset, coords={yearnm : years})
+
+    return oci
+
+
+# ----------------------------------------------------------------------
+def summarize_indices(years, onset, retreat=None, indname='', binwidth=5,
                       figsize=(16, 10)):
     """Summarize monsoon onset/retreat days in timeseries and histogram.
     """
 
     if isinstance(onset, xray.DataArray):
         onset = onset.values
-    if isinstance(retreat, xray.DataArray):
-        retreat = retreat.values
-    length = retreat - onset
+    if retreat is None:
+        figsize = (7, 10)
+    else:
+        if isinstance(retreat, xray.DataArray):
+            retreat = retreat.values
+            length = retreat - onset
 
     def daystr(day):
         day = round(day)
@@ -384,7 +458,7 @@ def summarize_indices(years, onset, retreat, indname='', binwidth=5,
         atm.text('Min %s' % dmin, (x0, y[2]), **kwargs)
         atm.text('Max %s' % dmax, (x0, y[3]), **kwargs)
 
-    plt.figure(figsize=(16,10))
+    plt.figure(figsize=figsize)
     plt.subplot(231)
     plt.plot(years, onset)
     plt.xlabel('Year')
