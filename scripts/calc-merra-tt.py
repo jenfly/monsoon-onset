@@ -15,7 +15,7 @@ import merra
 
 def savefile(year, mon, pmin, pmax):
     savedir = atm.homedir() + 'datastore/merra/daily/'
-    filn = savedir + 'merra_T%d-%d_%d%02d.nc' % (pmin/100, pmax/100, year, mon)
+    filn = savedir + 'merra_T%d-%d_apr-sep_%d%02d.nc' % (pmin/100, pmax/100, year, mon)
     print('Saving to ' + filn)
     return filn
 
@@ -39,12 +39,12 @@ for year in years:
         T = atm.daily_from_subdaily(T, nperday, dayvals=dayvals)
 
         # Vertical integral
-        T = atm.int_pres(T, pmin=pmin, pmax=pmax)
-        T = T * g / (pmax - pmin)
-        T.name='T'
-        T.attrs['long_name'] = 'Vertical mean atmospheric temperature'
-        T.attrs['pmin'] = pmin
-        T.attrs['pmax'] = pmax
+        Tbar = atm.int_pres(T, pmin=pmin, pmax=pmax)
+        Tbar = Tbar * g / (pmax - pmin)
+        Tbar.name='Tbar'
+        Tbar.attrs['long_name'] = 'Vertical mean atmospheric temperature'
+        Tbar.attrs['pmin'] = pmin
+        Tbar.attrs['pmax'] = pmax
 
         # Save to file
-        atm.save_nc(savefile(year, mon, pmin, pmax), T)
+        atm.save_nc(savefile(year, mon, pmin, pmax), T, Tbar)
