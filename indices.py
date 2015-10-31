@@ -415,6 +415,58 @@ def onset_OCI(u, latlon = (5, 15, 40, 80), mmdd_thresh=(6,1),
 
 
 # ----------------------------------------------------------------------
+def onset_TT(T, north=(5, 35, 40, 100), south=(-15, 5, 40, 100),
+             yearnm='year', daynm='day'):
+    """Return monsoon onset index based on tropospheric temperature.
+
+    Parameters
+    ----------
+    T : xray.DataArray
+        Air temperature 200-600 hPa vertical mean.
+    north, south : 4-tuples of floats, optional
+        Tuple of (lat1, lat2, lon1, lon2) defining northern and
+        southern regions to average over.
+    yearnm, daynm : str, optional
+        Name of year and day dimensions in DataArray
+
+    Returns
+    -------
+    tt : xray.Dataset
+        TT daily timeseries for each year and monsoon onset day for
+        each year.
+
+    Reference
+    ---------
+    Goswami, B. N., Wu, G., & Yasunari, T. (2006). The annual cycle,
+        intraseasonal oscillations, and roadblock to seasonal
+        predictability of the Asian summer monsoon. Journal of Climate,
+        19, 5078-5099.
+    """
+
+    ttn = atm.mean_over_geobox(T, north[0], north[1], north[2], north[3])
+    tts = atm.mean_over_geobox(T, south[0], south[1], south[2], south[3])
+    tseries = ttn - tts
+
+    # Onset day is the first day that ttn-tts becomes positive
+    years = tseries[yearnm]
+    onset = np.zeros(years.shape)
+    for y in range(len(years)):
+        pos = (tseries.values[y] > 0)
+        if not pos.any():
+            onset[y] = np.nan
+        else:
+            onset[y] = tseries[daynm][pos.argmax()]
+
+    tt = xray.Dataset()
+    tt['ttn'] = ttn
+    tt['tts'] = tts
+    tt['tseries'] = tseries
+    tt['onset'] = xray.DataArray(onset, coords={yearnm : years})
+
+    return tt
+
+
+# ----------------------------------------------------------------------
 def summarize_indices(years, onset, retreat=None, indname='', binwidth=5,
                       figsize=(16, 10)):
     """Summarize monsoon onset/retreat days in timeseries and histogram.
