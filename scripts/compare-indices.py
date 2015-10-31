@@ -12,10 +12,10 @@ import scipy.signal
 import atmos as atm
 import precipdat
 import merra
-from indices import (onset_WLH, onset_WLH_1D, onset_HOWI, summarize_indices,
-                     plot_index_years)
+import indices
 
-isave = True
+# ----------------------------------------------------------------------
+isave = False
 exts = ['png', 'eps']
 index = collections.OrderedDict()
 
@@ -25,21 +25,20 @@ precipfile = datadir + 'merra_precip_40E-120E_60S-60N_days91-274_1979-2014.nc'
 cmapfile = atm.homedir() + 'datastore/cmap/cmap.precip.pentad.mean.nc'
 eraIfile = atm.homedir() + ('datastore/era_interim/analysis/'
                             'era_interim_JJAS_60-100E_index.csv')
+ocifile = datadir + 'merra_u850_40E-120E_60S-60N_1979-2014.nc'
 
 # Lat-lon box for WLH method
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 
 # ----------------------------------------------------------------------
-# Compute HOWI indices (Webster and Fasullo 2003)
-
+# HOWI index (Webster and Fasullo 2003)
 maxbreak = 10
-
 with xray.open_dataset(vimtfile) as ds:
     ds.load()
-
 for npts in [50, 100]:
-    howi, _ = onset_HOWI(ds['uq_int'], ds['vq_int'], npts, maxbreak=maxbreak)
+    howi, _ = indices.onset_HOWI(ds['uq_int'], ds['vq_int'], npts,
+                                 maxbreak=maxbreak)
     howi.attrs['title'] = 'HOWI (N=%d)' % npts
     index['HOWI_%d' % npts] = howi
 
@@ -53,8 +52,8 @@ def get_onset_WLH(years, days, pcp_sm, threshold, titlestr, pentad=True,
     i_retreat = np.zeros(nyears)
     i_peak = np.zeros(nyears)
     for y, year in enumerate(years):
-        i_onset[y], i_retreat[y], i_peak[y] = onset_WLH_1D(pcp_sm[y], threshold,
-                                                           precip_jan=pcp_jan)
+        vals = indices.onset_WLH_1D(pcp_sm[y], threshold, precip_jan=pcp_jan)
+        i_onset[y], i_retreat[y], i_peak[y] = vals
 
     # Convert from pentads to day of year
     if pentad:
@@ -63,8 +62,6 @@ def get_onset_WLH(years, days, pcp_sm, threshold, titlestr, pentad=True,
     else:
         d_onset = [np.nan if np.isnan(i) else days[int(i)] for i in i_onset]
         d_retreat = [np.nan if np.isnan(i) else days[int(i)] for i in i_retreat]
-        # d_onset = days[i_onset.astype(int)]
-        # d_retreat = days[i_retreat.astype(int)]
 
     # Pack into Dataset
     index = xray.Dataset()
@@ -143,19 +140,26 @@ for name in ['CMAP', 'MERRA_MFC', 'MERRA_PRECIP']:
                                precip_jan)
 
 # ----------------------------------------------------------------------
+# OCI index (Wang et al 2009)
+with xray.open_dataset(ocifile) as ds:
+    u850 = ds['U'].load()
+
+index['OCI'] = indices.onset_OCI(u850)
+
+# ----------------------------------------------------------------------
 # Summary plots
 for key in index.keys():
     ind = index[key]
-    summarize_indices(ind.year, ind.onset, ind.retreat, ind.title)
+    indices.summarize_indices(ind.year, ind.onset, ind.retreat, ind.title)
     if isave:
         for ext in exts:
             atm.savefigs('summary_' + key + '_', ext)
         plt.close('all')
 
 # Plot daily timeseries for each year
-tseries = index.keys()
-for key in tseries:
-    plot_index_years(index[key], suptitle=key)
+keys = index.keys()
+for key in keys:
+    indices.plot_index_years(index[key], suptitle=key)
     if isave:
         for ext in exts:
             atm.savefigs('tseries_' + key + '_', ext)
@@ -172,11 +176,12 @@ short = { 'HOWI_50' : 'HOWI50',
           'WLH_MERRA_MFC_unsmth' : 'W_MM_u',
           'WLH_MERRA_PRECIP_kmax12' : 'W_MP_k12',
           'WLH_MERRA_PRECIP_nroll7' : 'W_MP_n7',
-          'WLH_MERRA_PRECIP_unsmth' : 'W_MP_u'}
+          'WLH_MERRA_PRECIP_unsmth' : 'W_MP_u',
+          'OCI' : 'OCI'}
 
 # Subset of keys to include in correlation calcs
-keys = ['HOWI_100', 'HOWI_50', 'WLH_CMAP_kmax12', 'WLH_CMAP_nroll3',
-        'WLH_CMAP_unsmth', 'WLH_MERRA_MFC_nroll7', 'WLH_MERRA_PRECIP_nroll7']
+keys = ['HOWI_100', 'HOWI_50', 'OCI', 'WLH_CMAP_kmax12', 'WLH_CMAP_nroll3',
+        'WLH_MERRA_PRECIP_nroll7']
 shortkeys = [short[key] for key in keys]
 years = index[keys[0]].year.values
 onset = np.reshape(index[keys[0]].onset.values, (len(years), 1))
