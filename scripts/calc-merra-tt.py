@@ -15,7 +15,7 @@ import merra
 
 def savefile(year, mon, pmin, pmax):
     savedir = atm.homedir() + 'datastore/merra/daily/'
-    filn = savedir + 'merra_T%d-%d_apr-sep_%d%02d.nc' % (pmin/100, pmax/100, year, mon)
+    filn = savedir + 'merra_T%d-%d_%d%02d.nc' % (pmin/100, pmax/100, year, mon)
     print('Saving to ' + filn)
     return filn
 
