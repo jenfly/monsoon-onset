@@ -17,6 +17,10 @@ datadir = atm.homedir() + 'datastore/merra/daily/'
 years = range(1979, 2015)
 months = [4, 5, 6, 7, 8, 9]
 
+# Common set of days for leap and non-leap years
+dmin, dmax = 91, 274
+days = np.arange(dmin, dmax + 1)
+
 def datafile(datadir, year, mon):
     filn = datadir + 'merra_vimt_%d%02d.nc' % (year, mon)
     return filn
@@ -42,9 +46,8 @@ for y, year in enumerate(years):
             else:
                 dsyr = xray.concat((dsyr, ds), dim='day')
     dsyr.coords['year'] = year
-    if atm.isleap(year):
-        # Standardize to non-leap year day numbers
-        dsyr['day'] = dsyr['day'] - 1
+    # Align leap and non-leap years
+    dsyr = dsyr.reindex(day=days)
     if y == 0:
         ds_all = dsyr
     else:
