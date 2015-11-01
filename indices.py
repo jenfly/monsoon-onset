@@ -617,3 +617,44 @@ def plot_index_years(index, years=None, figsize=(12,10), nrow=2, ncol=2,
         plt.title(titlestr)
 
     return yrs_extreme
+
+
+
+def plot_tseries_together(data, onset=None, years=None, suptitle='',
+                          figsize=(12,10), legendsize=10,
+                          legendloc='upper left', nrow=2, ncol=2,
+                          yearnm='year', daynm='day'):
+    """Plot multiple daily timeseries together each year.
+    """
+
+    if years is None:
+        # All years
+        years = data[yearnm].values
+    data = atm.subset(data, yearnm, years)
+
+    # Plot each year
+    for y, year in enumerate(years):
+        df = atm.subset(data, yearnm, year).to_dataframe()
+        df.drop(yearnm, axis=1, inplace=True)
+
+        for key in df.columns:
+            df[key] = (df[key] - np.nanmean(df[key])) / np.nanstd(df[key])
+
+        if y % (nrow * ncol) == 0:
+            plt.figure(figsize=figsize)
+            plt.suptitle(suptitle)
+            yplot = 1
+        else:
+            yplot += 1
+
+        ax = plt.subplot(nrow, ncol, yplot)
+        df.plot(ax=ax)
+        plt.grid()
+        if yplot == 1:
+            plt.legend(fontsize=legendsize, loc=legendloc)
+        else:
+            ax.legend_.remove()
+        if onset is not None:
+            plt.plot([onset[y], onset[y]], plt.ylim(), 'k')
+        plt.ylabel('Standardized Timeseries')
+        plt.title(year)

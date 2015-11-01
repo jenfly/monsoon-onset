@@ -143,8 +143,8 @@ for name in ['CMAP', 'MERRA_MFC', 'MERRA_PRECIP']:
 # OCI index (Wang et al 2009)
 with xray.open_dataset(ocifile) as ds:
     u850 = ds['U'].load()
-
-index['OCI'] = indices.onset_OCI(u850)
+u850 = u850.rename({'Year' : 'year', 'Day' : 'day'})
+index['OCI'] = indices.onset_OCI(u850, yearnm='year', daynm='day')
 
 # ----------------------------------------------------------------------
 # Summary plots
@@ -227,3 +227,16 @@ plt.xlabel('Year')
 plt.ylabel('Index (mm/day)')
 
 atm.scatter_matrix(strength)
+
+# ----------------------------------------------------------------------
+# Plotting timeseries together
+
+data = xray.Dataset()
+keys = index.keys()
+for k in [1, 6, 9, 11]:
+    key = keys[k]
+    data[short[key]] = index[key]['tseries']
+
+key_onset = 'HOWI_100'
+d_onset = index[key_onset]['onset'].values
+plot_tseries_together(data, onset=d_onset, suptitle=key_onset + ' Onset')
