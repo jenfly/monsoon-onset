@@ -166,8 +166,8 @@ for key in keys:
         plt.close('all')
 
 # Compare onset indices to each other
-short = { 'HOWI_50' : 'HOWI50',
-          'HOWI_100' : 'HOWI100',
+short = { 'HOWI_50' : 'HOWI_50',
+          'HOWI_100' : 'HOWI_100',
           'WLH_CMAP_kmax12' : 'W_C_k12',
           'WLH_CMAP_nroll3' : 'W_C_n3',
           'WLH_CMAP_unsmth' : 'W_C_u',
@@ -239,4 +239,5 @@ for k in [1, 6, 9, 11]:
 
 key_onset = 'HOWI_100'
 d_onset = index[key_onset]['onset'].values
-plot_tseries_together(data, onset=d_onset, suptitle=key_onset + ' Onset')
+suptitle = key_onset + ' Onset'
+indices.plot_tseries_together(data, onset=d_onset, suptitle=suptitle)
