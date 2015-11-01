@@ -26,6 +26,7 @@ cmapfile = atm.homedir() + 'datastore/cmap/cmap.precip.pentad.mean.nc'
 eraIfile = atm.homedir() + ('datastore/era_interim/analysis/'
                             'era_interim_JJAS_60-100E_index.csv')
 ocifile = datadir + 'merra_u850_40E-120E_60S-60N_1979-2014.nc'
+ttfile = datadir + 'merra_T200-600_apr-sep_1979-2014.nc'
 
 # Lat-lon box for WLH method
 lon1, lon2 = 60, 100
@@ -145,12 +146,26 @@ with xray.open_dataset(ocifile) as ds:
     u850 = ds['U'].load()
 u850 = u850.rename({'Year' : 'year', 'Day' : 'day'})
 index['OCI'] = indices.onset_OCI(u850, yearnm='year', daynm='day')
+index['OCI'].attrs['title'] = 'OCI'
+
+# ----------------------------------------------------------------------
+# TT index (Goswami et al 2006)
+with xray.open_dataset(ttfile) as ds:
+    T = ds['T'].load()
+north=(5, 30, 40, 100)
+south=(-15, 5, 40, 100)
+index['TT'] = indices.onset_TT(T, north=north, south=south)
+index['TT'].attrs['title'] = 'TT'
 
 # ----------------------------------------------------------------------
 # Summary plots
 for key in index.keys():
     ind = index[key]
-    indices.summarize_indices(ind.year, ind.onset, ind.retreat, ind.title)
+    if 'retreat' in ind.keys():
+        retreat = ind.retreat
+    else:
+        retreat = None
+    indices.summarize_indices(ind.year, ind.onset, retreat, ind.title)
     if isave:
         for ext in exts:
             atm.savefigs('summary_' + key + '_', ext)
@@ -177,11 +192,12 @@ short = { 'HOWI_50' : 'HOWI_50',
           'WLH_MERRA_PRECIP_kmax12' : 'W_MP_k12',
           'WLH_MERRA_PRECIP_nroll7' : 'W_MP_n7',
           'WLH_MERRA_PRECIP_unsmth' : 'W_MP_u',
-          'OCI' : 'OCI'}
+          'OCI' : 'OCI',
+          'TT' : 'TT'}
 
 # Subset of keys to include in correlation calcs
-keys = ['HOWI_100', 'HOWI_50', 'OCI', 'WLH_CMAP_kmax12', 'WLH_CMAP_nroll3',
-        'WLH_MERRA_PRECIP_nroll7']
+keys = ['HOWI_100', 'HOWI_50', 'OCI', 'TT', 'WLH_CMAP_kmax12',
+        'WLH_CMAP_nroll3', 'WLH_MERRA_PRECIP_nroll7']
 shortkeys = [short[key] for key in keys]
 years = index[keys[0]].year.values
 onset = np.reshape(index[keys[0]].onset.values, (len(years), 1))
@@ -233,7 +249,7 @@ atm.scatter_matrix(strength)
 
 data = xray.Dataset()
 keys = index.keys()
-for k in [1, 6, 9, 11]:
+for k in [1, 6, 9, 11, 12]:
     key = keys[k]
     data[short[key]] = index[key]['tseries']
 
@@ -241,3 +257,17 @@ key_onset = 'HOWI_100'
 d_onset = index[key_onset]['onset'].values
 suptitle = key_onset + ' Onset'
 indices.plot_tseries_together(data, onset=d_onset, suptitle=suptitle)
+
+ind1 = data[keys[1]]
+ind2 = data[keys[11]]
+
+corr = np.zeros(years.shape)
+for y, year in enumerate(years):
+    df = atm.subset(ind1, yearnm, year).to_series().to_frame(name=ind1.name)
+    df[ind2.name] = atm.subset(ind2, yearnm, year).to_series()
+    corr[y] = df.corr().as_matrix()[0, 1]
+plt.figure()
+plt.bar(years, corr)
+plt.xlabel('Year')
+plt.ylabel('Correlation Coefficient')
+plt.title(ind1.name + ' correlation with ' + ind2.name)
