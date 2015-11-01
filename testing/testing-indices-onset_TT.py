@@ -16,16 +16,13 @@ from indices import onset_TT, summarize_indices, plot_index_years
 datadir = atm.homedir() + 'datastore/merra/daily/'
 years = np.arange(1979, 2015)
 months = [4, 5, 6, 7, 8, 9]
-# Common set of days for leap and non-leap years
-dmin, dmax = 91, 274
-days = np.arange(dmin, dmax + 1)
 filestr = 'merra_T200-600_'
-datafile = datadir + filestr + 'apr-sep_%d-%d.nc'% (years.min(), years.max())
+datafiles = [datadir + filestr + 'apr-sep_%d.nc'% year for year in years]
 
-combine_years = False
+combine_months = False
 
-# Read months, years from individual files and save to datafile
-if combine_years:
+# Read months from individual files and save to datafiles
+if combine_months:
     for y, year in enumerate(years):
         for m, mon in enumerate(months):
             filn = datadir + filestr + '%d%02d.nc' % (year, mon)
@@ -36,20 +33,12 @@ if combine_years:
                     dsyr = ds
                 else:
                     dsyr = xray.concat((dsyr, ds), dim='day')
-        dsyr.coords['year'] = year
-        # Align leap and non-leap years
-        dsyr = dsyr.reindex(day=days)
-        if y == 0:
-            ds_all = dsyr
-        else:
-            ds_all = xray.concat((ds_all, dsyr), dim='year')
-    print('Saving to ' + datafile)
-    ds_all.to_netcdf(datafile)
+        savefile = datafiles[y]
+        print('Saving to ' + savefile)
+        dsyr.to_netcdf(savefile)
 
-# Read combined years of daily data from file
-print('Loading ' + datafile)
-with xray.open_dataset(datafile) as ds:
-    T = ds['Tbar'].load()
+# Read daily data from each year
+T = atm.combine_daily_years('Tbar', datafiles, years, yearname='year')
 
 lat = atm.get_coord(T, 'lat')
 lon = atm.get_coord(T, 'lon')

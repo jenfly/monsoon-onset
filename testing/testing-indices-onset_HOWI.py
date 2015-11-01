@@ -14,7 +14,7 @@ from indices import onset_HOWI, summarize_indices, plot_index_years
 # ----------------------------------------------------------------------
 # Compute HOWI indices (Webster and Fasullo 2003)
 datadir = atm.homedir() + 'datastore/merra/daily/'
-datafile = datadir + 'merra_vimt_ps-300mb_may-sep_1979-2014.nc'
+datafile = datadir + 'merra_vimt_ps-300mb_apr-sep_1979-2014.nc'
 lat1, lat2 = -20, 30
 lon1, lon2 = 40, 100
 
@@ -149,4 +149,3 @@ plot_index_years(howi)
 if isave:
     for ext in exts:
         atm.savefigs(namestr, ext)
-
