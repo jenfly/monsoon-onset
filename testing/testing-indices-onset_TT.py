@@ -16,8 +16,12 @@ from indices import onset_TT, summarize_indices, plot_index_years
 datadir = atm.homedir() + 'datastore/merra/daily/'
 years = np.arange(1979, 2015)
 months = [4, 5, 6, 7, 8, 9]
+# Common set of days for leap and non-leap years
+dmin, dmax = 91, 274
+days = np.arange(dmin, dmax + 1)
 filestr = 'merra_T200-600_'
 datafile = datadir + filestr + 'apr-sep_%d-%d.nc'% (years.min(), years.max())
+
 combine_years = False
 
 # Read months, years from individual files and save to datafile
@@ -33,9 +37,8 @@ if combine_years:
                 else:
                     dsyr = xray.concat((dsyr, ds), dim='day')
         dsyr.coords['year'] = year
-        if atm.isleap(year):
-            # Standardize to non-leap year day numbers
-            dsyr['day'] = dsyr['day'] - 1
+        # Align leap and non-leap years
+        dsyr = dsyr.reindex(day=days)
         if y == 0:
             ds_all = dsyr
         else:
@@ -46,7 +49,7 @@ if combine_years:
 # Read combined years of daily data from file
 print('Loading ' + datafile)
 with xray.open_dataset(datafile) as ds:
-    T = ds['T'].load()
+    T = ds['Tbar'].load()
 
 lat = atm.get_coord(T, 'lat')
 lon = atm.get_coord(T, 'lon')
