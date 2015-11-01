@@ -552,7 +552,7 @@ def summarize_indices(years, onset, retreat=None, indname='', binwidth=5,
 
 
 # ----------------------------------------------------------------------
-def plot_index_years(index, years=None, figsize=(12,10), nrow=2, ncol=2,
+def plot_index_years(index, years=None, figsize=(14,10), nrow=3, ncol=4,
                      suptitle='', yearnm='year', daynm='day'):
     """Plot daily timeseries of monsoon index/onset/retreat each year.
     """
@@ -589,37 +589,43 @@ def plot_index_years(index, years=None, figsize=(12,10), nrow=2, ncol=2,
         yrs_extreme[yr] = yrs_extreme[yr] + ' - ' + nm
 
     # Monsoon index with onset and retreat in individual years
-    def onset_tseries(days, ind, d_onset, d_retreat, daynm):
-        plt.plot(days, ind)
+    def onset_tseries(days, ind, d_onset, d_retreat, daynm, ax=None):
+        if ax is None:
+            ax = plt.gca()
+        ax.plot(days, ind)
         if d_onset is not None and not np.isnan(d_onset):
             d_onset = int(d_onset)
-            plt.plot(d_onset, atm.subset(ind, daynm, d_onset), 'ro', label='onset')
+            ax.plot(d_onset, atm.subset(ind, daynm, d_onset), 'ro', label='onset')
         if d_retreat is not None and not np.isnan(d_retreat):
             d_retreat = int(d_retreat)
-            plt.plot(d_retreat, atm.subset(ind, daynm, d_retreat), 'bo', label='retreat')
-        plt.grid()
-        plt.xlim(days.min() - 1, days.max() + 1)
+            ax.plot(d_retreat, atm.subset(ind, daynm, d_retreat), 'bo', label='retreat')
+        ax.grid()
+        ax.set_xlim(days.min() - 1, days.max() + 1)
 
     # Plot each year
     for y, year in enumerate(years):
         if y % (nrow * ncol) == 0:
-            plt.figure(figsize=figsize)
+            fig, axes = plt.subplots(nrow, ncol, figsize=figsize, sharex=True)
+            plt.subplots_adjust(wspace=0.1, hspace=0.2)
             plt.suptitle(suptitle)
             yplot = 1
         else:
             yplot += 1
-        plt.subplot(nrow, ncol, yplot)
-        onset_tseries(days, tseries[y], onset[y], retreat[y], daynm)
+        i, j = atm.subplot_index(nrow, ncol, yplot)
+        ax = axes[i-1, j-1]
+        onset_tseries(days, tseries[y], onset[y], retreat[y], daynm, ax)
         if year in yrs_extreme.keys():
             titlestr = str(year) + yrs_extreme[year]
         else:
             titlestr = str(year)
-        plt.title(titlestr)
+        ax.set_title(titlestr)
+        if i == nrow:
+            ax.set_xlabel('Day')
 
     return yrs_extreme
 
 
-
+# ----------------------------------------------------------------------
 def plot_tseries_together(data, onset=None, years=None, suptitle='',
                           figsize=(12,10), legendsize=10,
                           legendloc='upper left', nrow=2, ncol=2,
