@@ -206,14 +206,20 @@ for key in keys[1:]:
     onset = np.concatenate([onset, ind], axis=1)
 onset = pd.DataFrame(onset, index=years, columns=shortkeys)
 
-# Plot matrix of scatter plots with correlation coeffs
+# Box plots of onset days
+plt.figure()
+onset.boxplot()
+plt.xlabel('Onset Index')
+plt.ylabel('Day of Year')
+
+# Scatter plots with correlation coeffs
 titlestr = 'Onset Day - Scatter Plots and Correlation Coefficients'
 atm.scatter_matrix(onset, corr_fmt='.2f', corr_pos=(0.1, 0.85), figsize=(16,10),
                    suptitle=titlestr)
 
 if isave:
     for ext in exts:
-        atm.savefigs('onset_scatter', ext)
+        atm.savefigs('onset_', ext)
         plt.close('all')
 
 # ----------------------------------------------------------------------
@@ -248,9 +254,11 @@ atm.scatter_matrix(strength)
 # Plotting timeseries together
 
 data = xray.Dataset()
-keys = index.keys()
+keys, shortkeys = [], []
 for k in [1, 6, 9, 11, 12]:
-    key = keys[k]
+    key = index.keys()[k]
+    keys.append(key)
+    shortkeys.append(short[key])
     data[short[key]] = index[key]['tseries']
 
 key_onset = 'HOWI_100'
@@ -258,16 +266,43 @@ d_onset = index[key_onset]['onset'].values
 suptitle = key_onset + ' Onset'
 indices.plot_tseries_together(data, onset=d_onset, suptitle=suptitle)
 
-ind1 = data[keys[1]]
-ind2 = data[keys[11]]
+# Correlations between daily timeseries
+def daily_corr(ind1, ind2, yearnm='year'):
+    if ind1.name == ind2.name:
+        raise ValueError('ind1 and ind2 have the same name ' + ind1.name)
+    years = ind1[yearnm]
+    corr = np.zeros(years.shape)
+    for y, year in enumerate(years):
+        df = atm.subset(ind1, yearnm, year).to_series().to_frame(name=ind1.name)
+        df[ind2.name] = atm.subset(ind2, yearnm, year).to_series()
+        corr[y] = df.corr().as_matrix()[0, 1]
+    corr = pd.Series(corr, index=pd.Index(years, name=yearnm))
+    return corr
 
-corr = np.zeros(years.shape)
-for y, year in enumerate(years):
-    df = atm.subset(ind1, yearnm, year).to_series().to_frame(name=ind1.name)
-    df[ind2.name] = atm.subset(ind2, yearnm, year).to_series()
-    corr[y] = df.corr().as_matrix()[0, 1]
-plt.figure()
-plt.bar(years, corr)
-plt.xlabel('Year')
-plt.ylabel('Correlation Coefficient')
-plt.title(ind1.name + ' correlation with ' + ind2.name)
+def daily_corr_years(data, keys, yearnm='year'):
+    years = data[yearnm].values
+    corr = {}
+    ones = pd.Series(np.ones(years.shape, dtype=float),
+                     index=pd.Index(years, name=yearnm))
+    for key1 in keys:
+        ind1 = data[key1]
+        corr[key1] = pd.DataFrame()
+        for key2 in keys:
+            if key2 == key1:
+                corr[key1][key2] = ones
+            else:
+                corr[key1][key2] = daily_corr(ind1, data[key2])
+    return corr
+
+corr = daily_corr_years(data, shortkeys)
+n = len(shortkeys)
+ylim1, ylim2 = 0, 1
+plt.figure(figsize=(8, 10))
+for i, key in enumerate(shortkeys):
+    plt.subplot(n, 1, i + 1)
+    corr[key].boxplot(column=shortkeys)
+    plt.ylim(ylim1, ylim2)
+    plt.ylabel(key)
+    if i < n - 1:
+        plt.gca().set_xticklabels([])
+plt.suptitle('Correlations between daily tseries')
