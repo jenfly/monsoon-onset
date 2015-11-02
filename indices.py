@@ -641,7 +641,7 @@ def plot_index_years(index, years=None, figsize=(14,10), nrow=3, ncol=4,
 def plot_tseries_together(data, onset=None, years=None, suptitle='',
                           figsize=(14,10), legendsize=10,
                           legendloc='lower right', nrow=3, ncol=4,
-                          yearnm='year', daynm='day'):
+                          yearnm='year', daynm='day', standardize=True):
     """Plot multiple daily timeseries together each year.
     """
 
@@ -655,8 +655,12 @@ def plot_tseries_together(data, onset=None, years=None, suptitle='',
         df = atm.subset(data, yearnm, year).to_dataframe()
         df.drop(yearnm, axis=1, inplace=True)
 
-        for key in df.columns:
-            df[key] = (df[key] - np.nanmean(df[key])) / np.nanstd(df[key])
+        if standardize:
+            for key in df.columns:
+                df[key] = (df[key] - np.nanmean(df[key])) / np.nanstd(df[key])
+            ylabel = 'Standardized Timeseries'
+        else:
+            ylabel = 'Timeseries'
 
         if y % (nrow * ncol) == 0:
             fig, axes = plt.subplots(nrow, ncol, figsize=figsize, sharex=True)
@@ -677,7 +681,7 @@ def plot_tseries_together(data, onset=None, years=None, suptitle='',
         if onset is not None:
             ax.plot([onset[y], onset[y]], ax.get_ylim(), 'k')
         if j == 1:
-            ax.set_ylabel('Standardized Timeseries')
+            ax.set_ylabel(ylabel)
         if i == nrow:
             ax.set_xlabel('Day')
         else:
