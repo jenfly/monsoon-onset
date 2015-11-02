@@ -606,7 +606,7 @@ def plot_index_years(index, years=None, figsize=(14,10), nrow=3, ncol=4,
     for y, year in enumerate(years):
         if y % (nrow * ncol) == 0:
             fig, axes = plt.subplots(nrow, ncol, figsize=figsize, sharex=True)
-            plt.subplots_adjust(wspace=0.1, hspace=0.2)
+            plt.subplots_adjust(left=0.08, right=0.95, wspace=0.1, hspace=0.2)
             plt.suptitle(suptitle)
             yplot = 1
         else:
@@ -627,8 +627,8 @@ def plot_index_years(index, years=None, figsize=(14,10), nrow=3, ncol=4,
 
 # ----------------------------------------------------------------------
 def plot_tseries_together(data, onset=None, years=None, suptitle='',
-                          figsize=(12,10), legendsize=10,
-                          legendloc='upper left', nrow=2, ncol=2,
+                          figsize=(14,10), legendsize=10,
+                          legendloc='lower right', nrow=3, ncol=4,
                           yearnm='year', daynm='day'):
     """Plot multiple daily timeseries together each year.
     """
@@ -647,20 +647,27 @@ def plot_tseries_together(data, onset=None, years=None, suptitle='',
             df[key] = (df[key] - np.nanmean(df[key])) / np.nanstd(df[key])
 
         if y % (nrow * ncol) == 0:
-            plt.figure(figsize=figsize)
+            fig, axes = plt.subplots(nrow, ncol, figsize=figsize, sharex=True)
+            plt.subplots_adjust(left=0.08, right=0.95, wspace=0.2, hspace=0.2)
             plt.suptitle(suptitle)
             yplot = 1
         else:
             yplot += 1
 
-        ax = plt.subplot(nrow, ncol, yplot)
+        i, j = atm.subplot_index(nrow, ncol, yplot)
+        ax = axes[i-1, j-1]
         df.plot(ax=ax)
-        plt.grid()
+        ax.grid()
         if yplot == 1:
-            plt.legend(fontsize=legendsize, loc=legendloc)
+            ax.legend(fontsize=legendsize, loc=legendloc)
         else:
             ax.legend_.remove()
         if onset is not None:
-            plt.plot([onset[y], onset[y]], plt.ylim(), 'k')
-        plt.ylabel('Standardized Timeseries')
-        plt.title(year)
+            ax.plot([onset[y], onset[y]], ax.get_ylim(), 'k')
+        if j == 1:
+            ax.set_ylabel('Standardized Timeseries')
+        if i == nrow:
+            ax.set_xlabel('Day')
+        else:
+            ax.set_xlabel('')
+        ax.set_title(year)
