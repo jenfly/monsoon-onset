@@ -156,19 +156,29 @@ index['OCI'].attrs['title'] = 'OCI'
 # ----------------------------------------------------------------------
 # TT index (Goswami et al 2006)
 
-# For now use 400mb rather than 200-600mb integral because need
-# to troubleshoot the integrated data
-T = atm.combine_daily_years('T', ttfiles, years, yearname='year',
-                            subset1=('Height', 400, 400))
+# ***  NOTES ****
+# Need to trouble shoot TT index before using in anything final.
+# See testing/testing-indices-onset_TT.py for details.
 
-# Remove extra dimension
-pdim = 2
-name, attrs, coords, dims = atm.meta(T)
-dims = list(dims)
-dims.pop(pdim)
-coords = atm.odict_delete(coords, 'Height')
-T = xray.DataArray(np.squeeze(T.values), dims=dims, coords=coords, name=name,
-                   attrs=attrs)
+# Select vertical pressure level to use, or None to use 200-600mb
+# vertical mean
+plev = None
+
+# Read daily data from each year
+if plev is None:
+    T = atm.combine_daily_years('Tbar', ttfiles, years, yearname='year')
+else:
+    T = atm.combine_daily_years('T', ttfiles, years, yearname='year',
+                                subset1=('plev', plev, plev))
+    # Remove extra dimension (vertical)
+    pdim = atm.get_coord(T, 'plev', 'dim')
+    pname = atm.get_coord(T, 'plev', 'name')
+    name, attrs, coords, dims = atm.meta(T)
+    dims = list(dims)
+    dims.pop(pdim)
+    coords = atm.odict_delete(coords, pname)
+    T = xray.DataArray(np.squeeze(T.values), dims=dims, coords=coords,
+                       name=name, attrs=attrs)
 
 # Calculate index
 north=(5, 30, 40, 100)
@@ -181,7 +191,6 @@ for nm in ['ttn', 'tts', 'tseries']:
     vals = np.ma.masked_array(vals, abs(vals) > 1e30).filled(np.nan)
     index['TT'][nm].values = vals
 index['TT'].attrs['title'] = 'TT'
-
 
 # ----------------------------------------------------------------------
 # Monsoon strength indices
