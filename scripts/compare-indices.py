@@ -39,9 +39,10 @@ lat1, lat2 = 10, 30
 maxbreak = 10
 with xray.open_dataset(vimtfile) as ds:
     ds.load()
+ds_howi = {}
 for npts in [50, 100]:
-    howi, _ = indices.onset_HOWI(ds['uq_int'], ds['vq_int'], npts,
-                                 maxbreak=maxbreak)
+    howi, ds_howi[npts] = indices.onset_HOWI(ds['uq_int'], ds['vq_int'], npts,
+                                             maxbreak=maxbreak)
     howi.attrs['title'] = 'HOWI (N=%d)' % npts
     index['HOWI_%d' % npts] = howi
 
@@ -201,10 +202,7 @@ strength['MERRA_DET'] = mfc_det
 strength['ERAI'] = era
 strength['ERAI_DET'] = era_det
 
-# ======================================================================
-# PLOTS
-# ======================================================================
-
+# ----------------------------------------------------------------------
 # Short names
 short = { 'HOWI_50' : 'HOWI_50',
           'HOWI_100' : 'HOWI_100',
@@ -219,6 +217,53 @@ short = { 'HOWI_50' : 'HOWI_50',
           'WLH_MERRA_PRECIP_unsmth' : 'W_MP_u',
           'OCI' : 'OCI',
           'TT' : 'TT'}
+
+
+# ======================================================================
+# PLOTS
+# ======================================================================
+
+# ----------------------------------------------------------------------
+# Map showing averaging regions
+axlims = (-45, 45, 0, 150)
+mask = {}
+for n in [50, 100]:
+    mask1 = ds_howi[n]['mask']
+    mask[n] = xray.DataArray(mask1.astype(float), dims=mask1.dims,
+                             coords=mask1.coords)
+
+plt.figure(figsize=(10, 7))
+m, cs = atm.contour_latlon(mask[100], clev=[0.99], colors='red', axlims=axlims)
+
+_, cs2 = atm.contour_latlon(mask[50], m=m, clev=[0.99], colors='red',
+                            linestyles='dashed')
+
+latlon = index['TT'].attrs['north']
+atm.geobox(latlon[0],  latlon[1], latlon[2], latlon[3], m=m, color='green',
+           label='TT (T200-600)')
+
+latlon = index['TT'].attrs['south']
+atm.geobox(latlon[0],  latlon[1], latlon[2], latlon[3], m=m, color='green')
+
+latlon = index['OCI'].attrs['latlon']
+atm.geobox(latlon[0],  latlon[1], latlon[2], latlon[3], m=m, color='blue',
+           label='OCI (U850)')
+
+atm.geobox(lat1,  lat2, lon1, lon2, m=m, color='magenta',
+           label='WLH (MFC, PRECIP)')
+
+plt.legend()
+handles, labels = plt.gca().get_legend_handles_labels()
+labels = ['HOWI_100 (VIMT)', 'HOWI_50 (VIMT)'] + labels
+handles = [cs.collections[0], cs2.collections[0]] + handles
+plt.legend(handles, labels, fontsize=12)
+
+plt.title('Averaging Regions for Onset Indices')
+
+if isave:
+    for ext in exts:
+        atm.savefigs('map_', ext)
+plt.close('all')
 
 # ----------------------------------------------------------------------
 # Monsoon strength
@@ -259,32 +304,22 @@ for key in keys:
     plt.close('all')
 
 # ----------------------------------------------------------------------
-# Plot timeseries of onset day vs. year along with histograms
-n = 5
-fig, axes = plt.subplots(n, 2, figsize=(10,10), sharex='col')
-plt.subplots_adjust(wspace=0.2, hspace=0.1)
+# Compare indices with each other
 
-data1 = np.random.random((50,n))
-data2 = np.random.random((100,n))
-data2[:, 1] = 10 * data2[:, 1]
-data2[:, 3] = 0.1 * data2[:, 3]
-for i in range(n):
-    axes[i, 0].plot(data1[:, i])
-    axes[i, 1].plot(data2[:, i])
-# ----------------------------------------------------------------------
-# Summary plots
-# Compare onset indices to each other
-
-# Subset of keys to include in correlation calcs
 keys = ['HOWI_100', 'HOWI_50', 'OCI', 'TT', 'WLH_CMAP_kmax12',
         'WLH_CMAP_nroll3', 'WLH_MERRA_PRECIP_nroll7']
 shortkeys = [short[key] for key in keys]
+
 years = index[keys[0]].year.values
 onset = np.reshape(index[keys[0]].onset.values, (len(years), 1))
 for key in keys[1:]:
     ind = np.reshape(index[key].onset.values, (len(years), 1))
     onset = np.concatenate([onset, ind], axis=1)
 onset = pd.DataFrame(onset, index=years, columns=shortkeys)
+
+# Add monsoon strength index
+ind_comp = onset.copy()
+ind_comp['JJAS_MFC'] = strength['MERRA_DET']
 
 # Box plots of onset days
 plt.figure()
@@ -293,28 +328,46 @@ plt.xlabel('Onset Index')
 plt.ylabel('Day of Year')
 
 # Scatter plots with correlation coeffs
-titlestr = 'Onset Day - Scatter Plots and Correlation Coefficients'
-atm.scatter_matrix(onset, corr_fmt='.2f', corr_pos=(0.1, 0.85), figsize=(16,10),
-                   suptitle=titlestr)
+titlestr = 'Yearly Indices 1979-2014'
+atm.scatter_matrix(ind_comp, corr_fmt='.2f', corr_pos=(0.1, 0.85),
+                   figsize=(16,10), suptitle=titlestr)
 
 if isave:
     for ext in exts:
         atm.savefigs('onset_', ext)
         plt.close('all')
 
+# ----------------------------------------------------------------------
+# Plot onset day vs. year along with histograms
+
+# Subset of indices to focus on
+keys_sub = ['HOWI_100', 'OCI', 'TT', 'WLH_CMAP_kmax12',
+            'WLH_MERRA_PRECIP_nroll7']
+shortkeys_sub = [short[key] for key in keys_sub]
+n = len(keys_sub)
+
+fig, axes = plt.subplots(n, 2, figsize=(10,10), sharex='col')
+plt.subplots_adjust(left=0.08, right=0.95, wspace=0.2, hspace=0.3)
+plt.suptitle('Onset Day Indices')
+for i, key in enumerate(shortkeys_sub):
+    ind = ind_comp[key]
+    ax1, ax2 = axes[i, 0], axes[i, 1]
+    ind.plot(ax=ax1)
+    ax1.set_ylabel('Day')
+    ax1.set_title(key, fontsize=12)
+    if i == len(shortkeys_sub) - 1:
+        ax1.set_xlabel('Year')
+    indices.plot_hist(ind.values, binwidth=5, ax=ax2)
+    if i < len(shortkeys_sub) - 1:
+        ax2.set_xlabel('')
+    ax2.set_ylabel('# Years')
 
 # ----------------------------------------------------------------------
-# Plotting timeseries together
+# Daily timeseries together
 
 data = xray.Dataset()
-keys, shortkeys = [], []
-for k in [1, 6, 9, 11, 12]:
-    key = index.keys()[k]
-    keys.append(key)
-    shortkeys.append(short[key])
+for key in keys_sub:
     data[short[key]] = index[key]['tseries']
-if 'Height' in data.keys():
-    data = data.drop('Height')
 
 key_onset = 'HOWI_100'
 d_onset = index[key_onset]['onset'].values
@@ -349,13 +402,13 @@ def daily_corr_years(data, keys, yearnm='year'):
                 corr[key1][key2] = daily_corr(ind1, data[key2])
     return corr
 
-corr = daily_corr_years(data, shortkeys)
-n = len(shortkeys)
+corr = daily_corr_years(data, shortkeys_sub)
+n = len(shortkeys_sub)
 ylim1, ylim2 = 0, 1
 plt.figure(figsize=(8, 10))
-for i, key in enumerate(shortkeys):
+for i, key in enumerate(shortkeys_sub):
     plt.subplot(n, 1, i + 1)
-    corr[key].boxplot(column=shortkeys)
+    corr[key].boxplot(column=shortkeys_sub)
     plt.ylim(ylim1, ylim2)
     plt.ylabel(key)
     if i < n - 1:
