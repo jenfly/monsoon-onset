@@ -30,6 +30,8 @@ ocifile = datadir + 'merra_u850_40E-120E_60S-60N_1979-2014.nc'
 years = np.arange(1979, 2015)
 ttfiles = [datadir + 'merra_T200-600_apr-sep_%d.nc' % yr for yr in years]
 
+airfile = atm.homedir() + 'datastore/AIR/AIR_JJAS.csv'
+
 # Lat-lon box for WLH method
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
@@ -190,17 +192,25 @@ def detrend(vals, index):
     output = pd.Series(vals_det, index=index)
     return output
 
+# MERRA MFC
 mfc_JJAS = atm.subset(mfcbar, 'day', atm.season_days('JJAS'))
 mfc_JJAS = mfc_JJAS.mean(dim='day')
-mfc_det = detrend(mfc_JJAS.values, mfc_JJAS.year)
 
+# ERA-Interim MFC
 era = pd.read_csv(eraIfile, index_col=0)
-era_det = detrend(era.values.flatten(), era.index)
+
+# All India Rainfall Index, convert to mm/day
+air = pd.read_csv(airfile, skiprows=4, index_col=0).loc[years]
+air /= len(atm.season_days('JJAS'))
 
 strength = mfc_JJAS.to_series().to_frame(name='MERRA')
-strength['MERRA_DET'] = mfc_det
 strength['ERAI'] = era
-strength['ERAI_DET'] = era_det
+strength['AIR'] = air
+
+# Detrended indices
+for key in strength.columns:
+    ind = strength[key].dropna()
+    strength[key + '_DET'] = detrend(ind.values.flatten(), ind.index)
 
 # ----------------------------------------------------------------------
 # Short names
@@ -267,10 +277,14 @@ plt.close('all')
 
 # ----------------------------------------------------------------------
 # Monsoon strength
-strength.plot()
+styles = {'MERRA' : 'r--', 'MERRA_DET' : 'r', 'ERAI' : 'b--', 'ERAI_DET' : 'b',
+          'AIR' : 'g--', 'AIR_DET' : 'g'}
+strength.plot(figsize=(10,10), style=styles)
 plt.title('JJAS Monsoon Strength')
 plt.xlabel('Year')
 plt.ylabel('Index (mm/day)')
+plt.grid()
+plt.legend(fontsize=12)
 atm.scatter_matrix(strength)
 plt.suptitle('JJAS Monsoon Strength')
 if isave:
