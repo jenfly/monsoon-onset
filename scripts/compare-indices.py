@@ -26,7 +26,9 @@ cmapfile = atm.homedir() + 'datastore/cmap/cmap.precip.pentad.mean.nc'
 eraIfile = atm.homedir() + ('datastore/era_interim/analysis/'
                             'era_interim_JJAS_60-100E_index.csv')
 ocifile = datadir + 'merra_u850_40E-120E_60S-60N_1979-2014.nc'
-ttfile = datadir + 'merra_T200-600_apr-sep_1979-2014.nc'
+
+years = np.arange(1979, 2015)
+ttfiles = [datadir + 'merra_T200-600_apr-sep_%d.nc' % yr for yr in years]
 
 # Lat-lon box for WLH method
 lon1, lon2 = 60, 100
@@ -150,11 +152,31 @@ index['OCI'].attrs['title'] = 'OCI'
 
 # ----------------------------------------------------------------------
 # TT index (Goswami et al 2006)
-with xray.open_dataset(ttfile) as ds:
-    T = ds['T'].load()
+
+# For now use 400mb rather than 200-600mb integral because need
+# to troubleshoot the integrated data
+T = atm.combine_daily_years('T', ttfiles, years, yearname='year',
+                            subset1=('Height', 400, 400))
+
+# Remove extra dimension
+pdim = 2
+name, attrs, coords, dims = atm.meta(T)
+dims = list(dims)
+dims.pop(pdim)
+coords = atm.odict_delete(coords, 'Height')
+T = xray.DataArray(np.squeeze(T.values), dims=dims, coords=coords, name=name,
+                   attrs=attrs)
+
+# Calculate index
 north=(5, 30, 40, 100)
 south=(-15, 5, 40, 100)
 index['TT'] = indices.onset_TT(T, north=north, south=south)
+
+# Some weirdness going on in 1991, for now just set to NaN
+for nm in ['ttn', 'tts', 'tseries']:
+    vals = index['TT'][nm].values
+    vals = np.ma.masked_array(vals, abs(vals) > 1e30).filled(np.nan)
+    index['TT'][nm].values = vals
 index['TT'].attrs['title'] = 'TT'
 
 
@@ -182,6 +204,21 @@ strength['ERAI_DET'] = era_det
 # ======================================================================
 # PLOTS
 # ======================================================================
+
+# Short names
+short = { 'HOWI_50' : 'HOWI_50',
+          'HOWI_100' : 'HOWI_100',
+          'WLH_CMAP_kmax12' : 'W_C_k12',
+          'WLH_CMAP_nroll3' : 'W_C_n3',
+          'WLH_CMAP_unsmth' : 'W_C_u',
+          'WLH_MERRA_MFC_kmax12' : 'W_MM_k12',
+          'WLH_MERRA_MFC_nroll7' : 'W_MM_n7',
+          'WLH_MERRA_MFC_unsmth' : 'W_MM_u',
+          'WLH_MERRA_PRECIP_kmax12' : 'W_MP_k12',
+          'WLH_MERRA_PRECIP_nroll7' : 'W_MP_n7',
+          'WLH_MERRA_PRECIP_unsmth' : 'W_MP_u',
+          'OCI' : 'OCI',
+          'TT' : 'TT'}
 
 # ----------------------------------------------------------------------
 # Monsoon strength
@@ -222,8 +259,7 @@ for key in keys:
     plt.close('all')
 
 # ----------------------------------------------------------------------
-
-
+# Plot timeseries of onset day vs. year along with histograms
 n = 5
 fig, axes = plt.subplots(n, 2, figsize=(10,10), sharex='col')
 plt.subplots_adjust(wspace=0.2, hspace=0.1)
@@ -237,24 +273,7 @@ for i in range(n):
     axes[i, 1].plot(data2[:, i])
 # ----------------------------------------------------------------------
 # Summary plots
-
-
-
-
 # Compare onset indices to each other
-short = { 'HOWI_50' : 'HOWI_50',
-          'HOWI_100' : 'HOWI_100',
-          'WLH_CMAP_kmax12' : 'W_C_k12',
-          'WLH_CMAP_nroll3' : 'W_C_n3',
-          'WLH_CMAP_unsmth' : 'W_C_u',
-          'WLH_MERRA_MFC_kmax12' : 'W_MM_k12',
-          'WLH_MERRA_MFC_nroll7' : 'W_MM_n7',
-          'WLH_MERRA_MFC_unsmth' : 'W_MM_u',
-          'WLH_MERRA_PRECIP_kmax12' : 'W_MP_k12',
-          'WLH_MERRA_PRECIP_nroll7' : 'W_MP_n7',
-          'WLH_MERRA_PRECIP_unsmth' : 'W_MP_u',
-          'OCI' : 'OCI',
-          'TT' : 'TT'}
 
 # Subset of keys to include in correlation calcs
 keys = ['HOWI_100', 'HOWI_50', 'OCI', 'TT', 'WLH_CMAP_kmax12',
@@ -294,6 +313,8 @@ for k in [1, 6, 9, 11, 12]:
     keys.append(key)
     shortkeys.append(short[key])
     data[short[key]] = index[key]['tseries']
+if 'Height' in data.keys():
+    data = data.drop('Height')
 
 key_onset = 'HOWI_100'
 d_onset = index[key_onset]['onset'].values
