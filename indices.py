@@ -410,6 +410,9 @@ def onset_OCI(u, latlon = (5, 15, 40, 80), mmdd_thresh=(6,1),
     oci = xray.Dataset()
     oci['tseries'] = ubar
     oci['onset'] = xray.DataArray(onset, coords={yearnm : years})
+    oci.attrs['latlon'] = latlon
+    oci.attrs['mmdd_thresh'] = mmdd_thresh
+    oci.attrs['ndays'] = ndays
 
     return oci
 
@@ -462,8 +465,46 @@ def onset_TT(T, north=(5, 35, 40, 100), south=(-15, 5, 40, 100),
     tt['tts'] = tts
     tt['tseries'] = tseries
     tt['onset'] = xray.DataArray(onset, coords={yearnm : years})
+    tt.attrs['north'] = north
+    tt.attrs['south'] = south
 
     return tt
+
+
+# ----------------------------------------------------------------------
+def plot_hist(ind, binwidth=5, incl_daystr=True, ax=None):
+    """Plot histogram of onset days.
+    """
+    if ax is None:
+        ax = plt.gca()
+
+    def daystr(day):
+        day = round(day)
+        mm, dd = atm.jday_to_mmdd(day)
+        mon = atm.month_str(mm)
+        return '%.0f (%s-%.0f)' % (day, mon, dd)
+
+    b1 = np.floor(np.nanmin(ind) / binwidth) * binwidth
+    b2 = np.ceil(np.nanmax(ind) / binwidth) * binwidth
+    bin_edges = np.arange(b1, b2 + 1, binwidth)
+    n, bins, _ = ax.hist(ind, bin_edges, alpha=0.2)
+    ax.set_xlabel('Day of Year')
+    ax.set_ylabel('Num of Occurrences')
+    if incl_daystr:
+        dmean = daystr(np.nanmean(ind))
+        dmin = daystr(np.nanmin(ind))
+        dmax = daystr(np.nanmax(ind))
+    else:
+        dmean = '%.0f' % np.nanmean(ind)
+        dmin = '%.0f' % np.nanmin(ind)
+        dmax = '%.0f' % np.nanmax(ind)
+    x0 = 0.05
+    y = [0.9, 0.8, 0.7, 0.6]
+    kwargs = {'horizontalalignment' : 'left'}
+    atm.text('Mean %s' % dmean, (x0, y[0]), ax=ax, **kwargs)
+    atm.text('Std %.0f' % np.nanstd(ind), (x0, y[1]), ax=ax, **kwargs)
+    atm.text('Min %s' % dmin, (x0, y[2]), ax=ax, **kwargs)
+    atm.text('Max %s' % dmax, (x0, y[3]), ax=ax, **kwargs)
 
 
 # ----------------------------------------------------------------------
@@ -482,35 +523,6 @@ def summarize_indices(years, onset, retreat=None, indname='', binwidth=5,
             retreat = retreat.values
             length = retreat - onset
         nrows, ncols = 2, 3
-
-    def daystr(day):
-        day = round(day)
-        mm, dd = atm.jday_to_mmdd(day)
-        mon = atm.month_str(mm)
-        return '%.0f (%s-%.0f)' % (day, mon, dd)
-
-    def plot_hist(ind, binwidth, incl_daystr=True):
-        b1 = np.floor(np.nanmin(ind) / binwidth) * binwidth
-        b2 = np.ceil(np.nanmax(ind) / binwidth) * binwidth
-        bin_edges = np.arange(b1, b2 + 1, binwidth)
-        n, bins, _ = plt.hist(ind, bin_edges, alpha=0.2)
-        plt.xlabel('Day of Year')
-        plt.ylabel('Num of Occurrences')
-        if incl_daystr:
-            dmean = daystr(np.nanmean(ind))
-            dmin = daystr(np.nanmin(ind))
-            dmax = daystr(np.nanmax(ind))
-        else:
-            dmean = '%.0f' % np.nanmean(ind)
-            dmin = '%.0f' % np.nanmin(ind)
-            dmax = '%.0f' % np.nanmax(ind)
-        x0 = 0.05
-        y = [0.9, 0.8, 0.7, 0.6]
-        kwargs = {'horizontalalignment' : 'left'}
-        atm.text('Mean %s' % dmean, (x0, y[0]), **kwargs)
-        atm.text('Std %.0f' % np.nanstd(ind), (x0, y[1]), **kwargs)
-        atm.text('Min %s' % dmin, (x0, y[2]), **kwargs)
-        atm.text('Max %s' % dmax, (x0, y[3]), **kwargs)
 
     plt.figure(figsize=figsize)
     plt.subplot(nrows, ncols, 1)
