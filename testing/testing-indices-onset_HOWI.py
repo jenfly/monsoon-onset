@@ -22,13 +22,13 @@ with xray.open_dataset(datafile) as ds:
     uq_int = ds['uq_int'].load()
     vq_int = ds['vq_int'].load()
 
-#npts = 100
-npts = 50
+npts = 100
+#npts = 50
 pre_days = 'May 18-24'
 post_days = 'June 8-14'
 namestr = 'HOWI_%dpts_' % npts
 exts = ['png', 'eps']
-isave = False
+isave = True
 
 howi, ds = onset_HOWI(uq_int, vq_int, npts)
 
@@ -101,51 +101,17 @@ for yr in [0, 1, 2]:
     index_tseries(days, ds.howi_norm[yr], ds.howi_norm_roll[yr],
                   'HOWI %d' % years[yr])
 
-# HOWI index with onset and retreat in individual years
-def onset_tseries(days, ind, d_onset, d_retreat):
-    ylim1, ylim2 = -1, 2
-    plt.plot(days, ind)
-    plt.plot(d_onset, ind.sel(day=d_onset), 'ro', label='onset')
-    plt.plot(d_onset-1, ind.sel(day=d_onset-1), 'k.', label='onset-1')
-    plt.plot(d_retreat, ind.sel(day=d_retreat), 'bo', label='retreat')
-    plt.plot(d_retreat-1, ind.sel(day=d_retreat-1), 'k.', label='retreat')
-    plt.grid()
-    plt.ylim(ylim1, ylim2)
-
-ylist = range(4)
-titlestr = ['', '', '', '']
-ylist = ylist + [int(onset.argmin()), int(onset.argmax()),
-                 int(retreat.argmin()), int(retreat.argmax()),
-                 int(length.argmin()), int(length.argmax())]
-titlestr = titlestr + ['Earliest Onset', 'Latest Onset', 'Earliest Retreat',
-                       'Latest Retreat', 'Shortest Monsoon', 'Longest Monsoon']
-for i, yr in enumerate(ylist):
-    if i % 4 == 0:
-        plt.figure(figsize=(12, 10))
-        yplot = 1
-    else:
-        yplot += 1
-    plt.subplot(2, 2, yplot)
-    onset_tseries(days, howi.tseries[yr], onset[yr], retreat[yr])
-    plt.title('%d %s' % (years[yr], titlestr[i]))
-
 # ----------------------------------------------------------------------
 # Onset and retreat indices
 
 summarize_indices(years, onset, retreat, 'HOWI')
 
 # ----------------------------------------------------------------------
-# Save figures
-if isave:
-    for ext in exts:
-        atm.savefigs(namestr, ext)
-
-# ----------------------------------------------------------------------
 # Plot timeseries of each year
-namestr = namestr + 'tseries_'
-plt.close('all')
 plot_index_years(howi)
 
+# ----------------------------------------------------------------------
+# Save figures
 if isave:
     for ext in exts:
         atm.savefigs(namestr, ext)
