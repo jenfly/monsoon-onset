@@ -31,6 +31,7 @@ years = np.arange(1979, 2015)
 ttfiles = [datadir + 'merra_T200-600_apr-sep_%d.nc' % yr for yr in years]
 
 airfile = atm.homedir() + 'datastore/AIR/AIR_JJAS.csv'
+uvfiles = [datadir + 'merra_uv200_40E-120E_60S-60N_%d.nc' % yr for yr in years]
 
 # Lat-lon box for WLH method
 lon1, lon2 = 60, 100
@@ -220,6 +221,35 @@ strength['AIR'] = air
 for key in strength.columns:
     ind = strength[key].dropna()
     strength[key + '_DET'] = detrend(ind.values.flatten(), ind.index)
+
+# ----------------------------------------------------------------------
+# Daily timeseries u, v, Ro at 200 mb
+
+varnames = ['U', 'V', 'Ro']
+uv = atm.combine_daily_years(varnames, uvfiles, years, yearname='year',
+                             subset1=('lat', lat1, lat2), 
+                             subset2=('lon', lon1, lon2))
+uv.rename({'Day' : 'day'}, inplace=True)
+
+uvbox = xray.Dataset()
+for nm in varnames:
+    var = atm.squeeze(uv[nm])
+    uvbox[nm] = atm.mean_over_geobox(var, lat1, lat2, lon1, lon2)
+
+# Ro averaged in 5 degree latitude bins
+# bin1 = ...
+# bin2 = ...
+
+# Apply 7-day rolling mean to each tseries
+
+
+# Pack into xray.Dataset
+# u200_box, v200_box, Ro200_box, Ro200_bin1, Ro200_bin2
+
+# Add precip and MFC
+
+# index['WLH_MERRA_MFC_nroll7']['tseries']
+# index['WLH_MERRA_PRECIP_nroll7']['tseries']
 
 # ----------------------------------------------------------------------
 # Short names
