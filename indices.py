@@ -641,7 +641,8 @@ def plot_index_years(index, years=None, figsize=(14,10), nrow=3, ncol=4,
 def plot_tseries_together(data, onset=None, years=None, suptitle='',
                           figsize=(14,10), legendsize=10,
                           legendloc='lower right', nrow=3, ncol=4,
-                          yearnm='year', daynm='day', standardize=True):
+                          yearnm='year', daynm='day', standardize=True,
+                          label_attr=None):
     """Plot multiple daily timeseries together each year.
     """
 
@@ -650,10 +651,15 @@ def plot_tseries_together(data, onset=None, years=None, suptitle='',
         years = data[yearnm].values
     data = atm.subset(data, yearnm, years)
 
+    if label_attr is not None:
+        labels = {nm : data[nm].attrs[label_attr] for nm in data.data_vars}
+
     # Plot each year
     for y, year in enumerate(years):
         df = atm.subset(data, yearnm, year).to_dataframe()
         df.drop(yearnm, axis=1, inplace=True)
+        if label_attr is not None:
+            df.rename(columns=labels, inplace=True)
 
         if standardize:
             for key in df.columns:
