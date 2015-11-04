@@ -38,6 +38,24 @@ lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 
 # ----------------------------------------------------------------------
+# Short names
+short = { 'HOWI_50' : 'HOWI_50',
+          'HOWI_100' : 'HOWI_100',
+          'WLH_CMAP_kmax12' : 'W_C_k12',
+          'WLH_CMAP_nroll3' : 'W_C_n3',
+          'WLH_CMAP_unsmth' : 'W_C_u',
+          'WLH_MERRA_MFC_kmax12' : 'W_MM_k12',
+          'WLH_MERRA_MFC_nroll7' : 'W_MM_n7',
+          'WLH_MERRA_MFC_unsmth' : 'W_MM_u',
+          'WLH_MERRA_PRECIP_kmax12' : 'W_MP_k12',
+          'WLH_MERRA_PRECIP_nroll7' : 'W_MP_n7',
+          'WLH_MERRA_PRECIP_unsmth' : 'W_MP_u',
+          'OCI' : 'OCI',
+          'TT' : 'TT'}
+
+short_inv = {v : k for k, v in short.items()}
+
+# ----------------------------------------------------------------------
 # HOWI index (Webster and Fasullo 2003)
 maxbreak = 10
 with xray.open_dataset(vimtfile) as ds:
@@ -226,47 +244,60 @@ for key in strength.columns:
 # Daily timeseries u, v, Ro at 200 mb
 
 varnames = ['U', 'V', 'Ro']
+latmax = 35
+daymin, daymax = 91, 274 # Day subset to extract
 uv = atm.combine_daily_years(varnames, uvfiles, years, yearname='year',
-                             subset1=('lat', lat1, lat2), 
+                             subset1=('lat', -latmax, latmax),
                              subset2=('lon', lon1, lon2))
 uv.rename({'Day' : 'day'}, inplace=True)
+uv = atm.subset(uv, 'day', daymin, daymax)
+uv = atm.squeeze(uv)
+uv = uv.drop('Height')
 
-uvbox = xray.Dataset()
+# Average over box
+tseries = xray.Dataset()
 for nm in varnames:
     var = atm.squeeze(uv[nm])
-    uvbox[nm] = atm.mean_over_geobox(var, lat1, lat2, lon1, lon2)
+    tseries[nm] = atm.mean_over_geobox(var, lat1, lat2, lon1, lon2)
+tseries.rename({'U' : 'u200_box', 'V' : 'v200_box', 'Ro' : 'Ro200_box'},
+                inplace=True)
 
 # Ro averaged in 5 degree latitude bins
-# bin1 = ...
-# bin2 = ...
+edges = range(-30, 31, 5)
+binvals = [(edge1, edge2) for edge1, edge2 in zip(edges[:-1], edges[1:])]
+bins = {}
+for i, lats in enumerate(binvals):
+    key = 'Ro200_bin%02d' % i
+    tseries[key] = atm.mean_over_geobox(uv['Ro'], lats[0], lats[1], lon1, lon2)
+    latlabel = '-'.join(atm.latlon_labels(np.array(lats)))
+    tseries[key].attrs['latlabel'] = latlabel
+    bins[key] = latlabel
+tseries.attrs['Ro_latbins'] = bins
 
 # Apply 7-day rolling mean to each tseries
+def rolling(data, nroll, center):
+    _, attrs, coords, _ = atm.meta(data)
+    dims = data.shape
+    vals = np.zeros(dims)
+    if len(dims) > 1:
+        nyears = dims[0]
+        for y in range(nyears):
+            vals[y] = pd.rolling_mean(data.values[y], nroll, center=center)
+    else:
+        vals = pd.rolling_mean(data.values, nroll, center=center)
+    attrs['nroll'] = nroll
+    data_out = xray.DataArray(vals, coords=coords, attrs=attrs)
+    return data_out
 
+nroll = 7
+center = True
+for key in tseries.data_vars.keys():
+    tseries[key] = rolling(tseries[key], nroll, center)
 
-# Pack into xray.Dataset
-# u200_box, v200_box, Ro200_box, Ro200_bin1, Ro200_bin2
-
-# Add precip and MFC
-
-# index['WLH_MERRA_MFC_nroll7']['tseries']
-# index['WLH_MERRA_PRECIP_nroll7']['tseries']
-
-# ----------------------------------------------------------------------
-# Short names
-short = { 'HOWI_50' : 'HOWI_50',
-          'HOWI_100' : 'HOWI_100',
-          'WLH_CMAP_kmax12' : 'W_C_k12',
-          'WLH_CMAP_nroll3' : 'W_C_n3',
-          'WLH_CMAP_unsmth' : 'W_C_u',
-          'WLH_MERRA_MFC_kmax12' : 'W_MM_k12',
-          'WLH_MERRA_MFC_nroll7' : 'W_MM_n7',
-          'WLH_MERRA_MFC_unsmth' : 'W_MM_u',
-          'WLH_MERRA_PRECIP_kmax12' : 'W_MP_k12',
-          'WLH_MERRA_PRECIP_nroll7' : 'W_MP_n7',
-          'WLH_MERRA_PRECIP_unsmth' : 'W_MP_u',
-          'OCI' : 'OCI',
-          'TT' : 'TT'}
-
+# Add other timeseries
+for key in index.keys():
+    tseries[short[key]] = index[key]['tseries']
+tseries.rename({'W_MM_n7' : 'MFC_box', 'W_MP_n7' : 'PRECIP_box'}, inplace=True)
 
 # ======================================================================
 # PLOTS
@@ -418,14 +449,17 @@ for i, key in enumerate(shortkeys_sub):
 # ----------------------------------------------------------------------
 # Daily timeseries together
 
-data = xray.Dataset()
-for key in keys_sub:
-    data[short[key]] = index[key]['tseries']
+keys_list = [['HOWI_100', 'OCI', 'TT', 'MFC_box', 'PRECIP_box'],
+             ['u200_box', 'v200_box', 'Ro200_box', 'MFC_box'],
+             ['Ro200_bin00', 'Ro200_bin02', 'Ro200_bin04'],
+             ['Ro200_bin06', 'Ro200_bin08', 'Ro200_bin10']]
 
 key_onset = 'HOWI_100'
 d_onset = index[key_onset]['onset'].values
 suptitle = key_onset + ' Onset'
-indices.plot_tseries_together(data, onset=d_onset, suptitle=suptitle)
+for keys in keys_list:
+    indices.plot_tseries_together(tseries[keys], onset=d_onset,
+                                  suptitle=suptitle)
 
 # Correlations between daily timeseries
 def daily_corr(ind1, ind2, yearnm='year'):
