@@ -258,21 +258,16 @@ uv = uv.drop('Height')
 tseries = xray.Dataset()
 for nm in varnames:
     var = atm.squeeze(uv[nm])
-    tseries[nm] = atm.mean_over_geobox(var, lat1, lat2, lon1, lon2)
-tseries.rename({'U' : 'u200_box', 'V' : 'v200_box', 'Ro' : 'Ro200_box'},
-                inplace=True)
+    label = nm + '200_box'
+    tseries[label] = atm.mean_over_geobox(var, lat1, lat2, lon1, lon2)
 
-# Ro averaged in 5 degree latitude bins
-edges = range(-30, 31, 5)
+# Ro averaged in 10 degree latitude bins
+edges = range(-30, 31, 10)
 binvals = [(edge1, edge2) for edge1, edge2 in zip(edges[:-1], edges[1:])]
-bins = {}
 for i, lats in enumerate(binvals):
-    key = 'Ro200_bin%02d' % i
+    latlabel = '-'.join(atm.latlon_labels(np.array(lats), 'lat', deg_symbol=False))
+    key = 'Ro200_' + latlabel
     tseries[key] = atm.mean_over_geobox(uv['Ro'], lats[0], lats[1], lon1, lon2)
-    latlabel = '-'.join(atm.latlon_labels(np.array(lats)))
-    tseries[key].attrs['latlabel'] = latlabel
-    bins[key] = latlabel
-tseries.attrs['Ro_latbins'] = bins
 
 # Apply 7-day rolling mean to each tseries
 def rolling(data, nroll, center):
@@ -297,6 +292,7 @@ for key in tseries.data_vars.keys():
 # Add other timeseries
 for key in index.keys():
     tseries[short[key]] = index[key]['tseries']
+
 tseries.rename({'W_MM_n7' : 'MFC_box', 'W_MP_n7' : 'PRECIP_box'}, inplace=True)
 
 # ======================================================================
@@ -377,7 +373,7 @@ for key in index.keys():
 plt.close('all')
 
 # ----------------------------------------------------------------------
-# Daily timeseries for each year
+# Daily timeseries of each index in each year
 # keys = index.keys()
 keys = ['OCI', 'TT']
 for key in keys:
@@ -449,19 +445,27 @@ for i, key in enumerate(shortkeys_sub):
 # ----------------------------------------------------------------------
 # Daily timeseries together
 
-keys_list = [['HOWI_100', 'OCI', 'TT', 'MFC_box', 'PRECIP_box'],
-             ['u200_box', 'v200_box', 'Ro200_box', 'MFC_box'],
-             ['Ro200_bin00', 'Ro200_bin02', 'Ro200_bin04'],
-             ['Ro200_bin06', 'Ro200_bin08', 'Ro200_bin10']]
-
 key_onset = 'HOWI_100'
 d_onset = index[key_onset]['onset'].values
-suptitle = key_onset + ' Onset'
-for keys in keys_list:
+
+keys_list = [['HOWI_100', 'OCI', 'TT', 'MFC_box', 'PRECIP_box'],
+             ['U200_box', 'Ro200_box', 'MFC_box'],
+             ['Ro200_30S-20S', 'Ro200_20S-10S'],
+             ['Ro200_10S-0N', 'Ro200_0N-10N'],
+             ['Ro200_10N-20N', 'Ro200_20N-30N']]
+
+for i, keys in enumerate(keys_list):
+    if i == 0:
+        suptitle = key_onset + ' Onset'
+    else:
+        suptitle = (key_onset + ' Onset, %d-%dE %d-day Rolling Data' 
+                    % (lon1, lon2, nroll))
     indices.plot_tseries_together(tseries[keys], onset=d_onset,
                                   suptitle=suptitle)
 
+
 # Correlations between daily timeseries
+
 def daily_corr(ind1, ind2, yearnm='year'):
     if ind1.name == ind2.name:
         raise ValueError('ind1 and ind2 have the same name ' + ind1.name)
@@ -489,15 +493,49 @@ def daily_corr_years(data, keys, yearnm='year'):
                 corr[key1][key2] = daily_corr(ind1, data[key2])
     return corr
 
-corr = daily_corr_years(data, shortkeys_sub)
-n = len(shortkeys_sub)
-ylim1, ylim2 = 0, 1
-plt.figure(figsize=(8, 10))
-for i, key in enumerate(shortkeys_sub):
-    plt.subplot(n, 1, i + 1)
-    corr[key].boxplot(column=shortkeys_sub)
-    plt.ylim(ylim1, ylim2)
-    plt.ylabel(key)
-    if i < n - 1:
-        plt.gca().set_xticklabels([])
-plt.suptitle('Correlations between daily tseries')
+"""
+# Scatter matrix of correlation coefficients between daily tseries,
+# averaged over years
+keys_vec = []
+for keys in keys_list:
+    keys_vec.extend(keys)
+    
+corr = daily_corr_years(tseries, keys_vec)
+corr_bar = pd.DataFrame()
+for key in corr.keys():
+    corr_bar[key] = corr[key].mean(dim='year')
+
+n = len(keys_vec)
+bins = np.arange(-1, 1.01, 0.25)
+fig, axes = plt.subplots(n, n, figsize=(16, 10), sharex=True, sharey=True)
+plt.subplots_adjust(wspace=0, hspace=0, left=0.08, right=0.95)
+for i in range(n):
+    key1 = keys_vec[i]
+    for j in range(n):
+        key2 = keys_vec[j]
+        ax = axes[i, j]
+        corr[key1][key2].hist(bins=bins, ax=ax)
+"""
+
+# Box plots of correlation coefficients between daily timeseries
+keys_box = [['HOWI_100', 'OCI', 'TT', 'MFC_box', 'PRECIP_box', 
+             'U200_box', 'Ro200_box'],
+            ['HOWI_100', 'Ro200_30S-20S', 'Ro200_20S-10S', 'Ro200_10S-0N',
+             'Ro200_0N-10N', 'Ro200_10N-20N', 'Ro200_20N-30N']]
+
+ylim1, ylim2 = -1, 1
+for keys in keys_box:
+    corr = daily_corr_years(tseries, keys)
+    n = len(keys)   
+    plt.figure(figsize=(14, 12))
+    for i, key in enumerate(keys):
+        plt.subplot(n, 1, i + 1)
+        var = corr[key]
+        labels = {s : s.replace('Ro200_','Ro_') for s in var.keys()}
+        var.rename(columns=labels, inplace=True)
+        var.boxplot()
+        plt.ylim(ylim1, ylim2)
+        plt.ylabel(key.replace('Ro200_', 'Ro_'))
+        if i < n - 1:
+            plt.gca().set_xticklabels([])
+    plt.suptitle('Correlations between daily tseries')
