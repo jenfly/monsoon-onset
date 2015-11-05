@@ -15,7 +15,7 @@ import merra
 import indices
 
 # ----------------------------------------------------------------------
-isave = False
+isave = True
 exts = ['png', 'eps']
 index = collections.OrderedDict()
 
@@ -369,18 +369,18 @@ for key in index.keys():
     indices.summarize_indices(ind.year, ind.onset, retreat, ind.title)
     if isave:
         for ext in exts:
-            atm.savefigs('hist_' + key + '_', ext)
+            atm.savefigs('onset_retreat_hist_' + key + '_', ext)
 plt.close('all')
 
 # ----------------------------------------------------------------------
 # Daily timeseries of each index in each year
-# keys = index.keys()
-keys = ['OCI', 'TT']
+keys = index.keys()
+# keys = ['OCI', 'TT']
 for key in keys:
-    indices.plot_index_years(index[key], suptitle=key)
+    indices.plot_index_years(index[key], suptitle=key, vertline=True)
     if isave:
         for ext in exts:
-            atm.savefigs('tseries_' + key + '_', ext)
+            atm.savefigs('index_tseries_' + key + '_', ext)
     plt.close('all')
 
 # ----------------------------------------------------------------------
@@ -408,7 +408,7 @@ plt.xlabel('Onset Index')
 plt.ylabel('Day of Year')
 
 # Scatter plots with correlation coeffs
-titlestr = 'Yearly Indices 1979-2014'
+titlestr = 'Yearly Onset Indices 1979-2014'
 atm.scatter_matrix(ind_comp, corr_fmt='.2f', corr_pos=(0.1, 0.85),
                    figsize=(16,10), suptitle=titlestr)
 
@@ -442,6 +442,11 @@ for i, key in enumerate(shortkeys_sub):
         ax2.set_xlabel('')
     ax2.set_ylabel('# Years')
 
+if isave:
+    for ext in exts:
+        atm.savefigs('onset_yrs_', ext)
+        plt.close('all')
+
 # ----------------------------------------------------------------------
 # Daily timeseries together
 
@@ -458,11 +463,15 @@ for i, keys in enumerate(keys_list):
     if i == 0:
         suptitle = key_onset + ' Onset'
     else:
-        suptitle = (key_onset + ' Onset, %d-%dE %d-day Rolling Data' 
+        suptitle = (key_onset + ' Onset, %d-%dE %d-day Rolling Data'
                     % (lon1, lon2, nroll))
     indices.plot_tseries_together(tseries[keys], onset=d_onset,
                                   suptitle=suptitle)
 
+if isave:
+    for ext in exts:
+        atm.savefigs('tseries_', ext)
+        plt.close('all')
 
 # Correlations between daily timeseries
 
@@ -493,32 +502,8 @@ def daily_corr_years(data, keys, yearnm='year'):
                 corr[key1][key2] = daily_corr(ind1, data[key2])
     return corr
 
-"""
-# Scatter matrix of correlation coefficients between daily tseries,
-# averaged over years
-keys_vec = []
-for keys in keys_list:
-    keys_vec.extend(keys)
-    
-corr = daily_corr_years(tseries, keys_vec)
-corr_bar = pd.DataFrame()
-for key in corr.keys():
-    corr_bar[key] = corr[key].mean(dim='year')
-
-n = len(keys_vec)
-bins = np.arange(-1, 1.01, 0.25)
-fig, axes = plt.subplots(n, n, figsize=(16, 10), sharex=True, sharey=True)
-plt.subplots_adjust(wspace=0, hspace=0, left=0.08, right=0.95)
-for i in range(n):
-    key1 = keys_vec[i]
-    for j in range(n):
-        key2 = keys_vec[j]
-        ax = axes[i, j]
-        corr[key1][key2].hist(bins=bins, ax=ax)
-"""
-
 # Box plots of correlation coefficients between daily timeseries
-keys_box = [['HOWI_100', 'OCI', 'TT', 'MFC_box', 'PRECIP_box', 
+keys_box = [['HOWI_100', 'OCI', 'TT', 'MFC_box', 'PRECIP_box',
              'U200_box', 'Ro200_box'],
             ['HOWI_100', 'Ro200_30S-20S', 'Ro200_20S-10S', 'Ro200_10S-0N',
              'Ro200_0N-10N', 'Ro200_10N-20N', 'Ro200_20N-30N']]
@@ -526,7 +511,7 @@ keys_box = [['HOWI_100', 'OCI', 'TT', 'MFC_box', 'PRECIP_box',
 ylim1, ylim2 = -1, 1
 for keys in keys_box:
     corr = daily_corr_years(tseries, keys)
-    n = len(keys)   
+    n = len(keys)
     plt.figure(figsize=(14, 12))
     for i, key in enumerate(keys):
         plt.subplot(n, 1, i + 1)
@@ -539,3 +524,8 @@ for keys in keys_box:
         if i < n - 1:
             plt.gca().set_xticklabels([])
     plt.suptitle('Correlations between daily tseries')
+
+if isave:
+    for ext in exts:
+        atm.savefigs('corr_tseries_', ext)
+        plt.close('all')
