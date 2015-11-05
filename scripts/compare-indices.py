@@ -367,9 +367,9 @@ for key in index.keys():
     else:
         retreat = None
     indices.summarize_indices(ind.year, ind.onset, retreat, ind.title)
-    if isave:
-        for ext in exts:
-            atm.savefigs('onset_retreat_hist_' + key + '_', ext)
+if isave:
+    for ext in exts:
+        atm.savefigs('onset_retreat_hist_', ext)
 plt.close('all')
 
 # ----------------------------------------------------------------------
@@ -415,7 +415,7 @@ atm.scatter_matrix(ind_comp, corr_fmt='.2f', corr_pos=(0.1, 0.85),
 if isave:
     for ext in exts:
         atm.savefigs('onset_', ext)
-        plt.close('all')
+plt.close('all')
 
 # ----------------------------------------------------------------------
 # Plot onset day vs. year along with histograms
@@ -445,7 +445,7 @@ for i, key in enumerate(shortkeys_sub):
 if isave:
     for ext in exts:
         atm.savefigs('onset_yrs_', ext)
-        plt.close('all')
+plt.close('all')
 
 # ----------------------------------------------------------------------
 # Daily timeseries together
@@ -471,7 +471,7 @@ for i, keys in enumerate(keys_list):
 if isave:
     for ext in exts:
         atm.savefigs('tseries_', ext)
-        plt.close('all')
+plt.close('all')
 
 # Correlations between daily timeseries
 
@@ -528,4 +528,4 @@ for keys in keys_box:
 if isave:
     for ext in exts:
         atm.savefigs('corr_tseries_', ext)
-        plt.close('all')
+plt.close('all')
