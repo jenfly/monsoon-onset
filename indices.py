@@ -565,7 +565,8 @@ def summarize_indices(years, onset, retreat=None, indname='', binwidth=5,
 
 # ----------------------------------------------------------------------
 def plot_index_years(index, years=None, figsize=(14,10), nrow=3, ncol=4,
-                     suptitle='', yearnm='year', daynm='day'):
+                     suptitle='', yearnm='year', daynm='day',
+                     vertline=False):
     """Plot daily timeseries of monsoon index/onset/retreat each year.
     """
 
@@ -601,16 +602,23 @@ def plot_index_years(index, years=None, figsize=(14,10), nrow=3, ncol=4,
         yrs_extreme[yr] = yrs_extreme[yr] + ' - ' + nm
 
     # Monsoon index with onset and retreat in individual years
+    def line_or_point(d, ind, daynm, vertline, ax, label, clr):
+        d = int(d)
+        val = atm.subset(ind, daynm, d)
+        if vertline:
+            ax.plot([d, d], ax.get_ylim(), clr, linewidth=2, label=label)
+        ax.plot(d, val, clr + 'o', label=label)
+
     def onset_tseries(days, ind, d_onset, d_retreat, daynm, ax=None):
         if ax is None:
             ax = plt.gca()
         ax.plot(days, ind)
         if d_onset is not None and not np.isnan(d_onset):
-            d_onset = int(d_onset)
-            ax.plot(d_onset, atm.subset(ind, daynm, d_onset), 'ro', label='onset')
+            line_or_point(d_onset, ind, daynm, vertline, ax, label='onset',
+                          clr='r')
         if d_retreat is not None and not np.isnan(d_retreat):
-            d_retreat = int(d_retreat)
-            ax.plot(d_retreat, atm.subset(ind, daynm, d_retreat), 'bo', label='retreat')
+            line_or_point(d_retreat, ind, daynm, vertline, ax, label='retreat',
+                          clr='b')
         ax.grid()
         ax.set_xlim(days.min() - 1, days.max() + 1)
 
