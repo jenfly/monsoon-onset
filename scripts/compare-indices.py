@@ -16,7 +16,7 @@ import indices
 
 # ----------------------------------------------------------------------
 isave = True
-exts = ['png', 'eps']
+exts = ['png', 'eps', 'pdf']
 index = collections.OrderedDict()
 
 datadir = atm.homedir() + 'datastore/merra/daily/'
