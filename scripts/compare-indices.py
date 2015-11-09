@@ -152,7 +152,7 @@ for name in ['CMAP', 'MERRA_MFC', 'MERRA_PRECIP']:
     key = 'WLH_%s_nroll%d' % (name, nroll[name])
     print(key)
     pcp_sm = atm.rolling_mean(pcp, nroll[name], axis=-1, center=True)
-    index[key] = get_onset_WLH(years, days, pcp_sm, threshold, key, pentad,
+    index[key] = get_onset_WLH(years, days, pcp_sm.values, threshold, key, pentad,
                                precip_jan)
 
     # Unsmoothed pentad timeserires
