@@ -151,10 +151,7 @@ for name in ['CMAP', 'MERRA_MFC', 'MERRA_PRECIP']:
     # Smooth with rolling mean
     key = 'WLH_%s_nroll%d' % (name, nroll[name])
     print(key)
-    pcp_sm = np.zeros(pcp.shape)
-    for y in range(pcp.shape[0]):
-        pcp_sm[y] = pd.rolling_mean(pcp[y].values, nroll[name],
-                                    center=True)
+    pcp_sm = atm.rolling_mean(pcp, nroll[name], axis=-1, center=True)
     index[key] = get_onset_WLH(years, days, pcp_sm, threshold, key, pentad,
                                precip_jan)
 
@@ -270,24 +267,11 @@ for i, lats in enumerate(binvals):
     tseries[key] = atm.mean_over_geobox(uv['Ro'], lats[0], lats[1], lon1, lon2)
 
 # Apply 7-day rolling mean to each tseries
-def rolling(data, nroll, center):
-    _, attrs, coords, _ = atm.meta(data)
-    dims = data.shape
-    vals = np.zeros(dims)
-    if len(dims) > 1:
-        nyears = dims[0]
-        for y in range(nyears):
-            vals[y] = pd.rolling_mean(data.values[y], nroll, center=center)
-    else:
-        vals = pd.rolling_mean(data.values, nroll, center=center)
-    attrs['nroll'] = nroll
-    data_out = xray.DataArray(vals, coords=coords, attrs=attrs)
-    return data_out
-
 nroll = 7
+axis = -1
 center = True
 for key in tseries.data_vars.keys():
-    tseries[key] = rolling(tseries[key], nroll, center)
+    tseries[key] = atm.rolling_mean(tseries[key], nroll, axis, center)
 
 # Add other timeseries
 for key in index.keys():
