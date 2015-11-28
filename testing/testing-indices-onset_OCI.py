@@ -30,17 +30,7 @@ if combine_years:
 
     # Read daily data from each year
     u = atm.combine_daily_years('U', datafiles, years)
-    u = atm.subset(u, 'Day', daymin, daymax)
-
-    # Remove extra dimension from data
-    name, attrs, coords, dims = atm.meta(u)
-    dims = list(dims)
-    dims.pop(2)
-    plev = coords['Height']
-    coords = atm.odict_delete(coords, 'Height')
-    u = xray.DataArray(np.squeeze(u.values), dims=dims, coords=coords,
-                       name=name, attrs=attrs)
-    u.attrs['Height'] = plev.values
+    u = atm.squeeze(atm.subset(u, 'Day', daymin, daymax))
 
     # Save to file
     print('Saving to ' + datafile)
