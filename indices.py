@@ -154,11 +154,11 @@ def onset_WLH(precip, axis=1, kmax=12, threshold=5.0, onset_min=20):
     # Collapse any extra dimensions that were added
     if axis == 0:
         for key in output:
-            output[key] = atm.collapse(0, output[key])
+            output[key] = atm.collapse(output[key], 0)
     while onset.ndim > ndim:
         for key in output:
             if key != 'Rsq':
-                output[key] = atm.collapse(-1, output[key])
+                output[key] = atm.collapse(output[key], -1)
 
     # Some more data to output
     output['Rsq'] = Rsq
