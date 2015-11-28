@@ -416,6 +416,79 @@ def onset_OCI(u, latlon = (5, 15, 40, 80), mmdd_thresh=(6,1),
 
     return oci
 
+# ----------------------------------------------------------------------
+def onset_SJ(u, v, latlon = (-5, 20, 50, 70), ndays=3, yearnm='Year',
+             daynm='Day'):
+    """Return monsoon onset based on Somali Jet kinetic energy.
+
+    Parameters
+    ----------
+    u, v : xray.DataArray
+        850 hPa zonal and meridional wind.
+    latlon : 4-tuple of floats, optional
+        Tuple of (lat1, lat2, lon1, lon2) defining Somali jet region
+        to average over.
+    ndays : int, optional
+        Number of consecutive days threshold must be exceeded to
+        define onset.
+    yearnm, daynm : str, optional
+        Name of year and day dimensions in DataArray
+
+    Returns
+    -------
+    sj : xray.Dataset
+        Somali jet index daily timeseries for each year and monsoon
+        onset day for each year.
+
+    Reference
+    ---------
+    Boos, W. R., & Emanuel, K. A. (2009). Annual intensification of the
+        Somali jet in a quasi-equilibrium framework : Observational
+        composites. Quarterly Journal of the Royal Meteorological
+        Society, 135, 319-335.
+    """
+
+    days = atm.get_coord(u, coord_name=daynm)
+    years = atm.get_coord(u, coord_name=yearnm)
+    nyears = len(years)
+
+    # Kinetic energy index
+    ke = np.sqrt(u**2 + v**2)
+
+    # Average over Somali jet region
+    lat1, lat2, lon1, lon2 = latlon
+    ke = atm.mean_over_geobox(ke, lat1, lat2, lon1, lon2)
+    ke.attrs['title'] = 'KE'
+    ke.attrs['long_name'] = 'sqrt(u**2 + v**2)'
+
+    # Threshold for onset date
+    vals = ke.values.flatten()
+    keclim = vals.mean()
+    kestd = vals.std()
+    threshold = keclim + kestd
+
+    # Find first day when KE exceeds threshold and stays above the
+    # threshold for consecutive ndays
+    def onset_day(tseries, threshold, ndays, daynm):
+        above = (tseries.values > threshold)
+        d0 = above.argmax()
+        while not above[d0:d0+ndays].all():
+            d0 += 1
+        return tseries[daynm].values[d0]
+
+    # Find onset day for each year
+    onset = [onset_day(ke[y], threshold, ndays, daynm)
+             for y in range(nyears)]
+
+    # Pack into dataset
+    sj = xray.Dataset()
+    sj['tseries'] = ke
+    sj['onset'] = xray.DataArray(onset, coords={yearnm : years})
+    sj.attrs['latlon'] = latlon
+    sj.attrs['threshold'] = threshold
+    sj.attrs['ndays'] = ndays
+
+    return sj
 
 # ----------------------------------------------------------------------
 def onset_TT(T, north=(5, 35, 40, 100), south=(-15, 5, 40, 100),

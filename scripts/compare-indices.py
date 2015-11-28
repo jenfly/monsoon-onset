@@ -25,7 +25,8 @@ precipfile = datadir + 'merra_precip_40E-120E_60S-60N_days91-274_1979-2014.nc'
 cmapfile = atm.homedir() + 'datastore/cmap/cmap.precip.pentad.mean.nc'
 eraIfile = atm.homedir() + ('datastore/era_interim/analysis/'
                             'era_interim_JJAS_60-100E_index.csv')
-ocifile = datadir + 'merra_u850_40E-120E_60S-60N_1979-2014.nc'
+ocifile = datadir + 'merra_u850_40E-120E_60S-60N_apr-sep_1979-2014.nc'
+sjfile = datadir + 'merra_uv850_40E-120E_60S-60N_1979-2014.nc'
 
 years = np.arange(1979, 2015)
 ttfiles = [datadir + 'merra_T200-600_apr-sep_%d.nc' % yr for yr in years]
@@ -170,6 +171,14 @@ index['OCI'] = indices.onset_OCI(u850, yearnm='year', daynm='day')
 index['OCI'].attrs['title'] = 'OCI'
 
 # ----------------------------------------------------------------------
+# SJ index (Boos and Emmanuel 2009)
+with xray.open_dataset(sjfile) as ds:
+    v850 = ds['V'].load()
+v850 = v850.rename({'Year' : 'year', 'Day' : 'day'})
+index['OCI'] = indices.onset_SJ(u850, v850, yearnm='year', daynm='day')
+index['OCI'].attrs['title'] = 'SJ'
+
+# ----------------------------------------------------------------------
 # TT index (Goswami et al 2006)
 
 # ***  NOTES ****
@@ -308,6 +317,10 @@ atm.geobox(latlon[0],  latlon[1], latlon[2], latlon[3], m=m, color='green')
 latlon = index['OCI'].attrs['latlon']
 atm.geobox(latlon[0],  latlon[1], latlon[2], latlon[3], m=m, color='blue',
            label='OCI (U850)')
+
+latlon = index['SJ'].attrs['latlon']
+atm.geobox(latlon[0],  latlon[1], latlon[2], latlon[3], m=m, color='black',
+           label='SJ (KE850)')
 
 atm.geobox(lat1,  lat2, lon1, lon2, m=m, color='magenta',
            label='WLH (MFC, PRECIP)')
