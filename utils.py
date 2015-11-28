@@ -87,3 +87,38 @@ def comp_days_centered(ndays, offset=0):
     reldays['post'] = np.arange(offset + n2, offset + n2 + ndays)
 
     return reldays
+
+
+# ----------------------------------------------------------------------
+def composite(data, compdays, return_avg=True, daynm='Dayrel'):
+    """Return composite data fields for selected days.
+
+    Parameters
+    ----------
+    data : xray.DataArray
+        Daily data to composite.
+    compdays: dict of arrays or lists
+        Lists of days to include in each composite.
+    return_avg : bool, optional
+        If True, return the mean of the selected days, otherwise
+        return the extracted individual days for each composite.
+    daynnm : str, optional
+        Name of day dimension in data.
+
+    Returns
+    -------
+    comp : dict of xray.DataArrays
+        Composite data fields for each key in compdays.keys().
+    """
+
+    comp = collections.OrderedDict()
+    _, attrs, _, _ = atm.meta(data)
+
+    for key in compdays:
+        comp[key] = atm.subset(data, daynm, compdays[key])
+        if return_avg:
+            comp[key] = comp[key].mean(dim=daynm)
+            comp[key].attrs = attrs
+            comp[key].attrs[daynm] = compdays[key]
+
+    return comp
