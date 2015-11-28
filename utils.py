@@ -5,12 +5,13 @@ sys.path.append('/home/jwalker/dynamics/python/atmos-read')
 import numpy as np
 import xray
 import matplotlib.pyplot as plt
+import collections
 
 import atmos as atm
 import merra
 
 # ----------------------------------------------------------------------
-def daily_prepost_onset(data, d_onset, npre, npost, daynm='Day', yearnm='Year'):
+def daily_rel2onset(data, d_onset, npre, npost, daynm='Day', yearnm='Year'):
     """Return subset of daily data aligned relative to onset day.
 
     Parameters
@@ -58,19 +59,31 @@ def daily_prepost_onset(data, d_onset, npre, npost, daynm='Day', yearnm='Year'):
 
 
 # ----------------------------------------------------------------------
-def comp_days_centered(ndays):
+def comp_days_centered(ndays, offset=0):
     """Return days for pre/onset/post composites centered on onset.
 
-    Output days are day of year relative to onset day.
+    Parameters
+    ----------
+    ndays : int
+        Number of days to average in each composite.
+    offset : int, optional
+        Number of offset days between pre/onset and onset/post
+        day ranges.
+
+    Returns
+    -------
+    reldays : dict of arrays
+        Components are 'pre', 'onset',  and 'post', arrays of days
+        of the year relative to onset day, for each composite.
     """
 
     ndays = int(ndays)
     n1 = int(ndays // 2)
     n2 = ndays - n1
 
-    reldays = {}
-    reldays['pre'] = np.arange(-n1 - ndays, -n1)
+    reldays = collections.OrderedDict()
+    reldays['pre'] = np.arange(-offset - n1 - ndays, -offset - n1)
     reldays['onset'] = np.arange(-n1, n2)
-    reldays['post'] = np.arange(n2, n2 + ndays)
+    reldays['post'] = np.arange(offset + n2, offset + n2 + ndays)
 
     return reldays
