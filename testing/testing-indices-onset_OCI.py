@@ -16,7 +16,7 @@ from indices import onset_OCI, summarize_indices, plot_index_years
 datadir = atm.homedir() + 'datastore/merra/daily/'
 years = np.arange(1979, 2015)
 filestr = 'merra_u850_40E-120E_60S-60N_'
-datafile = datadir + filestr + '%d-%d.nc'% (years.min(), years.max())
+datafile = datadir + filestr + 'apr-sep_%d-%d.nc'% (years.min(), years.max())
 
 # Read years from individual files and save to datafile
 combine_years = False
