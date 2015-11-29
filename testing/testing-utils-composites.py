@@ -6,56 +6,101 @@ import xray
 import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt
+from matplotlib import animation
+import collections
 import pandas as pd
 import atmos as atm
 import precipdat
 import merra
 import indices
-from utils import days_premidpost, composite_premidpost
-
-
-# ----------------------------------------------------------------------
-# Define monsoon onset index
-
-datadir = atm.homedir() + 'datastore/cmap/'
-cmap_file = datadir + 'cmap.precip.pentad.mean.nc'
-
-# Read CMAP data and average over box
-lon1, lon2 = 60, 100
-lat1, lat2 = 10, 30
-titlestr = 'CMAP %d-%dE, %d-%dN ' % (lon1, lon2, lat1, lat2)
-precip = precipdat.read_cmap(cmap_file)
-precipbar = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)
-nyears, npentad = precipbar.shape
-years = precipbar.year.values
-
-# Smooth with truncated Fourier series and calculate onset index
-# with Wang & LinHo method
-kmax = 12
-threshold = 5.0
-pcp_sm, Rsq = atm.fourier_smooth(precipbar, kmax)
-p_onset = np.zeros(nyears)
-for y, year in enumerate(years):
-    p_onset[y], _, _ = indices.onset_WLH_1D(pcp_sm[y])
-
-# Convert onset index from pentad to day of year
-d_onset = np.zeros(nyears)
-for y in range(nyears):
-    d_onset[y] = atm.pentad_to_jday(p_onset[y], pmin=0)
+from utils import daily_rel2onset, comp_days_centered, composite
 
 # ----------------------------------------------------------------------
-# Read daily mean MERRA data
-
 datadir = atm.homedir() + 'datastore/merra/daily/'
-filestr = datadir + 'merra_uv200_40E-120E_60S-60N_%d.nc'
-files = []
-for yr in years:
-    files.append(filestr % yr)
+datafile = datadir + 'merra_u850_40E-120E_60S-60N_apr-sep_1979-2014.nc'
+with xray.open_dataset(datafile) as ds:
+    u = ds['U'].load()
 
-ds = atm.combine_daily_years(['U', 'V', 'Ro'], files, years)
-u = ds['U']
-v = ds['V']
-Ro = ds['Ro']
+
+oci = indices.onset_OCI(u)
+d_onset = oci['onset']
+ndays = 30
+data = daily_rel2onset(u, d_onset, ndays, ndays)
+
+compdays = comp_days_centered(5)
+#compdays = comp_days_centered(1, 9)
+
+comp = composite(data, compdays)
+
+compbar = collections.OrderedDict()
+for key in comp:
+    compbar[key] = comp[key].mean(dim='Year')
+
+# Pre / onset / post composites
+axlims = (-60, 60, 40, 120)
+plt.figure(figsize=(12,10))
+for i, key in enumerate(comp):
+    plt.subplot(2, 2, i+1)
+    atm.pcolor_latlon(compbar[key], axlims=axlims)
+    plt.title(key)
+
+# Animation of climatological daily data relative to onset
+databar = data.mean(dim='Year')
+cmax = 20
+
+def animate(i):
+    plt.clf()
+    m, _ = atm.pcolor_latlon(databar[i], axlims=axlims)
+    plt.clim(-cmax, cmax)
+    plt.title(databar.Dayrel.values[i])
+    return m
+
+nframes = 2*ndays + 1
+fig = plt.figure()
+anim = animation.FuncAnimation(fig, animate, frames=nframes)
+
+# # ----------------------------------------------------------------------
+# # Define monsoon onset index
+#
+# datadir = atm.homedir() + 'datastore/cmap/'
+# cmap_file = datadir + 'cmap.precip.pentad.mean.nc'
+#
+# # Read CMAP data and average over box
+# lon1, lon2 = 60, 100
+# lat1, lat2 = 10, 30
+# titlestr = 'CMAP %d-%dE, %d-%dN ' % (lon1, lon2, lat1, lat2)
+# precip = precipdat.read_cmap(cmap_file)
+# precipbar = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)
+# nyears, npentad = precipbar.shape
+# years = precipbar.year.values
+#
+# # Smooth with truncated Fourier series and calculate onset index
+# # with Wang & LinHo method
+# kmax = 12
+# threshold = 5.0
+# pcp_sm, Rsq = atm.fourier_smooth(precipbar, kmax)
+# p_onset = np.zeros(nyears)
+# for y, year in enumerate(years):
+#     p_onset[y], _, _ = indices.onset_WLH_1D(pcp_sm[y])
+#
+# # Convert onset index from pentad to day of year
+# d_onset = np.zeros(nyears)
+# for y in range(nyears):
+#     d_onset[y] = atm.pentad_to_jday(p_onset[y], pmin=0)
+#
+# # ----------------------------------------------------------------------
+# # Read daily mean MERRA data
+#
+# datadir = atm.homedir() + 'datastore/merra/daily/'
+# filestr = datadir + 'merra_uv200_40E-120E_60S-60N_%d.nc'
+# files = []
+# for yr in years:
+#     files.append(filestr % yr)
+#
+# ds = atm.combine_daily_years(['U', 'V', 'Ro'], files, years)
+# u = ds['U']
+# v = ds['V']
+# Ro = ds['Ro']
 
 
 

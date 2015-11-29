@@ -417,7 +417,7 @@ def onset_OCI(u, latlon = (5, 15, 40, 80), mmdd_thresh=(6,1),
     return oci
 
 # ----------------------------------------------------------------------
-def onset_SJ(u, v, latlon = (-5, 20, 50, 70), ndays=3, yearnm='Year',
+def onset_SJKE(u, v, latlon = (-5, 20, 50, 70), ndays=3, yearnm='Year',
              daynm='Day'):
     """Return monsoon onset based on Somali Jet kinetic energy.
 
@@ -436,7 +436,7 @@ def onset_SJ(u, v, latlon = (-5, 20, 50, 70), ndays=3, yearnm='Year',
 
     Returns
     -------
-    sj : xray.Dataset
+    sjke : xray.Dataset
         Somali jet index daily timeseries for each year and monsoon
         onset day for each year.
 
@@ -463,8 +463,8 @@ def onset_SJ(u, v, latlon = (-5, 20, 50, 70), ndays=3, yearnm='Year',
 
     # Threshold for onset date
     vals = ke.values.flatten()
-    keclim = vals.mean()
-    kestd = vals.std()
+    keclim = np.nanmean(vals)
+    kestd = np.nanstd(vals)
     threshold = keclim + kestd
 
     # Find first day when KE exceeds threshold and stays above the
@@ -481,14 +481,14 @@ def onset_SJ(u, v, latlon = (-5, 20, 50, 70), ndays=3, yearnm='Year',
              for y in range(nyears)]
 
     # Pack into dataset
-    sj = xray.Dataset()
-    sj['tseries'] = ke
-    sj['onset'] = xray.DataArray(onset, coords={yearnm : years})
-    sj.attrs['latlon'] = latlon
-    sj.attrs['threshold'] = threshold
-    sj.attrs['ndays'] = ndays
+    sjke = xray.Dataset()
+    sjke['tseries'] = ke
+    sjke['onset'] = xray.DataArray(onset, coords={yearnm : years})
+    sjke.attrs['latlon'] = latlon
+    sjke.attrs['threshold'] = threshold
+    sjke.attrs['ndays'] = ndays
 
-    return sj
+    return sjke
 
 # ----------------------------------------------------------------------
 def onset_TT(T, north=(5, 35, 40, 100), south=(-15, 5, 40, 100),
