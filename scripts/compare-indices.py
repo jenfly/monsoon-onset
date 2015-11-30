@@ -456,6 +456,24 @@ for i, keys in enumerate(keys_list):
 
 saveclose('tseries_', isave, exts)
 
+# Compare onset days and daily timeseries of pairs of indices
+# side by side
+
+keys_list = [['HOWI_100', 'OCI'],
+             ['HOWI_100', 'SJKE']]
+clrs = ['b', 'r']
+
+for keys in keys_list:
+    style = {key : clrs[i] for i, key in enumerate(keys)}
+    d_onset = collections.OrderedDict()
+    for key in keys:
+        d_onset[key] = index[key]['onset'].values
+    indices.plot_tseries_together(tseries[keys], onset=d_onset,
+                                  data_style=style, onset_style=style,
+                                  show_days=True)
+
+saveclose('tseries_pairs_', isave, exts)
+
 
 # Correlations between daily timeseries
 
