@@ -55,6 +55,13 @@ short = { 'HOWI_50' : 'HOWI_50',
 short_inv = {v : k for k, v in short.items()}
 
 # ----------------------------------------------------------------------
+def saveclose(name, isave, exts):
+    if isave:
+        for ext in exts:
+            atm.savefigs(name, ext)
+    plt.close('all')
+
+# ----------------------------------------------------------------------
 # HOWI index (Webster and Fasullo 2003)
 maxbreak = 10
 with xray.open_dataset(vimtfile) as ds:
@@ -333,13 +340,8 @@ handles, labels = plt.gca().get_legend_handles_labels()
 labels = ['HOWI_100 (VIMT)', 'HOWI_50 (VIMT)'] + labels
 handles = [cs.collections[0], cs2.collections[0]] + handles
 plt.legend(handles, labels, fontsize=12)
-
 plt.title('Averaging Regions for Onset Indices')
-
-if isave:
-    for ext in exts:
-        atm.savefigs('map_', ext)
-plt.close('all')
+saveclose('map_', isave, exts)
 
 # ----------------------------------------------------------------------
 # Monsoon strength
@@ -353,10 +355,7 @@ plt.grid()
 plt.legend(fontsize=12)
 atm.scatter_matrix(strength)
 plt.suptitle('JJAS Monsoon Strength')
-if isave:
-    for ext in exts:
-        atm.savefigs('strength_', ext)
-plt.close('all')
+saveclose('strength_', isave, exts)
 
 # ----------------------------------------------------------------------
 # Histograms of each index
@@ -367,10 +366,7 @@ for key in index.keys():
     else:
         retreat = None
     indices.summarize_indices(ind.year, ind.onset, retreat, ind.title)
-if isave:
-    for ext in exts:
-        atm.savefigs('onset_retreat_hist_', ext)
-plt.close('all')
+saveclose('onset_retreat_hist_', isave, exts)
 
 # ----------------------------------------------------------------------
 # Daily timeseries of each index in each year
@@ -378,15 +374,12 @@ keys = index.keys()
 # keys = ['OCI', 'TT']
 for key in keys:
     indices.plot_index_years(index[key], suptitle=key, vertline=True)
-    if isave:
-        for ext in exts:
-            atm.savefigs('index_tseries_' + key + '_', ext)
-    plt.close('all')
+    saveclose('index_tseries_' + key + '_', isave, exts)
 
 # ----------------------------------------------------------------------
 # Compare indices with each other
 
-keys = ['HOWI_100', 'HOWI_50', 'OCI', 'TT', 'WLH_CMAP_kmax12',
+keys = ['HOWI_100', 'HOWI_50', 'OCI', 'SJKE', 'TT', 'WLH_CMAP_kmax12',
         'WLH_CMAP_nroll3', 'WLH_MERRA_PRECIP_nroll7']
 shortkeys = [short[key] for key in keys]
 
@@ -412,17 +405,13 @@ titlestr = 'Yearly Onset Indices 1979-2014'
 atm.scatter_matrix(ind_comp, corr_fmt='.2f', corr_pos=(0.1, 0.85),
                    figsize=(16,10), suptitle=titlestr)
 
-if isave:
-    for ext in exts:
-        atm.savefigs('onset_', ext)
-plt.close('all')
+saveclose('onset_', isave, exts)
 
 # ----------------------------------------------------------------------
 # Plot onset day vs. year along with histograms
 
 # Subset of indices to focus on
-keys_sub = ['HOWI_100', 'OCI', 'TT', 'WLH_CMAP_kmax12',
-            'WLH_MERRA_PRECIP_nroll7']
+keys_sub = ['HOWI_100', 'OCI', 'SJKE', 'TT', 'WLH_MERRA_PRECIP_nroll7']
 shortkeys_sub = [short[key] for key in keys_sub]
 n = len(keys_sub)
 
@@ -442,10 +431,7 @@ for i, key in enumerate(shortkeys_sub):
         ax2.set_xlabel('')
     ax2.set_ylabel('# Years')
 
-if isave:
-    for ext in exts:
-        atm.savefigs('onset_yrs_', ext)
-plt.close('all')
+saveclose('onset_yrs_', isave, exts)
 
 # ----------------------------------------------------------------------
 # Daily timeseries together
@@ -453,7 +439,7 @@ plt.close('all')
 key_onset = 'HOWI_100'
 d_onset = index[key_onset]['onset'].values
 
-keys_list = [['HOWI_100', 'OCI', 'TT', 'MFC_box', 'PRECIP_box'],
+keys_list = [['HOWI_100', 'OCI', 'TT', 'SJKE', 'MFC_box', 'PRECIP_box'],
              ['U200_box', 'Ro200_box', 'MFC_box'],
              ['Ro200_30S-20S', 'Ro200_20S-10S'],
              ['Ro200_10S-0N', 'Ro200_0N-10N'],
@@ -468,10 +454,8 @@ for i, keys in enumerate(keys_list):
     indices.plot_tseries_together(tseries[keys], onset=d_onset,
                                   suptitle=suptitle)
 
-if isave:
-    for ext in exts:
-        atm.savefigs('tseries_', ext)
-plt.close('all')
+saveclose('tseries_', isave, exts)
+
 
 # Correlations between daily timeseries
 
@@ -503,7 +487,7 @@ def daily_corr_years(data, keys, yearnm='year'):
     return corr
 
 # Box plots of correlation coefficients between daily timeseries
-keys_box = [['HOWI_100', 'OCI', 'TT', 'MFC_box', 'PRECIP_box',
+keys_box = [['HOWI_100', 'OCI', 'SJKE', 'TT', 'MFC_box', 'PRECIP_box',
              'U200_box', 'Ro200_box'],
             ['HOWI_100', 'Ro200_30S-20S', 'Ro200_20S-10S', 'Ro200_10S-0N',
              'Ro200_0N-10N', 'Ro200_10N-20N', 'Ro200_20N-30N']]
@@ -525,7 +509,4 @@ for keys in keys_box:
             plt.gca().set_xticklabels([])
     plt.suptitle('Correlations between daily tseries')
 
-if isave:
-    for ext in exts:
-        atm.savefigs('corr_tseries_', ext)
-plt.close('all')
+saveclose('corr_tseries_', isave, exts)
