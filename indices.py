@@ -723,8 +723,42 @@ def plot_tseries_together(data, onset=None, years=None, suptitle='',
                           figsize=(14,10), legendsize=10,
                           legendloc='lower right', nrow=3, ncol=4,
                           yearnm='year', daynm='day', standardize=True,
-                          label_attr=None):
+                          label_attr=None, data_style=None, onset_style=None,
+                          show_days=False):
     """Plot multiple daily timeseries together each year.
+
+    Parameters
+    ----------
+    data : xray.Dataset
+        Dataset of timeseries variables to plot together.
+    onset : ndarray or dict of ndarrays, optional
+        Array of onset day for each year, or dict of onset arrays (e.g.
+        to compare onset days from different methods).
+    years : ndarray, optional
+        Subset of years to include.  If omitted, all years are included.
+    suptitle : str, optional
+        Supertitle for plot.
+    figsize : 2-tuple, optional
+        Size of each figure.
+    legendsize : int, optional
+        Font size for legend
+    legendloc : str, optional
+        Legend location
+    nrow, ncol : int, optional
+        Number of rows, columns in each figure.
+    yearnm, daynm : str, optional
+        Name of year and day dimensions in data.
+    standardize : bool, optional
+        If True, standardize each timeseries by dividing by its
+        standard deviation.
+    label_attr : str, optional
+        Attribute of each data variable to use for labels.  If omitted,
+        then the variable name is used.
+    data_style, onset_style : list or dict, optional
+        Matlab-style strings for each data variable or onset index.
+    show_days : bool, optional
+        If True, annotate each subplot with a textbox showing the
+        onset days.
     """
 
     if years is None:
@@ -734,6 +768,16 @@ def plot_tseries_together(data, onset=None, years=None, suptitle='',
 
     if label_attr is not None:
         labels = {nm : data[nm].attrs[label_attr] for nm in data.data_vars}
+
+    if onset is not None:
+        if isinstance(onset, dict):
+            if onset_style is None:
+                onset_style = {key : 'k' for key in onset.keys()}
+        else:
+            onset = {'onset' : onset}
+            if onset_style is None:
+                onset_style = {'onset' : 'k'}
+        textpos = {key : (0.05, 0.9 - 0.1*i) for i, key in enumerate(onset)}
 
     # Plot each year
     for y, year in enumerate(years):
@@ -759,14 +803,18 @@ def plot_tseries_together(data, onset=None, years=None, suptitle='',
 
         i, j = atm.subplot_index(nrow, ncol, yplot)
         ax = axes[i-1, j-1]
-        df.plot(ax=ax)
+        df.plot(ax=ax, style=data_style)
         ax.grid()
         if yplot == 1:
             ax.legend(fontsize=legendsize, loc=legendloc)
         else:
             ax.legend_.remove()
         if onset is not None:
-            ax.plot([onset[y], onset[y]], ax.get_ylim(), 'k')
+            for key in onset:
+                d0 = onset[key][y]
+                ax.plot([d0, d0], ax.get_ylim(), onset_style[key])
+                if show_days:
+                    atm.text(d0, textpos[key], ax=ax, color=onset_style[key])
         if j == 1:
             ax.set_ylabel(ylabel)
         if i == nrow:
