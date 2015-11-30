@@ -295,8 +295,9 @@ for key in tseries.data_vars.keys():
 # Add other timeseries
 for key in index.keys():
     tseries[short[key]] = index[key]['tseries']
+tseries['MFC_box'] = tseries['W_MP_n7']
+tseries['PRECIP_box'] = tseries['W_MM_n7']
 
-tseries.rename({'W_MM_n7' : 'MFC_box', 'W_MP_n7' : 'PRECIP_box'}, inplace=True)
 
 # ======================================================================
 # PLOTS
@@ -458,16 +459,19 @@ saveclose('tseries_', isave, exts)
 
 # Compare onset days and daily timeseries of pairs of indices
 # side by side
-
 keys_list = [['HOWI_100', 'OCI'],
-             ['HOWI_100', 'SJKE']]
+             ['HOWI_100', 'SJKE'],
+             ['HOWI_100', 'W_C_n3'],
+             ['HOWI_100', 'W_MP_n7'],
+             ['HOWI_100', 'W_MM_n7'],
+             ['OCI', 'SJKE']]
 clrs = ['b', 'r']
 
 for keys in keys_list:
     style = {key : clrs[i] for i, key in enumerate(keys)}
     d_onset = collections.OrderedDict()
     for key in keys:
-        d_onset[key] = index[key]['onset'].values
+        d_onset[key] = index[short_inv[key]]['onset'].values
     indices.plot_tseries_together(tseries[keys], onset=d_onset,
                                   data_style=style, onset_style=style,
                                   show_days=True)
