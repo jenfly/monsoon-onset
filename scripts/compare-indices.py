@@ -461,7 +461,6 @@ saveclose('tseries_', isave, exts)
 # side by side
 keys_list = [['HOWI_100', 'OCI'],
              ['HOWI_100', 'SJKE'],
-             ['HOWI_100', 'W_C_n3'],
              ['HOWI_100', 'W_MP_n7'],
              ['HOWI_100', 'W_MM_n7'],
              ['OCI', 'SJKE']]
@@ -477,6 +476,51 @@ for keys in keys_list:
                                   show_days=True)
 
 saveclose('tseries_pairs_', isave, exts)
+
+# Compare daily timeseries and onset days for multiple indices
+# as stacked plots for each year
+keys = ['HOWI_100', 'OCI', 'SJKE', 'W_MP_n7', 'W_MM_n7']
+data = tseries[keys]
+d_onset = collections.OrderedDict()
+for key in keys:
+    d_onset[key] = index[short_inv[key]]['onset'].values
+figsize = (14, 10)
+nrow = len(keys)
+ncol = 4
+style = 'k'
+ylim1, ylim2 = -2.5, 2.5
+
+for y, year in enumerate(years):
+    df = atm.subset(data, 'year', year).to_dataframe()
+    df.drop('year', axis=1, inplace=True)
+    for key in df.columns:
+        df[key] = (df[key] - np.nanmean(df[key])) / np.nanstd(df[key])
+    if y % ncol == 0:
+        fig, axes = plt.subplots(nrow, ncol, figsize=figsize, sharex=True,
+                                 sharey=True)
+        plt.subplots_adjust(left=0.08, right=0.95, wspace=0.2, hspace=0)
+
+    iplot = y % ncol + 1
+    for i, key in enumerate(keys):
+        plt.subplot(nrow, ncol, iplot)
+        ax = plt.gca()
+        d0 = d_onset[key][y]
+        df[key].plot(ax=ax, style=style)
+        ax.plot([d0, d0], [ylim1, ylim2], style)
+        ax.set_ylim(ylim1, ylim2)
+        ax.grid()
+        atm.text(d0, (0.05, 0.9), ax=ax, color=style)
+        if i == 0:
+            ax.set_title(year)
+        if i == nrow - 1:
+            ax.set_xlabel('Day')
+        else:
+            ax.set_xlabel('')
+        if y % ncol == 0:
+            ax.set_ylabel(key)
+        iplot += ncol
+
+saveclose('tseries_stacked_', isave, exts)
 
 
 # Correlations between daily timeseries
