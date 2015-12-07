@@ -90,14 +90,14 @@ for key in keys:
     factor[key] = np.nanstd(tseries[key].values.ravel())
 
 
-def plot_tseries(dayrel, ind, std, clr, key, xlim1, xlim2, xlabel, ylabel):
+def plot_tseries(dayrel, ind, std, clr, key, xlabel, ylabel):
     plt.plot(dayrel, ind, clr, label=key)
     plt.fill_between(dayrel, ind-std, ind+std, color=clr, alpha=0.2)
     plt.legend(loc='lower right')
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.grid(True)
-    plt.xlim(xlim1, xlim2)
+    plt.autoscale(tight=True)
 
 clrs = {onset_nm : 'b', 'MFC' : 'g'}
 plt.figure(figsize=(8, 10))
@@ -107,7 +107,7 @@ for i, key in enumerate(keys):
     
     # Individual timeseries
     plt.subplot(3, 1, i + 1)
-    plot_tseries(dayrel, ind, std, clrs[key], key, -npre, npost, '', 'Timeseries')
+    plot_tseries(dayrel, ind, std, clrs[key], key, '', 'Timeseries')
     if i == 0:
         plt.title('1979-2014 Climatological Composites')
     
@@ -115,8 +115,9 @@ for i, key in enumerate(keys):
     ind = (ind + offset[key]) / factor[key]
     std = std / factor[key]
     plt.subplot(3, 1, 3)
-    plot_tseries(dayrel, ind, std, clrs[key], key, -npre, npost, 
-                 'Day of year relative to onset day', 'Standardized Timeseries')
+    xlabel = 'Day of year relative to ' + onset_nm + ' onset day'
+    ylabel = 'Standardized Timeseries'
+    plot_tseries(dayrel, ind, std, clrs[key], key, xlabel, ylabel)
     
 
 # ----------------------------------------------------------------------
