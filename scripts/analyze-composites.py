@@ -89,29 +89,35 @@ for key in keys:
     offset[key] = -np.nanmean(tseries[key].values.ravel())
     factor[key] = np.nanstd(tseries[key].values.ravel())
 
+
+def plot_tseries(dayrel, ind, std, clr, key, xlim1, xlim2, xlabel, ylabel):
+    plt.plot(dayrel, ind, clr, label=key)
+    plt.fill_between(dayrel, ind-std, ind+std, color=clr, alpha=0.2)
+    plt.legend(loc='lower right')
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.grid(True)
+    plt.xlim(xlim1, xlim2)
+
 clrs = {onset_nm : 'b', 'MFC' : 'g'}
 plt.figure(figsize=(8, 10))
-for i in [1, 2]:
-    plt.subplot(2, 1, i)
-    for key in keys:
-        ind = tseries_rel[key].mean(dim='year')
-        std = tseries_rel[key].std(dim='year')
-        if i == 1:
-            plt.ylabel('Timeseries')
-            plt.title('1979-2014 Climatological Composites')
-        else:
-            ind = (ind + offset[key]) / factor[key]
-            std = std / factor[key]
-            plt.xlabel('Day of year relative to onset day')
-            plt.ylabel('Standardized timeseries')
-        plt.plot(dayrel, ind, clrs[key], label=key)
-        plt.fill_between(dayrel, ind-std, ind+std, color=clrs[key], alpha=0.2)
-        #plt.plot(dayrel, ind - std, clrs[key] + '--')
-        #plt.plot(dayrel, ind + std, clrs[key] + '--')
-        plt.legend(loc='lower right')
-        plt.xlim(-npre, npost)
-    plt.grid()
-
+for i, key in enumerate(keys):
+    ind = tseries_rel[key].mean(dim='year')
+    std = tseries_rel[key].std(dim='year')
+    
+    # Individual timeseries
+    plt.subplot(3, 1, i + 1)
+    plot_tseries(dayrel, ind, std, clrs[key], key, -npre, npost, '', 'Timeseries')
+    if i == 0:
+        plt.title('1979-2014 Climatological Composites')
+    
+    # Standardized timeseries together
+    ind = (ind + offset[key]) / factor[key]
+    std = std / factor[key]
+    plt.subplot(3, 1, 3)
+    plot_tseries(dayrel, ind, std, clrs[key], key, -npre, npost, 
+                 'Day of year relative to onset day', 'Standardized Timeseries')
+    
 
 # ----------------------------------------------------------------------
 # ENSO
