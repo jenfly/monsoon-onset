@@ -18,6 +18,8 @@ from utils import daily_rel2onset, comp_days_centered, composite
 # ----------------------------------------------------------------------
 datadir = atm.homedir() + 'datastore/merra/daily/'
 onsetfile = datadir + 'merra_vimt_ps-300mb_apr-sep_1979-2014.nc'
+ensofile = atm.homedir() + 'dynamics/calc/ENSO/enso_oni.csv'
+enso_ssn = 'JJA'
 
 remove_tricky = False
 years = range(1979, 2015)
@@ -65,11 +67,66 @@ tseries['MFC'] = mfcbar
 
 
 # ----------------------------------------------------------------------
+# Daily timeseries plots together (day of year)
 style = {onset_nm : 'k', onset_nm + '_clim' : 'k--', 'MFC' : 'b'}
 onset_style = {onset_nm : 'k'}
 d_onset = {onset_nm : onset.values}
 indices.plot_tseries_together(tseries, onset=d_onset, data_style=style,
                               onset_style=onset_style, show_days=True)
+
+# ----------------------------------------------------------------------
+# Daily timeseries composites relative to onset day
+keys = [onset_nm, 'MFC']
+npre, npost = 30, 90
+tseries_rel = xray.Dataset()
+for key in keys:
+    tseries_rel[key] = daily_rel2onset(tseries[key], onset, npre, npost,
+                                       yearnm='year', daynm='day')
+dayrel = tseries_rel['dayrel'].values
+
+offset, factor = {}, {}
+for key in keys:
+    offset[key] = -np.nanmean(tseries[key].values.ravel())
+    factor[key] = np.nanstd(tseries[key].values.ravel())
+
+clrs = {onset_nm : 'b', 'MFC' : 'g'}
+plt.figure(figsize=(8, 10))
+for i in [1, 2]:
+    plt.subplot(2, 1, i)
+    for key in keys:
+        ind = tseries_rel[key].mean(dim='year')
+        std = tseries_rel[key].std(dim='year')
+        if i == 1:
+            plt.ylabel('Timeseries')
+            plt.title('1979-2014 Climatological Composites')
+        else:
+            ind = (ind + offset[key]) / factor[key]
+            std = std / factor[key]
+            plt.xlabel('Day of year relative to onset day')
+            plt.ylabel('Standardized timeseries')
+        plt.plot(dayrel, ind, clrs[key], label=key)
+        plt.fill_between(dayrel, ind-std, ind+std, color=clrs[key], alpha=0.2)
+        #plt.plot(dayrel, ind - std, clrs[key] + '--')
+        #plt.plot(dayrel, ind + std, clrs[key] + '--')
+        plt.legend(loc='lower right')
+        plt.xlim(-npre, npost)
+    plt.grid()
+
+
+# ----------------------------------------------------------------------
+# ENSO
+enso = pd.read_csv(ensofile, index_col=0)
+enso = enso[enso_ssn].loc[years]
+enso_sorted = enso.copy()
+enso_sorted.sort(ascending=False)
+
+nyrs = 5
+print('El Nino Top %d' % nyrs)
+print(enso_sorted[:nyrs])
+print('La Nina Top %d' % nyrs)
+print(enso_sorted[-1:-nyrs-1:-1])
+
+
 
 # ----------------------------------------------------------------------
 if remove_tricky:
