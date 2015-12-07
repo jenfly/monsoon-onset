@@ -13,6 +13,7 @@ import atmos as atm
 import precipdat
 import merra
 import indices
+import utils
 
 # ----------------------------------------------------------------------
 isave = True
@@ -576,3 +577,50 @@ for keys in keys_box:
     plt.suptitle('Correlations between daily tseries')
 
 saveclose('corr_tseries_', isave, exts)
+
+# ----------------------------------------------------------------------
+# Composite indices relative to onset day
+
+keys = ['HOWI_100', 'OCI', 'SJKE', 'TT', 'WLH_MERRA_MFC_nroll7', 
+        'WLH_MERRA_PRECIP_nroll7']
+npre, npost = 30, 80
+
+tseries_rel = xray.Dataset()
+for key in keys:
+    print(key)
+    ts = index[key]['tseries']
+    d_onset = index[key]['onset'].values
+    tseries_rel[key] = utils.daily_rel2onset(ts, d_onset, npre, npost, 
+                                             yearnm='year', daynm='day')
+dayrel = tseries_rel['dayrel'].values
+
+def plot_tseries(dayrel, ind, std, clr, key, xlabel, ylabel):
+    plt.plot(dayrel, ind, clr, label=key)
+    plt.fill_between(dayrel, ind-std, ind+std, color=clr, alpha=0.2)
+    plt.title(key, fontsize=12)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.grid(True)
+    plt.autoscale(tight=True)
+
+plt.figure(figsize=(9, 12))
+nrow, ncol = 3, 2
+clr = 'k'
+for i, key in enumerate(keys):
+    ind = tseries_rel[key].mean(dim='year')
+    std = tseries_rel[key].std(dim='year')
+    row, col = atm.subplot_index(nrow, ncol, i + 1)
+    plt.subplot(nrow, ncol, i + 1)
+    if row == nrow:
+        xlabel = 'Relative Day'
+    else:
+        xlabel = ''
+    if col == 1:
+        ylabel = 'Daily Index'
+    else:
+        ylabel = ''
+    plot_tseries(dayrel, ind, std, clr, key, xlabel, ylabel)
+
+plt.suptitle('1979-2014 Climatological Composites Relative to Onset Day')
+
+saveclose('ind_tseries_composites', isave, exts)    
