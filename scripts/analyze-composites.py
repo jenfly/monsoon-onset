@@ -16,13 +16,19 @@ import indices
 from utils import daily_rel2onset, comp_days_centered, composite
 
 # ----------------------------------------------------------------------
+years = range(1979, 2015)
 datadir = atm.homedir() + 'datastore/merra/daily/'
 onsetfile = datadir + 'merra_vimt_ps-300mb_apr-sep_1979-2014.nc'
+precipfile = datadir + 'merra_precip_40E-120E_60S-60N_days91-274_1979-2014.nc'
+uvstr = 'merra_uv%d_40E-120E_60S-60N_%d.nc'
+uvfiles = {}
+for plev in [200, 850]:
+    uvfiles[plev] = [datadir + uvstr % (plev, yr) for yr in years]
+
 ensofile = atm.homedir() + 'dynamics/calc/ENSO/enso_oni.csv'
 enso_ssn = 'JJA'
 
 remove_tricky = False
-years = range(1979, 2015)
 years_tricky = [2002, 2004, 2007, 2009, 2010]
 
 # Lat-lon box for MFC / precip
@@ -133,10 +139,37 @@ print(enso_sorted[:nyrs])
 print('La Nina Top %d' % nyrs)
 print(enso_sorted[-1:-nyrs-1:-1])
 
+# ----------------------------------------------------------------------
+# Read daily data fields and align relative to onset day
 
+npre, npost = 30, 30
+yearnm, daynm = 'year', 'day'
+
+data = xray.Dataset()
+
+# Precip
+with xray.open_dataset(precipfile) as ds:
+    data['precip'] = daily_rel2onset(ds['PRECTOT'], onset, npre, npost,
+                                     yearnm=yearnm, daynm=daynm)
+
+# U, V, relative vorticity
+daymin, daymax = 91, 274
+for plev in [200, 850]:
+    ds = atm.combine_daily_years(['U', 'V', 'rel_vort'], uvfiles[plev], years,
+                                  subset1=('Day', daymin, daymax))
+    ds = ds.rename({'Year' : 'year', 'Day' : 'day'})
+    for key in ds.data_vars:
+        key2 = key + '_%d' % plev
+        var = atm.squeeze(ds[key])
+        data[key2] = daily_rel2onset(var, onset, npre, npost, yearnm=yearnm,
+                                     daynm=daynm)
 
 # ----------------------------------------------------------------------
 if remove_tricky:
     for year in years_tricky:
         years.remove(year)
 years = np.array(years)
+
+# Remove tricky years from all indices and data variables
+
+# ----------------------------------------------------------------------
