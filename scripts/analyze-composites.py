@@ -263,24 +263,3 @@ for varnm in sectordata.keys():
     anim = animation.FuncAnimation(fig, animate2, frames=nframes)
 
 # ----------------------------------------------------------------------
-# Investigating wonky data in 1993
-wonkyfile = ('http://goldsmr3.sci.gsfc.nasa.gov/opendap/MERRA/MAI3CPASM.5.2.0/'
-             '1993/05/MERRA200.prod.assim.inst3_3d_asm_Cp.19930512.hdf')
-ds = xray.open_dataset(wonkyfile)
-u = ds['U']
-
-ds2 = xray.open_dataset(datadir + 'merra_uv200_40E-120E_60S-60N_1993.nc')
-u2 = ds2['U']
-
-ds3 = xray.open_dataset(datadir + 'merra_u200_199305.nc')
-u3 = ds3['U']
-           
-
-def wonkyplot(u, h, k):
-    plt.clf()
-    atm.pcolor_latlon(u[h, k])
-
-def wonkyplot2(u, d):
-    axlims = (-60, 60, 40, 120)
-    plt.clf()
-    atm.pcolor_latlon(u[d,0], axlims=axlims)                 
