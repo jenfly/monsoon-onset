@@ -18,6 +18,7 @@ from utils import daily_rel2onset, comp_days_centered, composite
 # ----------------------------------------------------------------------
 years = range(1979, 2015)
 datadir = atm.homedir() + 'datastore/merra/daily/'
+savedir = 'mp4/'
 onsetfile = datadir + 'merra_vimt_ps-300mb_apr-sep_1979-2014.nc'
 precipfile = datadir + 'merra_precip_40E-120E_60S-60N_days91-274_1979-2014.nc'
 uvstr = 'merra_uv%d_40E-120E_60S-60N_%d.nc'
@@ -173,6 +174,16 @@ for varnm in varnms:
     data[varnm] = daily_rel2onset(var, onset, npre, npost, yearnm=yearnm, 
                                   daynm=daynm)        
 
+# Fill Ro200 with NaNs near equator
+varnm = 'Ro200'
+if varnm in data:
+    latbuf = 5
+    lat = atm.get_coord(data[varnm], 'lat')
+    latbig = atm.biggify(lat, data[varnm], tile=True)
+    vals = data[varnm].values
+    vals = np.where(abs(latbig)>latbuf, vals, np.nan)
+    data[varnm].values = vals
+    
 
 # ----------------------------------------------------------------------
 # Sector mean data
@@ -236,14 +247,18 @@ def animate(i):
 
 yearstr = '%d-%d' % (years[0], years[-1])
 if remove_tricky:
-    yearstr = yearstr + '(excl tricky)'
+    yearstr = yearstr + '_excl_tricky'
         
 for varnm in data.keys():
+    savefile = savedir + 'latlon_%s_%s.mp4' % (varnm, yearstr)
     animdata = data[varnm].mean(dim='year')
     cmap = get_colormap(varnm)
     cmin, cmax = climits[varnm]
     fig = plt.figure()
     anim = animation.FuncAnimation(fig, animate, frames=nframes)
+    print('Saving to ' + savefile)
+    anim.save(savefile, writer='mencoder', fps=fps)
+    plt.close()
 
 
 # Animated line plots of 60-100E sector mean
@@ -251,6 +266,7 @@ ylimits = {'precip' : (0, 12),
            'U200' : (-20, 50),
            'V200' : (-8.5, 6.5),
            'rel_vort200' : (-3e-5, 4e-5),
+           'Ro200' : (-2.5, 2.8),
            'U850' : (-10, 18),
            'V850' : (-8.5, 3.5)}
 
@@ -260,19 +276,25 @@ def animate2(i):
     plt.ylim(ylim1, ylim2)
     plt.grid(True)
     day = animdata[daynm + 'rel'].values[i]
-    plt.title('%s %s RelDay %d' % (varnm, yearstr, day))
+    plt.title('%d-%dE %s %s RelDay %d' % (lon1, lon2, varnm, yearstr, day))
 
 for varnm in sectordata.keys():
+    savefile = savedir + 'sector_%d-%dE_%s_%s.mp4' % (lon1, lon2, varnm, yearstr)
     animdata = sectordata[varnm].mean(dim='year')
     ylim1, ylim2 = ylimits[varnm]
     fig = plt.figure()
     anim = animation.FuncAnimation(fig, animate2, frames=nframes)
-
+    print('Saving to ' + savefile)
+    anim.save(savefile, writer='mencoder', fps=fps)
+    plt.close()
 
 # Latitude-time contour plot
 
 def pcolor_lat_time(lat, days, plotdata, title, cmap):
-    plt.pcolormesh(lat, days, plotdata.values, cmap=cmap)
+    # Use a masked array so that pcolormesh displays NaNs properly
+    vals = plotdata.values
+    vals = np.ma.array(vals, mask=np.isnan(vals))
+    plt.pcolormesh(lat, days, vals, cmap=cmap)
     plt.colorbar(orientation='vertical')
     plt.gca().invert_yaxis()
     plt.grid(True)
@@ -280,13 +302,16 @@ def pcolor_lat_time(lat, days, plotdata, title, cmap):
     plt.ylabel('RelDay')
     plt.title(title)
     
-for varnm in sectordata.keys():
+for varnm in sorted(sectordata.keys()):
     plotdata = sectordata[varnm].mean(dim='year')
     lat = plotdata[latname].values
     days = plotdata['dayrel'].values
     cmap = get_colormap(varnm)
-    title = varnm + ' ' + yearstr
+    title = '%d-%dE ' %(lon1, lon2) + varnm + ' ' + yearstr
     plt.figure(figsize=(10, 10))
     pcolor_lat_time(lat, days, plotdata, title, cmap)
+
+atm.savefigs(savedir + 'sector_%d-%dE_' % (lon1, lon2), 'pdf')
+plt.close('all')
 
 # ----------------------------------------------------------------------
