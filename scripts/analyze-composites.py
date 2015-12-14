@@ -164,7 +164,7 @@ def read_data(varnm):
     return var
 
 
-varnms = ['precip', 'U200', 'V200', 'U850', 'V850']
+varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'U850', 'V850']
 data = {}
 for varnm in varnms:
     print('Reading daily data for ' + varnm)
@@ -246,13 +246,19 @@ for varnm in data.keys():
     anim = animation.FuncAnimation(fig, animate, frames=nframes)
 
 
-# Line plots of 60-100E sector mean
-ylimits = {'precip' : (0, 12)}
+# Animated line plots of 60-100E sector mean
+ylimits = {'precip' : (0, 12),
+           'U200' : (-20, 50),
+           'V200' : (-8.5, 6.5),
+           'rel_vort200' : (-3e-5, 4e-5),
+           'U850' : (-10, 18),
+           'V850' : (-8.5, 3.5)}
 
 def animate2(i):
     plt.clf()
     plt.plot(animdata[latname], animdata[i])
     plt.ylim(ylim1, ylim2)
+    plt.grid(True)
     day = animdata[daynm + 'rel'].values[i]
     plt.title('%s %s RelDay %d' % (varnm, yearstr, day))
 
@@ -261,5 +267,26 @@ for varnm in sectordata.keys():
     ylim1, ylim2 = ylimits[varnm]
     fig = plt.figure()
     anim = animation.FuncAnimation(fig, animate2, frames=nframes)
+
+
+# Latitude-time contour plot
+
+def pcolor_lat_time(lat, days, plotdata, title, cmap):
+    plt.pcolormesh(lat, days, plotdata.values, cmap=cmap)
+    plt.colorbar(orientation='vertical')
+    plt.gca().invert_yaxis()
+    plt.grid(True)
+    plt.xlabel('Latitude')
+    plt.ylabel('RelDay')
+    plt.title(title)
+    
+for varnm in sectordata.keys():
+    plotdata = sectordata[varnm].mean(dim='year')
+    lat = plotdata[latname].values
+    days = plotdata['dayrel'].values
+    cmap = get_colormap(varnm)
+    title = varnm + ' ' + yearstr
+    plt.figure(figsize=(10, 10))
+    pcolor_lat_time(lat, days, plotdata, title, cmap)
 
 # ----------------------------------------------------------------------
