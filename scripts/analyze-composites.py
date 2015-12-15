@@ -25,7 +25,8 @@ uvstr = 'merra_uv%d_40E-120E_60S-60N_%d.nc'
 uvfiles = {}
 for plev in [200, 850]:
     uvfiles[plev] = [datadir + uvstr % (plev, yr) for yr in years]
-
+Tstr = 'merra_T200-600_apr-sep_%d.nc'
+Tfiles = [datadir + Tstr % yr for yr in years]
 ensofile = atm.homedir() + 'dynamics/calc/ENSO/enso_oni.csv'
 enso_ssn = 'JJA'
 
@@ -161,18 +162,25 @@ def read_data(varnm):
                                       subset1=('Day', daymin, daymax))
         var = var.rename({'Year' : 'year', 'Day' : 'day'})
         var = atm.squeeze(var)
-        
+    elif varnm == 'T200':
+        plev = int(varnm[-3:])
+        varid = varnm[:-3]
+        var = atm.combine_daily_years(varid, Tfiles, years,
+                                      subset1=('plev', plev, plev))
+        var = var.rename({'Year' : 'year'})
+        var = atm.squeeze(var)
     return var
 
 
-varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'U850', 'V850']
+varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'T200',
+          'U850', 'V850']
 data = {}
 for varnm in varnms:
     print('Reading daily data for ' + varnm)
     var = read_data(varnm)
     print('Aligning data relative to onset day')
-    data[varnm] = daily_rel2onset(var, onset, npre, npost, yearnm=yearnm, 
-                                  daynm=daynm)        
+    data[varnm] = daily_rel2onset(var, onset, npre, npost, yearnm=yearnm,
+                                  daynm=daynm)
 
 # Fill Ro200 with NaNs near equator
 varnm = 'Ro200'
@@ -183,7 +191,7 @@ if varnm in data:
     vals = data[varnm].values
     vals = np.where(abs(latbig)>latbuf, vals, np.nan)
     data[varnm].values = vals
-    
+
 
 # ----------------------------------------------------------------------
 # Sector mean data
@@ -193,7 +201,7 @@ sectordata = {}
 for varnm in data.keys():
     var = atm.subset(data[varnm], lonname, lon1, lon2)
     sectordata[varnm] = var.mean(dim=lonname)
-    
+
 # ----------------------------------------------------------------------
 # Remove tricky years before calculating composites
 
@@ -209,12 +217,12 @@ if remove_tricky:
     onset = atm.subset(onset, yearnm, years)
     mfcbar = atm.subset(mfcbar, yearnm, years)
     enso = atm.subset(enso, yearnm, years)
- 
+
     for nm in data.keys():
         print(nm)
         data[nm] = atm.subset(data[nm], yearnm, years)
-    
- 
+
+
 # ----------------------------------------------------------------------
 # Animation of daily data relative to onset
 
@@ -227,6 +235,7 @@ climits = {'precip' : (0, 20),
            'V200' : (-10, 10),
            'Ro200' : (-1, 1),
            'rel_vort200' : (-4e-5, 4e-5),
+           'T200' : (215, 225),
            'U850' : (-20, 20),
            'V850' : (-10, 10)}
 
@@ -236,7 +245,7 @@ def get_colormap(varnm):
     else:
         cmap = 'RdBu_r'
     return cmap
-    
+
 def animate(i):
     plt.clf()
     m, _ = atm.pcolor_latlon(animdata[i], axlims=axlims, cmap=cmap)
@@ -248,7 +257,7 @@ def animate(i):
 yearstr = '%d-%d' % (years[0], years[-1])
 if remove_tricky:
     yearstr = yearstr + '_excl_tricky'
-        
+
 for varnm in data.keys():
     savefile = savedir + 'latlon_%s_%s.mp4' % (varnm, yearstr)
     animdata = data[varnm].mean(dim='year')
@@ -301,7 +310,7 @@ def pcolor_lat_time(lat, days, plotdata, title, cmap):
     plt.xlabel('Latitude')
     plt.ylabel('RelDay')
     plt.title(title)
-    
+
 for varnm in sorted(sectordata.keys()):
     plotdata = sectordata[varnm].mean(dim='year')
     lat = plotdata[latname].values
