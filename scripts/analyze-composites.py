@@ -111,7 +111,7 @@ def read_data(varnm):
 
 
 varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'T200',
-          'U850', 'V850']
+          'H200', 'U850', 'V850']
 data = {}
 for varnm in varnms:
     print('Reading daily data for ' + varnm)
@@ -267,8 +267,23 @@ plt.close('all')
 
 # ----------------------------------------------------------------------
 # Composite averages
-compdays = utils.comp_days_centered(5)
-compnms = {'pre' : 'D0-7:D0-3', 'onset' : 'D0-2:D0+2', 'post' : 'D0+3:D0+7'}
+#compdays = utils.comp_days_centered(5)
+compdays = utils.comp_days_centered(5, offset=3)
+#compdays = {'pre' : np.array([-10]), 'post' : np.array([0])}
+
+def plusminus(num):
+    if num < 0:
+        numstr = '%d' % num
+    else:
+        numstr = '+%d' % num
+    return numstr
+
+compnms = {}
+for key in compdays:
+    d1 = plusminus(compdays[key].min())
+    d2 = plusminus(compdays[key].max())
+    compnms[key] = 'D0%s:D0%s' % (d1, d2)
+
 
 print('Computing composites of lat-lon and sector data')
 comp = {varnm : {} for varnm in data}
@@ -324,7 +339,13 @@ for varnm in comp:
     plt.plot(lat, sector1, label=key1.upper())
     plt.plot(lat, sector2, label=key2.upper())
     plt.title('%d-%d E Composites' % (lon1, lon2))
-    plt.legend()
+    if varnm in ['precip', 'Ro_200', 'rel_vort200']:
+        legend_loc = 'upper right'
+    elif varnm in ['V850']:
+        legend_loc = 'lower left'
+    else:
+        legend_loc = 'lower right'
+    plt.legend(loc=legend_loc)
     plt.subplot(2, 2, 4)
     plt.plot(lat, sector2 - sector1)
     plt.title('%d-%d E Difference (%s-%s)' % (lon1, lon2, key2.upper(), key1.upper()))
