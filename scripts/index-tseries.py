@@ -200,24 +200,3 @@ for i, key in enumerate(['Early', 'Nina', 'Late', 'Nino']):
 df = pd.DataFrame()
 df['onset'] = onset.to_series()
 df['enso'] = enso.to_series()
-
-
-def corr_matrix(df, incl_index=False):
-    if incl_index:
-        df[df.index.name] = df.index
-
-    cols = df.columns
-    n = len(cols)
-    r = np.nan * np.ones((n, n))
-    p = np.nan * np.ones((n, n))
-
-    for i in range(n):
-        for j in range(i + 1):
-            r[i, j], p[i, j] = scipy.stats.pearsonr(df[cols[i]], df[cols[j]])
-            r[j, i], p[j, i] = r[i, j], p[i, j]
-
-    corr = {}
-    corr['r'] = pd.DataFrame(r, index=cols, columns=cols)
-    corr['p'] = pd.DataFrame(p, index=cols, columns=cols)
-
-    return corr
