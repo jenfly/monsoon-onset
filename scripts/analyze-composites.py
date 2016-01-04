@@ -13,6 +13,7 @@ import atmos as atm
 import precipdat
 import merra
 import indices
+import utils
 from utils import daily_rel2onset
 
 # ----------------------------------------------------------------------
@@ -267,10 +268,11 @@ plt.close('all')
 # ----------------------------------------------------------------------
 # Composite averages
 compdays = utils.comp_days_centered(5)
+compnms = {'pre' : 'D0-7:D0-3', 'onset' : 'D0-2:D0+2', 'post' : 'D0+3:D0+7'}
 
 print('Computing composites of lat-lon and sector data')
-comp = {key : {} for key in compdays}
-sectorcomp = {key : {} for key in compdays}
+comp = {varnm : {} for varnm in data}
+sectorcomp = {varnm : {} for varnm in data}
 for varnm in data:
     print varnm
     compdat = utils.composite(data[varnm], compdays, daynm='dayrel',
@@ -278,5 +280,56 @@ for varnm in data:
     compsec = utils.composite(sectordata[varnm], compdays, daynm='dayrel',
                               return_avg=True)
     for key in compdat:
-        comp[key][varnm] = compdat[key]
-        sectorcomp[key][varnm] = compsec[key]
+        comp[varnm][key] = compdat[key]
+        sectorcomp[varnm][key] = compsec[key]
+
+
+# Plot lat-lon maps and sector means of pre/post onset composite averages
+axlims = (-60, 60, 40, 120)
+climits = {'precip' : (0, 20),
+           'U200' : (-50, 50),
+           'V200' : (-10, 10),
+           'Ro200' : (-1, 1),
+           'rel_vort200' : (-4e-5, 4e-5),
+           'T200' : (213, 227),
+           'H200' : (11.2e3, 12.6e3),
+           'U850' : (-20, 20),
+           'V850' : (-10, 10)}
+
+key1, key2 = 'pre', 'post'
+for varnm in comp:
+    plt.figure(figsize=(12, 10))
+    plt.subplots_adjust(left=0.06, right=0.95)
+    plt.suptitle(varnm.upper() + ' Climatological Composites Relative to Onset Day')
+
+    # Lat-lon maps of composites
+    for i, key in enumerate([key1, key2]):
+        dat = comp[varnm][key].mean(dim='year')
+        plt.subplot(2, 3, i + 1)
+        atm.pcolor_latlon(dat, axlims=axlims, cmap=get_colormap(varnm))
+        plt.clim(climits[varnm][0], climits[varnm][1])
+        plt.title(key.upper() + ' ' + compnms[key])
+
+    # Lat-lon map of difference between composites
+    plt.subplot(2, 3, 3)
+    dat = comp[varnm][key2].mean(dim='year') - comp[varnm][key1].mean(dim='year')
+    atm.pcolor_latlon(dat, axlims=axlims, cmap='RdBu_r')
+    plt.title('Difference (%s-%s)' % (key2.upper(), key1.upper()))
+
+    # Line plot of sector mean
+    sector1 = sectorcomp[varnm][key1].mean(dim='year')
+    sector2 = sectorcomp[varnm][key2].mean(dim='year')
+    lat = atm.get_coord(sector1, 'lat')
+    plt.subplot(2, 2, 3)
+    plt.plot(lat, sector1, label=key1.upper())
+    plt.plot(lat, sector2, label=key2.upper())
+    plt.title('%d-%d E Composites' % (lon1, lon2))
+    plt.legend()
+    plt.subplot(2, 2, 4)
+    plt.plot(lat, sector2 - sector1)
+    plt.title('%d-%d E Difference (%s-%s)' % (lon1, lon2, key2.upper(), key1.upper()))
+    for i in [3, 4]:
+        plt.subplot(2, 2, i)
+        plt.xlabel('Latitude')
+        plt.ylabel(varnm)
+        plt.grid()
