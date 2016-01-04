@@ -13,7 +13,7 @@ import atmos as atm
 import precipdat
 import merra
 import indices
-from utils import daily_rel2onset, comp_days_centered, composite
+from utils import daily_rel2onset
 
 # ----------------------------------------------------------------------
 years = range(1979, 2015)
@@ -95,7 +95,7 @@ yearnm, daynm = 'year', 'day'
 def read_data(varnm):
     daymin, daymax = 91, 274
     if varnm == 'precip':
-        with xray.open_dataset(precipfile) as ds:
+        with xray.open_dataset(datafiles[varnm]) as ds:
             var = ds['PRECTOT'].load()
     elif varnm in ['U200', 'V200', 'Ro200', 'rel_vort200', 'T200', 'H200',
                    'U850', 'V850', 'Ro850', 'rel_vort850']:
@@ -172,8 +172,8 @@ climits = {'precip' : (0, 20),
            'V200' : (-10, 10),
            'Ro200' : (-1, 1),
            'rel_vort200' : (-4e-5, 4e-5),
-           'T200' : (215, 225),
-           'H200' : (11.5e3, 12.5e3),
+           'T200' : (213, 227),
+           'H200' : (11.2e3, 12.6e3),
            'U850' : (-20, 20),
            'V850' : (-10, 10)}
 
@@ -196,7 +196,7 @@ yearstr = '%d-%d' % (years[0], years[-1])
 if remove_tricky:
     yearstr = yearstr + '_excl_tricky'
 
-for varnm in data.keys():
+for varnm in data:
     savefile = savedir + 'latlon_%s_%s.mp4' % (varnm, yearstr)
     animdata = data[varnm].mean(dim='year')
     cmap = get_colormap(varnm)
@@ -213,8 +213,9 @@ ylimits = {'precip' : (0, 12),
            'U200' : (-20, 50),
            'V200' : (-8.5, 6.5),
            'rel_vort200' : (-3e-5, 4e-5),
-           'Ro200' : (-2.5, 2.8),
-           'H200' : (11.5e3, 12.7e3),
+           'Ro200' : (-1, 1),
+           'H200' : (11.5e3, 12.6e3),
+           'T200' : (212, 228),
            'U850' : (-10, 18),
            'V850' : (-8.5, 3.5)}
 
@@ -224,9 +225,10 @@ def animate2(i):
     plt.ylim(ylim1, ylim2)
     plt.grid(True)
     day = animdata[daynm + 'rel'].values[i]
+    plt.xlabel('Latitude')
     plt.title('%d-%dE %s %s RelDay %d' % (lon1, lon2, varnm, yearstr, day))
 
-for varnm in sectordata.keys():
+for varnm in sectordata:
     savefile = savedir + 'sector_%d-%dE_%s_%s.mp4' % (lon1, lon2, varnm, yearstr)
     animdata = sectordata[varnm].mean(dim='year')
     ylim1, ylim2 = ylimits[varnm]
@@ -250,7 +252,7 @@ def pcolor_lat_time(lat, days, plotdata, title, cmap):
     plt.ylabel('RelDay')
     plt.title(title)
 
-for varnm in sorted(sectordata.keys()):
+for varnm in sorted(sectordata):
     plotdata = sectordata[varnm].mean(dim='year')
     lat = plotdata[latname].values
     days = plotdata['dayrel'].values
@@ -263,3 +265,18 @@ atm.savefigs(savedir + 'sector_%d-%dE_' % (lon1, lon2), 'pdf')
 plt.close('all')
 
 # ----------------------------------------------------------------------
+# Composite averages
+compdays = utils.comp_days_centered(5)
+
+print('Computing composites of lat-lon and sector data')
+comp = {key : {} for key in compdays}
+sectorcomp = {key : {} for key in compdays}
+for varnm in data:
+    print varnm
+    compdat = utils.composite(data[varnm], compdays, daynm='dayrel',
+                              return_avg=True)
+    compsec = utils.composite(sectordata[varnm], compdays, daynm='dayrel',
+                              return_avg=True)
+    for key in compdat:
+        comp[key][varnm] = compdat[key]
+        sectorcomp[key][varnm] = compsec[key]
