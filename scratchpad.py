@@ -11,6 +11,13 @@ import atmos as atm
 import merra
 
 # ----------------------------------------------------------------------
+# Model level MERRA data
+
+url = ('http://goldsmr3.sci.gsfc.nasa.gov/opendap/MERRA/MAI6NVANA.5.2.0/'
+        '1979/01/MERRA100.prod.assim.inst6_3d_ana_Nv.19790101.hdf')
+ds = xray.open_dataset(url)
+
+# ----------------------------------------------------------------------
 
 #datadir = '/home/jennifer/datastore/merra/daily/'
 datadir = '/home/jwalker/eady/datastore/merra/daily/'
