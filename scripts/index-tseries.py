@@ -212,4 +212,4 @@ plt.xlabel('ENSO (%s)' % enso_nm)
 plt.ylabel('Onset Day')
 fmts = {'color' : 'black', 'fontweight' : 'bold', 'fontsize' : 14}
 atm.text('r = %.2f' % r, (0.05, 0.9), **fmts)
-atm.text('p = %.2f' % p, (0.05, 0.8), **fmts)
+atm.text('p = %.2f' % p, (0.05, 0.85), **fmts)
