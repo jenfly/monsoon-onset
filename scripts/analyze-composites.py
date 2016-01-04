@@ -245,7 +245,9 @@ def pcolor_lat_time(lat, days, plotdata, title, cmap):
     # Use a masked array so that pcolormesh displays NaNs properly
     vals = plotdata.values
     vals = np.ma.array(vals, mask=np.isnan(vals))
-    plt.pcolormesh(lat, days, vals, cmap=cmap)
+    #plt.pcolormesh(lat, days, vals, cmap=cmap)
+    ncont = 20
+    plt.contourf(lat, days, vals, ncont, cmap=cmap)
     plt.colorbar(orientation='vertical')
     plt.gca().invert_yaxis()
     plt.grid(True)
@@ -253,7 +255,8 @@ def pcolor_lat_time(lat, days, plotdata, title, cmap):
     plt.ylabel('RelDay')
     plt.title(title)
 
-for varnm in sorted(sectordata):
+
+for varnm in sectordata:
     plotdata = sectordata[varnm].mean(dim='year')
     lat = plotdata[latname].values
     days = plotdata['dayrel'].values
