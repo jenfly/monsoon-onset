@@ -112,7 +112,7 @@ def read_data(varnm):
 
 varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'T200',
           'H200', 'U850', 'V850']
-data = {}
+data = collections.OrderedDict()
 for varnm in varnms:
     print('Reading daily data for ' + varnm)
     var = read_data(varnm)
@@ -135,7 +135,7 @@ if varnm in data:
 # Sector mean data
 
 lonname, latname = 'XDim', 'YDim'
-sectordata = {}
+sectordata = collections.OrderedDict()
 for varnm in data.keys():
     var = atm.subset(data[varnm], lonname, lon1, lon2)
     sectordata[varnm] = var.mean(dim=lonname)
@@ -286,14 +286,16 @@ for key in compdays:
 
 
 print('Computing composites of lat-lon and sector data')
-comp = {varnm : {} for varnm in data}
-sectorcomp = {varnm : {} for varnm in data}
+comp = collections.OrderedDict()
+sectorcomp = collections.OrderedDict()
 for varnm in data:
     print varnm
     compdat = utils.composite(data[varnm], compdays, daynm='dayrel',
                               return_avg=True)
     compsec = utils.composite(sectordata[varnm], compdays, daynm='dayrel',
                               return_avg=True)
+    comp[varnm] = {}
+    sectorcomp[varnm] = {}
     for key in compdat:
         comp[varnm][key] = compdat[key]
         sectorcomp[varnm][key] = compsec[key]
