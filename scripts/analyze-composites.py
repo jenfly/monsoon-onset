@@ -35,11 +35,9 @@ for plev in [200, 850]:
 datafiles['T200'] = [datadir + yrlyfile('T', 200, yr, 'apr-sep_') for yr in years]
 datafiles['H200'] = [datadir + yrlyfile('H', 200, yr) for yr in years]
 
-for plev in [975]:
+for plev in [950, 975]:
     for key in ['T', 'H','QV', 'V']:
         files = [datadir + yrlyfile(key, plev, yr, 'apr-sep_') for yr in years]
-        files[-1] = files[-3]
-        files[-2] = files[-3]
         datafiles['%s%d' % (key, plev)] = files
 
 ensofile = atm.homedir() + 'dynamics/calc/ENSO/enso_oni.csv'
@@ -100,7 +98,7 @@ npre, npost = 30, 30
 yearnm, daynm = 'year', 'day'
 
 def var_type(varnm):
-    keys = ['THETA', 'MSE', 'V*']
+    keys = ['THETA', 'MSE', 'DSE', 'V*']
     test =  [varnm.startswith(key) for key in keys]
     if np.array(test).any():
         vtype = 'calc'
@@ -125,7 +123,9 @@ def read_data(varnm, data):
             var = atm.potential_temp(data[Tnm], pres)
         elif varid == 'THETA_E':
             var = atm.equiv_potential_temp(data[Tnm], pres, data[QVnm])
-        elif varid.upper() == 'MSE':
+        elif varid == 'DSE':
+            var = atm.dry_static_energy(data[Tnm], data[Hnm])
+        elif varid == 'MSE':
             var = atm.moist_static_energy(data[Tnm], data[Hnm], data[QVnm])
         elif varid.startswith('V*'):
             varid2 = '%s%d' % (varid[2:], plev)
@@ -143,8 +143,11 @@ def read_data(varnm, data):
 # varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'T200',
 #           'H200', 'U850', 'V850']
 
-varnms = ['T975', 'H975', 'QV975', 'V975', 'THETA975', 'THETA_E975', 'MSE975',
-          'V*T975', 'V*H975', 'V*QV975', 'V*V975', 'V*THETA975', 'V*THETA_E975', 'V*MSE975']
+# varnms = ['T975', 'H975', 'QV975', 'V975', 'THETA975', 'THETA_E975', 'DSE975',
+#           'MSE975', 'V*THETA975', 'V*THETA_E975', 'V*DSE975', 'V*MSE975']
+
+varnms = ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950', 'DSE950',
+          'MSE950', 'V*THETA950', 'V*THETA_E950', 'V*DSE950', 'V*MSE950']
 
 data = collections.OrderedDict()
 for varnm in varnms:
@@ -180,8 +183,11 @@ for varnm in data.keys():
 # ----------------------------------------------------------------------
 # Remove tricky years before calculating composites
 
+yearstr = '%d-%d' % (years[0], years[-1])
+
 if remove_tricky:
     print('Removing tricky years')
+    yearstr = yearstr + '_excl_tricky'
     print(years_tricky)
     years = list(years)
     for year in years_tricky:
@@ -230,10 +236,6 @@ def animate(i):
     plt.title('%s %s RelDay %d' % (varnm, yearstr, day))
     return m
 
-yearstr = '%d-%d' % (years[0], years[-1])
-if remove_tricky:
-    yearstr = yearstr + '_excl_tricky'
-
 for varnm in data:
     savefile = savedir + 'latlon_%s_%s.mp4' % (varnm, yearstr)
     animdata = data[varnm].mean(dim='year')
@@ -276,37 +278,6 @@ for varnm in sectordata:
     anim.save(savefile, writer='mencoder', fps=fps)
     plt.close()
 
-
-# ----------------------------------------------------------------------
-# Latitude-time contour plot
-
-def pcolor_lat_time(lat, days, plotdata, title, cmap):
-    # Use a masked array so that pcolormesh displays NaNs properly
-    vals = plotdata.values
-    vals = np.ma.array(vals, mask=np.isnan(vals))
-    #plt.pcolormesh(lat, days, vals, cmap=cmap)
-    ncont = 20
-    plt.contourf(lat, days, vals, ncont, cmap=cmap)
-    plt.colorbar(orientation='vertical')
-    plt.gca().invert_yaxis()
-    plt.grid(True)
-    plt.xlabel('Latitude')
-    plt.ylabel('RelDay')
-    plt.title(title)
-
-
-for varnm in sectordata:
-    plotdata = sectordata[varnm].mean(dim='year')
-    lat = plotdata[latname].values
-    days = plotdata['dayrel'].values
-    cmap = get_colormap(varnm)
-    title = '%d-%dE ' %(lon1, lon2) + varnm + ' ' + yearstr
-    plt.figure(figsize=(10, 10))
-    pcolor_lat_time(lat, days, plotdata, title, cmap)
-
-atm.savefigs(savedir + 'sector_%d-%dE_' % (lon1, lon2), 'pdf')
-plt.close('all')
-
 # ----------------------------------------------------------------------
 # Composite averages
 #compdays = utils.comp_days_centered(5)
@@ -348,8 +319,12 @@ axlims = (-60, 60, 40, 120)
 climits = {'precip' : (0, 20), 'U200' : (-50, 50), 'V200' : (-10, 10),
            'Ro200' : (-1, 1), 'rel_vort200' : (-4e-5, 4e-5), 'T200' : (213, 227),
            'H200' : (11.2e3, 12.6e3), 'U850' : (-20, 20), 'V850' : (-10, 10),
-           'THETA_E975' : (260, 370), 'MSE975' : (2.5e5, 3.5e5),
-           'V*MSE975' : (-8.3e6, 9e6) }
+           'THETA975' : (260, 315), 'THETA_E975' : (260, 370),
+           'DSE975' : (2.6e5, 3.2e5), 'MSE975' : (2.5e5, 3.5e5),
+           'V*DSE975' : (-5e6,6e6), 'V*MSE975' : (-8.3e6, 9e6),
+           'THETA950' : (260, 315), 'THETA_E950' : (260, 365),
+           'DSE950' : (2.6e5, 3.2e5), 'MSE950' : (2.5e5, 3.5e5),
+           'V*DSE950' : (-4.5e6,4.5e6), 'V*MSE950' : (-5e6, 5e6) }
 
 key1, key2 = 'pre', 'post'
 for varnm in comp:
@@ -394,3 +369,62 @@ for varnm in comp:
         plt.xlabel('Latitude')
         plt.ylabel(varnm)
         plt.grid()
+
+# ----------------------------------------------------------------------
+# Latitude-time contour plot
+
+def pcolor_lat_time(lat, days, plotdata, title, cmap):
+    # Use a masked array so that pcolormesh displays NaNs properly
+    vals = plotdata.values
+    vals = np.ma.array(vals, mask=np.isnan(vals))
+    #plt.pcolormesh(lat, days, vals, cmap=cmap)
+    ncont = 20
+    plt.contourf(lat, days, vals, ncont, cmap=cmap)
+    plt.colorbar(orientation='vertical')
+    plt.gca().invert_yaxis()
+    plt.grid(True)
+    plt.xlabel('Latitude')
+    plt.ylabel('RelDay')
+    plt.title(title)
+
+#keys = sectordata.keys()
+keys = ['THETA950', 'THETA_E950', 'DSE950', 'MSE950', 'V*DSE950', 'V*MSE950']
+for varnm in keys:
+    plotdata = sectordata[varnm].mean(dim='year')
+    lat = plotdata[latname].values
+    days = plotdata['dayrel'].values
+    cmap = get_colormap(varnm)
+    title = '%d-%dE ' %(lon1, lon2) + varnm + ' ' + yearstr
+    plt.figure(figsize=(10, 10))
+    pcolor_lat_time(lat, days, plotdata, title, cmap)
+
+atm.savefigs(savedir + 'sector_%d-%dE_' % (lon1, lon2), 'pdf')
+plt.close('all')
+
+# ----------------------------------------------------------------------
+# Cross-equatorial atmospheric heat fluxes
+
+keys = ['V*DSE950','V*MSE950']
+eht = {key : data[key] for key in keys}
+lat0 = 0.625
+for key in eht:
+    eht[key] = atm.squeeze(atm.subset(eht[key], 'lat', lat0, lat0))
+    eht[key] = eht[key].mean(dim='year')
+
+# Plot longitude-time contours
+figsize = (10, 10)
+ncont = 20
+cmap = 'RdBu_r'
+for key in eht:
+    plt.figure(figsize=figsize)
+    ehtplot = eht[key]
+    days = ehtplot['dayrel'].values
+    lon = ehtplot['XDim'].values
+    plt.contourf(lon, days, ehtplot, ncont, cmap=cmap)
+    plt.title('Cross-Equatorial ' + key)
+    plt.xlabel('Longitude')
+    plt.ylabel('Relative Day')
+    cb = plt.colorbar()
+    cmax = abs(cb.boundaries).max()
+    plt.clim(-cmax, cmax)
+    plt.gca().invert_yaxis()
