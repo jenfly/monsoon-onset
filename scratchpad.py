@@ -13,9 +13,52 @@ import merra
 # ----------------------------------------------------------------------
 # Model level MERRA data
 
-url = ('http://goldsmr3.sci.gsfc.nasa.gov/opendap/MERRA/MAI6NVANA.5.2.0/'
-        '1979/01/MERRA100.prod.assim.inst6_3d_ana_Nv.19790101.hdf')
-ds = xray.open_dataset(url)
+
+varnm = 'T'
+
+xsub = '[330:2:450]'
+ysub = '[60:2:301]'
+tsub = '[0:1:3]'
+lev = 71
+zsub = '[%d:1:%d]' % (lev, lev)
+
+def datafile(year, mon, day, varnm, xsub, ysub, zsub, tsub):
+    url = ('http://goldsmr3.sci.gsfc.nasa.gov:80/opendap/MERRA/MAI6NVANA.5.2.0/'
+           '%d/%02d/MERRA100.prod.assim.inst6_3d_ana_Nv.%d%02d%02d.hdf'
+           '?%s%s%s%s%s,XDim%s,YDim%s,Height%s,TIME%s') % (year, mon, year, mon,
+           day, varnm, tsub, zsub, ysub, xsub, xsub, ysub, zsub, tsub)
+    return url
+
+year = 1979
+month = 4
+#jdays = atm.season_days(atm.month_str(month), atm.isleap(year))
+days = range(1, atm.days_this_month(year, month) + 1)
+urls = [datafile(year, month, day, varnm, xsub, ysub, zsub, tsub) for day
+        in days]
+savedir = atm.homedir() + '/datastore/merra/daily/'
+savefile = '%smerra_%s_ML%02d_40-120E_60S-60N_%d%02d.nc' % (savedir, varnm, lev,
+                                                            year, month)
+var = atm.load_concat(urls, varnm, 'TIME')
+print('Saving to ' + savefile)
+atm.save_nc(savefile, var)
+
+# for d, day in enumerate(days):
+#     url = datafile(year, month, day, varnm, xsub, ysub, zsub, tsub)
+#     print('Reading %s' % url)
+#     ds = xray.open_dataset(url)
+#     var_in = atm.squeeze(ds[varnm])
+#     # Daily mean:
+#     var_in = var_in.mean(dim='TIME')
+#     var_in.coords['Day'] = day
+#     if d == 0:
+#         var = var_in
+#     else:
+#         var = xray.concat([var, var_in], dim='Day')
+#
+#
+# T = ds['T']
+# T = T[0]
+
 
 # ----------------------------------------------------------------------
 
