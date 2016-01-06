@@ -35,6 +35,12 @@ for plev in [200, 850]:
 datafiles['T200'] = [datadir + yrlyfile('T', 200, yr, 'apr-sep_') for yr in years]
 datafiles['H200'] = [datadir + yrlyfile('H', 200, yr) for yr in years]
 
+for plev in [975]:
+    for key in ['T', 'H','QV', 'V']:
+        files = [datadir + yrlyfile(key, plev, yr, 'apr-sep_') for yr in years]
+        files[-1] = files[-3]
+        files[-2] = files[-3]
+        datafiles['%s%d' % (key, plev)] = files
 
 ensofile = atm.homedir() + 'dynamics/calc/ENSO/enso_oni.csv'
 enso_ssn = 'JJA'
@@ -93,15 +99,39 @@ print(enso_sorted[-1:-nyrs-1:-1])
 npre, npost = 30, 30
 yearnm, daynm = 'year', 'day'
 
-def read_data(varnm):
+def var_type(varnm):
+    keys = ['THETA', 'MSE', 'V*']
+    test =  [varnm.startswith(key) for key in keys]
+    if np.array(test).any():
+        vtype = 'calc'
+    else:
+        vtype = 'basic'
+    return vtype
+
+def read_data(varnm, data):
     daymin, daymax = 91, 274
+    plev = int(varnm[-3:])
+    varid = varnm[:-3]
     if varnm == 'precip':
         with xray.open_dataset(datafiles[varnm]) as ds:
             var = ds['PRECTOT'].load()
-    elif varnm in ['U200', 'V200', 'Ro200', 'rel_vort200', 'T200', 'H200',
-                   'U850', 'V850', 'Ro850', 'rel_vort850']:
-        plev = int(varnm[-3:])
-        varid = varnm[:-3]
+    elif var_type(varnm) == 'calc':
+        pres = atm.pres_convert(plev, 'hPa', 'Pa')
+        Tnm = 'T%d' % plev
+        Hnm = 'H%d' % plev
+        QVnm = 'QV%d' % plev
+        print('Computing ' + varid)
+        if varid == 'THETA':
+            var = atm.potential_temp(data[Tnm], pres)
+        elif varid == 'THETA_E':
+            var = atm.equiv_potential_temp(data[Tnm], pres, data[QVnm])
+        elif varid.upper() == 'MSE':
+            var = atm.moist_static_energy(data[Tnm], data[Hnm], data[QVnm])
+        elif varid.startswith('V*'):
+            varid2 = '%s%d' % (varid[2:], plev)
+            var = data['V%d' % plev] * data[varid2]
+            var.name = varid
+    else:
         var = atm.combine_daily_years(varid, datafiles[varnm], years,
                                       subset1=('Day', daymin, daymax))
         var = var.rename({'Year' : 'year', 'Day' : 'day'})
@@ -110,15 +140,22 @@ def read_data(varnm):
     return var
 
 
-varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'T200',
-          'H200', 'U850', 'V850']
+# varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'T200',
+#           'H200', 'U850', 'V850']
+
+varnms = ['T975', 'H975', 'QV975', 'V975', 'THETA975', 'THETA_E975', 'MSE975',
+          'V*T975', 'V*H975', 'V*QV975', 'V*V975', 'V*THETA975', 'V*THETA_E975', 'V*MSE975']
+
 data = collections.OrderedDict()
 for varnm in varnms:
     print('Reading daily data for ' + varnm)
-    var = read_data(varnm)
-    print('Aligning data relative to onset day')
-    data[varnm] = daily_rel2onset(var, onset, npre, npost, yearnm=yearnm,
-                                  daynm=daynm)
+    var = read_data(varnm, data)
+    if var_type(varnm) == 'basic':
+        print('Aligning data relative to onset day')
+        data[varnm] = daily_rel2onset(var, onset, npre, npost, yearnm=yearnm,
+                                      daynm=daynm)
+    else:
+        data[varnm] = var
 
 # Fill Ro200 with NaNs near equator
 varnm = 'Ro200'
@@ -239,6 +276,8 @@ for varnm in sectordata:
     anim.save(savefile, writer='mencoder', fps=fps)
     plt.close()
 
+
+# ----------------------------------------------------------------------
 # Latitude-time contour plot
 
 def pcolor_lat_time(lat, days, plotdata, title, cmap):
@@ -306,15 +345,11 @@ for varnm in data:
 
 # Plot lat-lon maps and sector means of pre/post onset composite averages
 axlims = (-60, 60, 40, 120)
-climits = {'precip' : (0, 20),
-           'U200' : (-50, 50),
-           'V200' : (-10, 10),
-           'Ro200' : (-1, 1),
-           'rel_vort200' : (-4e-5, 4e-5),
-           'T200' : (213, 227),
-           'H200' : (11.2e3, 12.6e3),
-           'U850' : (-20, 20),
-           'V850' : (-10, 10)}
+climits = {'precip' : (0, 20), 'U200' : (-50, 50), 'V200' : (-10, 10),
+           'Ro200' : (-1, 1), 'rel_vort200' : (-4e-5, 4e-5), 'T200' : (213, 227),
+           'H200' : (11.2e3, 12.6e3), 'U850' : (-20, 20), 'V850' : (-10, 10),
+           'THETA_E975' : (260, 370), 'MSE975' : (2.5e5, 3.5e5),
+           'V*MSE975' : (-8.3e6, 9e6) }
 
 key1, key2 = 'pre', 'post'
 for varnm in comp:
