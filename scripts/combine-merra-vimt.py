@@ -15,45 +15,36 @@ import merra
 datadir = atm.homedir() + 'datastore/merra/daily/'
 
 years = range(1979, 2015)
-months = [4, 5, 6, 7, 8, 9]
-
-# Common set of days for leap and non-leap years
-dmin, dmax = 91, 274
-days = np.arange(dmin, dmax + 1)
+months = range(1, 13)
+monthstr = ''
+#months = [4, 5, 6, 7, 8, 9]
+#monthstr='apr-sep_'
 
 def datafile(datadir, year, mon):
     filn = datadir + 'merra_vimt_%d%02d.nc' % (year, mon)
     return filn
 
-def savefile(datadir, years, months, pmin):
-    mon1 = atm.month_str(months[0]).lower()
-    mon2 = atm.month_str(months[-1]).lower()
-    yr1 = years[0]
-    yr2 = years[-1]
-    filn = datadir + 'merra_vimt_ps-%.0fmb_%s-%s_%d-%d.nc'
-    filn = filn % (pmin/100, mon1, mon2, yr1, yr2)
+def savefile(datadir, varnm, year, monthstr, pmin):
+    filn = datadir + 'merra_%s_ps-%.0fmb_%s%d.nc'
+    filn = filn % (varnm, pmin/100, monthstr, year)
     return filn
 
 # Read daily data from each year and month and concatenate together
 for y, year in enumerate(years):
-    for m, mon in enumerate(months):
-        filn = datafile(datadir, year, mon)
-        print('Loading ' + filn)
-        with xray.open_dataset(filn) as ds:
-            ds.load()
-            if m == 0:
-                dsyr = ds
-            else:
-                dsyr = xray.concat((dsyr, ds), dim='day')
-    dsyr.coords['year'] = year
-    # Align leap and non-leap years
-    dsyr = dsyr.reindex(day=days)
-    if y == 0:
-        ds_all = dsyr
-    else:
-        ds_all = xray.concat((ds_all, dsyr), dim='year')
+    files = [datafile(datadir, year, mon) for mon in months]
+    ds = atm.load_concat(files, concat_dim='day')
+    pmin = ds['uq_int'].attrs['pmin']
+    filn = savefile(datadir, 'vimt', year, monthstr, pmin)
+    print('Saving VIMT to ' + filn)
+    ds.to_netcdf(filn)
 
-# Save to file
-filn = savefile(datadir, years, months, ds_all['uq_int'].attrs['pmin'])
-print('Saving to ' + filn)
-ds_all.to_netcdf(filn)
+    # Compute moisture flux convergence and save to files
+    print('Calculating MFC')
+    mfc = atm.moisture_flux_conv(ds['uq_int'], ds['vq_int'], already_int=True)
+    mfc.attrs['long_name'] = mfc.name
+    mfc.name = 'MFC'
+    for key in ds['uq_int'].attrs:
+        mfc.attrs[key] = ds['uq_int'].attrs[key]
+    filn = savefile(datadir, 'MFC', year, monthstr, pmin)
+    print('Saving MFC to ' + filn)
+    atm.save_nc(filn, mfc)

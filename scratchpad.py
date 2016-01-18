@@ -11,6 +11,32 @@ import atmos as atm
 import merra
 
 # ----------------------------------------------------------------------
+# 01/14/2016 Plots for Simona
+
+# Load data from compare-indices.py
+
+keys = ['HOWI_100', 'OCI', 'SJKE', 'TT',  'WLH_MERRA_PRECIP_nroll7']
+shortkeys = ['HOWI', 'OCI', 'SJKE', 'TT',  'WLH']
+#shortkeys = [short[key] for key in keys]
+
+years = index[keys[0]].year.values
+onset = np.reshape(index[keys[0]].onset.values, (len(years), 1))
+for key in keys[1:]:
+    ind = np.reshape(index[key].onset.values, (len(years), 1))
+    onset = np.concatenate([onset, ind], axis=1)
+onset = pd.DataFrame(onset, index=years, columns=shortkeys)
+
+# Add monsoon strength index
+ind_comp = onset.copy()
+ind_comp['JJAS_MFC'] = strength['MERRA_DET']
+
+# Box plots of onset days
+plt.figure()
+onset.boxplot()
+plt.xlabel('Onset Index')
+plt.ylabel('Day of Year')
+
+# ----------------------------------------------------------------------
 # Model level MERRA data
 
 

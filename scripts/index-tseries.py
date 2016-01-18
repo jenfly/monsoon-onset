@@ -198,18 +198,9 @@ for i, key in enumerate(['Early', 'Nina', 'Late', 'Nino']):
 # ----------------------------------------------------------------------
 # Correlations between onset day and ENSO
 
-df = pd.DataFrame()
-df['onset'] = onset.to_series()
-df['enso'] = enso.to_series()
-
-corr = atm.corr_matrix(df)
-r = corr['r'].as_matrix()[1, 0]
-p = corr['p'].as_matrix()[1, 0]
-
+reg = atm.Linreg(enso, onset)
 plt.figure()
-plt.plot(df['enso'], df['onset'], 'ko')
+reg.plot(annotation_pos=(0.05, 0.85))
 plt.xlabel('ENSO (%s)' % enso_nm)
 plt.ylabel('Onset Day')
-fmts = {'color' : 'black', 'fontweight' : 'bold', 'fontsize' : 14}
-atm.text('r = %.2f' % r, (0.05, 0.9), **fmts)
-atm.text('p = %.2f' % p, (0.05, 0.85), **fmts)
+plt.grid()
