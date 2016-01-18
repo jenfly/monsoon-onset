@@ -22,6 +22,7 @@ onset_nm = 'HOWI'
 years = range(1979, 2015)
 datadir = atm.homedir() + 'datastore/merra/daily/'
 savedir = 'mp4/'
+run_anim = False
 
 datafiles = {}
 datafiles['vimt'] = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
@@ -113,7 +114,8 @@ print(enso_sorted[-1:-nyrs-1:-1])
 # ----------------------------------------------------------------------
 # Read daily data fields and align relative to onset day
 
-npre, npost = 30, 30
+#npre, npost = 30, 30
+npre, npost = 90, 90
 yearnm, daynm = 'year', 'day'
 
 def var_type(varnm):
@@ -125,8 +127,9 @@ def var_type(varnm):
         vtype = 'basic'
     return vtype
 
-def read_data(varnm, data):
-    daymin, daymax = 91, 274
+def read_data(varnm, data, onset, npre, npost):
+    #daymin, daymax = 91, 274
+    daymin, daymax = onset.values.min() - npre, onset.values.max() + npost
     if varnm != 'precip':
         plev = int(varnm[-3:])
         varid = varnm[:-3]
@@ -166,10 +169,6 @@ def read_data(varnm, data):
 
 # varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'T200',
 #           'H200', 'U850', 'V850']
-
-# varnms = ['T975', 'H975', 'QV975', 'V975', 'THETA975', 'THETA_E975', 'DSE975',
-#           'MSE975', 'V*THETA975', 'V*THETA_E975', 'V*DSE975', 'V*MSE975']
-
 # varnms = ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950', 'DSE950',
 #           'MSE950', 'V*THETA950', 'V*THETA_E950', 'V*DSE950', 'V*MSE950']
 
@@ -178,13 +177,21 @@ varnms = ['precip', 'U200']
 data = collections.OrderedDict()
 for varnm in varnms:
     print('Reading daily data for ' + varnm)
-    var = read_data(varnm, data)
+    var = read_data(varnm, data, onset, npre, npost)
     if var_type(varnm) == 'basic':
         print('Aligning data relative to onset day')
         data[varnm] = daily_rel2onset(var, onset, npre, npost, yearnm=yearnm,
                                       daynm=daynm)
     else:
         data[varnm] = var
+
+# Remove data that I don't want to include in plots
+keys = data.keys()
+keys_remove = ['T950', 'H950', 'QV950', 'V950',  'DSE950',
+                'MSE950', 'V*DSE950', 'V*MSE950']
+for key in keys_remove:
+    if key in keys:
+        keys.remove(key)
 
 # Fill Ro200 with NaNs near equator
 varnm = 'Ro200'
@@ -229,23 +236,10 @@ if remove_tricky:
         print(nm)
         data[nm] = atm.subset(data[nm], yearnm, years)
 
-
 # ----------------------------------------------------------------------
-# Animation of daily data relative to onset
+# Plotting params
 
-nframes = npre + npost + 1
-fps = 4
 axlims = (-60, 60, 40, 120)
-
-climits = {'precip' : (0, 20),
-           'U200' : (-50, 50),
-           'V200' : (-10, 10),
-           'Ro200' : (-1, 1),
-           'rel_vort200' : (-4e-5, 4e-5),
-           'T200' : (213, 227),
-           'H200' : (11.2e3, 12.6e3),
-           'U850' : (-20, 20),
-           'V850' : (-10, 10)}
 
 def get_colormap(varnm):
     if varnm == 'precip':
@@ -254,55 +248,35 @@ def get_colormap(varnm):
         cmap = 'RdBu_r'
     return cmap
 
-def animate(i):
-    plt.clf()
-    m, _ = atm.pcolor_latlon(animdata[i], axlims=axlims, cmap=cmap)
-    plt.clim(cmin, cmax)
-    day = animdata[daynm + 'rel'].values[i]
-    plt.title('%s %s RelDay %d' % (varnm, yearstr, day))
-    return m
+# ----------------------------------------------------------------------
+# Latitude-time contour plot
 
-for varnm in data:
-    savefile = savedir + 'latlon_%s_%s.mp4' % (varnm, yearstr)
-    animdata = data[varnm].mean(dim='year')
-    cmap = get_colormap(varnm)
-    cmin, cmax = climits[varnm]
-    fig = plt.figure()
-    anim = animation.FuncAnimation(fig, animate, frames=nframes)
-    print('Saving to ' + savefile)
-    anim.save(savefile, writer='mencoder', fps=fps)
-    plt.close()
-
-
-# Animated line plots of 60-100E sector mean
-ylimits = {'precip' : (0, 12),
-           'U200' : (-20, 50),
-           'V200' : (-8.5, 6.5),
-           'rel_vort200' : (-3e-5, 4e-5),
-           'Ro200' : (-1, 1),
-           'H200' : (11.5e3, 12.6e3),
-           'T200' : (212, 228),
-           'U850' : (-10, 18),
-           'V850' : (-8.5, 3.5)}
-
-def animate2(i):
-    plt.clf()
-    plt.plot(animdata[latname], animdata[i])
-    plt.ylim(ylim1, ylim2)
+def contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm):
+    vals = plotdata.values.T
+    vals = np.ma.array(vals, mask=np.isnan(vals))
+    ncont = 20
+    plt.contourf(days, lat, vals, ncont, cmap=cmap)
+    plt.colorbar(orientation='vertical')
     plt.grid(True)
-    day = animdata[daynm + 'rel'].values[i]
-    plt.xlabel('Latitude')
-    plt.title('%d-%dE %s %s RelDay %d' % (lon1, lon2, varnm, yearstr, day))
+    plt.ylabel('Latitude')
+    plt.xlabel('Day Relative to %s Onset' % onset_nm)
+    plt.title(title)
+    xmin, xmax = plt.gca().get_xlim()
+    if xmax > 60:
+        plt.xticks(range(int(xmin), int(xmax) + 1, 30))
 
-for varnm in sectordata:
-    savefile = savedir + 'sector_%d-%dE_%s_%s.mp4' % (lon1, lon2, varnm, yearstr)
-    animdata = sectordata[varnm].mean(dim='year')
-    ylim1, ylim2 = ylimits[varnm]
-    fig = plt.figure()
-    anim = animation.FuncAnimation(fig, animate2, frames=nframes)
-    print('Saving to ' + savefile)
-    anim.save(savefile, writer='mencoder', fps=fps)
-    plt.close()
+keys = sectordata.keys()
+for varnm in keys:
+    plotdata = sectordata[varnm].mean(dim='year')
+    lat = plotdata[latname].values
+    days = plotdata['dayrel'].values
+    cmap = get_colormap(varnm)
+    title = '%d-%dE ' %(lon1, lon2) + varnm + ' ' + yearstr
+    plt.figure(figsize=(12, 8))
+    contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm)
+
+atm.savefigs(savedir + 'sector_%d-%dE_onset_%s' % (lon1, lon2, onset_nm), 'pdf')
+plt.close('all')
 
 # ----------------------------------------------------------------------
 # Composite averages
@@ -397,36 +371,7 @@ for varnm in comp:
         plt.ylabel(varnm)
         plt.grid()
 
-# ----------------------------------------------------------------------
-# Latitude-time contour plot
 
-def pcolor_lat_time(lat, days, plotdata, title, cmap, onset_nm):
-    # Use a masked array so that pcolormesh displays NaNs properly
-    vals = plotdata.values
-    vals = np.ma.array(vals, mask=np.isnan(vals))
-    #plt.pcolormesh(lat, days, vals, cmap=cmap)
-    ncont = 20
-    plt.contourf(lat, days, vals, ncont, cmap=cmap)
-    plt.colorbar(orientation='vertical')
-    plt.gca().invert_yaxis()
-    plt.grid(True)
-    plt.xlabel('Latitude')
-    plt.ylabel('Day Relative to %s Onset' % onset_nm)
-    plt.title(title)
-
-keys = sectordata.keys()
-#keys = ['THETA950', 'THETA_E950', 'DSE950', 'MSE950', 'V*DSE950', 'V*MSE950']
-for varnm in keys:
-    plotdata = sectordata[varnm].mean(dim='year')
-    lat = plotdata[latname].values
-    days = plotdata['dayrel'].values
-    cmap = get_colormap(varnm)
-    title = '%d-%dE ' %(lon1, lon2) + varnm + ' ' + yearstr
-    plt.figure(figsize=(10, 10))
-    pcolor_lat_time(lat, days, plotdata, title, cmap, onset_nm)
-
-atm.savefigs(savedir + 'sector_%d-%dE_' % (lon1, lon2), 'pdf')
-plt.close('all')
 
 # ----------------------------------------------------------------------
 # Cross-equatorial atmospheric heat fluxes
@@ -455,3 +400,72 @@ for key in eht:
     cmax = abs(cb.boundaries).max()
     plt.clim(-cmax, cmax)
     plt.gca().invert_yaxis()
+
+# ----------------------------------------------------------------------
+# Animation of daily data relative to onset
+
+if run_anim:
+    nframes = npre + npost + 1
+    fps = 4
+
+    climits = {'precip' : (0, 20),
+               'U200' : (-50, 50),
+               'V200' : (-10, 10),
+               'Ro200' : (-1, 1),
+               'rel_vort200' : (-4e-5, 4e-5),
+               'T200' : (213, 227),
+               'H200' : (11.2e3, 12.6e3),
+               'U850' : (-20, 20),
+               'V850' : (-10, 10)}
+
+
+
+    def animate(i):
+        plt.clf()
+        m, _ = atm.pcolor_latlon(animdata[i], axlims=axlims, cmap=cmap)
+        plt.clim(cmin, cmax)
+        day = animdata[daynm + 'rel'].values[i]
+        plt.title('%s %s RelDay %d' % (varnm, yearstr, day))
+        return m
+
+    for varnm in data:
+        savefile = savedir + 'latlon_%s_%s.mp4' % (varnm, yearstr)
+        animdata = data[varnm].mean(dim='year')
+        cmap = get_colormap(varnm)
+        cmin, cmax = climits[varnm]
+        fig = plt.figure()
+        anim = animation.FuncAnimation(fig, animate, frames=nframes)
+        print('Saving to ' + savefile)
+        anim.save(savefile, writer='mencoder', fps=fps)
+        plt.close()
+
+
+    # Animated line plots of 60-100E sector mean
+    ylimits = {'precip' : (0, 12),
+               'U200' : (-20, 50),
+               'V200' : (-8.5, 6.5),
+               'rel_vort200' : (-3e-5, 4e-5),
+               'Ro200' : (-1, 1),
+               'H200' : (11.5e3, 12.6e3),
+               'T200' : (212, 228),
+               'U850' : (-10, 18),
+               'V850' : (-8.5, 3.5)}
+
+    def animate2(i):
+        plt.clf()
+        plt.plot(animdata[latname], animdata[i])
+        plt.ylim(ylim1, ylim2)
+        plt.grid(True)
+        day = animdata[daynm + 'rel'].values[i]
+        plt.xlabel('Latitude')
+        plt.title('%d-%dE %s %s RelDay %d' % (lon1, lon2, varnm, yearstr, day))
+
+    for varnm in sectordata:
+        savefile = savedir + 'sector_%d-%dE_%s_%s.mp4' % (lon1, lon2, varnm, yearstr)
+        animdata = sectordata[varnm].mean(dim='year')
+        ylim1, ylim2 = ylimits[varnm]
+        fig = plt.figure()
+        anim = animation.FuncAnimation(fig, animate2, frames=nframes)
+        print('Saving to ' + savefile)
+        anim.save(savefile, writer='mencoder', fps=fps)
+        plt.close()
