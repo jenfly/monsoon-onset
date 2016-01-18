@@ -17,13 +17,16 @@ import utils
 from utils import daily_rel2onset
 
 # ----------------------------------------------------------------------
+onset_nm = 'HOWI'
+
 years = range(1979, 2015)
 datadir = atm.homedir() + 'datastore/merra/daily/'
 savedir = 'mp4/'
-onsetfile = datadir + 'merra_vimt_ps-300mb_apr-sep_1979-2014.nc'
 
 datafiles = {}
-datafiles['precip'] = datadir + 'merra_precip_40E-120E_60S-60N_days91-274_1979-2014.nc'
+datafiles['vimt'] = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
+datafiles['mfc'] = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
+datafiles['precip'] = [datadir + 'merra_precip_%d.nc' % yr for yr in years]
 
 def yrlyfile(var, plev, year, subset=''):
     return 'merra_%s%d_40E-120E_60S-60N_%s%d.nc' % (var, plev, subset, year)
@@ -52,28 +55,44 @@ lat1, lat2 = 10, 30
 
 # ----------------------------------------------------------------------
 # Monsoon onset day and index timeseries
-onset_nm = 'HOWI'
-maxbreak = 10
-npts = 100
-with xray.open_dataset(onsetfile) as ds:
-    uq_int = ds['uq_int'].load()
-    vq_int = ds['vq_int'].load()
-    howi, _ = indices.onset_HOWI(uq_int, vq_int, npts, maxbreak=maxbreak)
-    howi.attrs['title'] = 'HOWI (N=%d)' % npts
+
+if onset_nm == 'HOWI':
+    maxbreak = 10
+    npts = 100
+    ds = atm.combine_daily_years(['uq_int', 'vq_int'],datafiles['vimt'], years,
+                                 yearname='year')
+    index, _ = indices.onset_HOWI(ds['uq_int'], ds['vq_int'], npts, maxbreak=maxbreak)
+    index.attrs['title'] = 'HOWI (N=%d)' % npts
+elif onset_nm == 'CHP_MFC':
+    mfc = atm.combine_daily_years('MFC', datafiles['mfc'], years, yearname='year')
+    mfcbar = atm.mean_over_geobox(mfc, lat1, lat2, lon1, lon2)
+    mfc_acc = np.cumsum(mfcbar, axis=1)
+    index = indices.onset_changepoint(mfc_acc)
+elif onset_nm == 'CHP_PRECIP':
+    precip = atm.combine_daily_years('PRECTOT', datafiles['precip'], years, yearname='year',
+                                     subset1=('lat', lat1, lat2),
+                                     subset2=('lon', lon1, lon2))
+    precip = atm.precip_convert(precip, precip.attrs['units'], 'mm/day')
+    precipbar = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)
+    precip_acc = np.cumsum(precipbar, axis=1)
+    index = indices.onset_changepoint(precip_acc)
 
 # Array of onset days
-onset = howi['onset']
+onset = index['onset']
 
 # Tile the climatology to each year
-tseries_clim = howi['tseries_clim']
-vals = atm.biggify(tseries_clim.values, howi['tseries'].values, tile=True)
-_, _, coords, dims = atm.meta(howi['tseries'])
+if 'tseries_clim' in index:
+    tseries_clim = index['tseries_clim']
+else:
+    tseries_clim = index['tseries'].mean(dim='year')
+vals = atm.biggify(tseries_clim.values, index['tseries'].values, tile=True)
+_, _, coords, dims = atm.meta(index['tseries'])
 tseries_clim = xray.DataArray(vals, name=tseries_clim.name, coords=coords,
                               dims=dims)
 
 # Daily timeseries for each year
 tseries = xray.Dataset()
-tseries[onset_nm] = howi['tseries']
+tseries[onset_nm] = index['tseries']
 tseries[onset_nm + '_clim'] = tseries_clim
 
 # ----------------------------------------------------------------------
@@ -108,11 +127,16 @@ def var_type(varnm):
 
 def read_data(varnm, data):
     daymin, daymax = 91, 274
-    plev = int(varnm[-3:])
-    varid = varnm[:-3]
+    if varnm != 'precip':
+        plev = int(varnm[-3:])
+        varid = varnm[:-3]
     if varnm == 'precip':
-        with xray.open_dataset(datafiles[varnm]) as ds:
-            var = ds['PRECTOT'].load()
+        var = atm.combine_daily_years('PRECTOT', datafiles['precip'], years,
+                                      yearname='year',
+                                      subset1=('day', daymin, daymax),
+                                      subset2=('lon', 40, 120))
+        var = atm.subset(var, 'lat', -60, 60)
+        var = atm.precip_convert(var, var.attrs['units'], 'mm/day')
     elif var_type(varnm) == 'calc':
         pres = atm.pres_convert(plev, 'hPa', 'Pa')
         Tnm = 'T%d' % plev
@@ -146,8 +170,10 @@ def read_data(varnm, data):
 # varnms = ['T975', 'H975', 'QV975', 'V975', 'THETA975', 'THETA_E975', 'DSE975',
 #           'MSE975', 'V*THETA975', 'V*THETA_E975', 'V*DSE975', 'V*MSE975']
 
-varnms = ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950', 'DSE950',
-          'MSE950', 'V*THETA950', 'V*THETA_E950', 'V*DSE950', 'V*MSE950']
+# varnms = ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950', 'DSE950',
+#           'MSE950', 'V*THETA950', 'V*THETA_E950', 'V*DSE950', 'V*MSE950']
+
+varnms = ['precip', 'U200']
 
 data = collections.OrderedDict()
 for varnm in varnms:
@@ -330,7 +356,8 @@ key1, key2 = 'pre', 'post'
 for varnm in comp:
     plt.figure(figsize=(12, 10))
     plt.subplots_adjust(left=0.06, right=0.95)
-    plt.suptitle(varnm.upper() + ' Climatological Composites Relative to Onset Day')
+    plt.suptitle('%s Climatological Composites Relative to %s Onset Day' %
+                 (varnm.upper(), onset_nm))
 
     # Lat-lon maps of composites
     for i, key in enumerate([key1, key2]):
@@ -373,7 +400,7 @@ for varnm in comp:
 # ----------------------------------------------------------------------
 # Latitude-time contour plot
 
-def pcolor_lat_time(lat, days, plotdata, title, cmap):
+def pcolor_lat_time(lat, days, plotdata, title, cmap, onset_nm):
     # Use a masked array so that pcolormesh displays NaNs properly
     vals = plotdata.values
     vals = np.ma.array(vals, mask=np.isnan(vals))
@@ -384,11 +411,11 @@ def pcolor_lat_time(lat, days, plotdata, title, cmap):
     plt.gca().invert_yaxis()
     plt.grid(True)
     plt.xlabel('Latitude')
-    plt.ylabel('RelDay')
+    plt.ylabel('Day Relative to %s Onset' % onset_nm)
     plt.title(title)
 
-#keys = sectordata.keys()
-keys = ['THETA950', 'THETA_E950', 'DSE950', 'MSE950', 'V*DSE950', 'V*MSE950']
+keys = sectordata.keys()
+#keys = ['THETA950', 'THETA_E950', 'DSE950', 'MSE950', 'V*DSE950', 'V*MSE950']
 for varnm in keys:
     plotdata = sectordata[varnm].mean(dim='year')
     lat = plotdata[latname].values
@@ -396,7 +423,7 @@ for varnm in keys:
     cmap = get_colormap(varnm)
     title = '%d-%dE ' %(lon1, lon2) + varnm + ' ' + yearstr
     plt.figure(figsize=(10, 10))
-    pcolor_lat_time(lat, days, plotdata, title, cmap)
+    pcolor_lat_time(lat, days, plotdata, title, cmap, onset_nm)
 
 atm.savefigs(savedir + 'sector_%d-%dE_' % (lon1, lon2), 'pdf')
 plt.close('all')
