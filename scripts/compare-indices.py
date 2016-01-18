@@ -21,8 +21,11 @@ exts = ['png', 'eps', 'pdf']
 index = collections.OrderedDict()
 
 datadir = atm.homedir() + 'datastore/merra/daily/'
-vimtfile = datadir + 'merra_vimt_ps-300mb_apr-sep_1979-2014.nc'
-precipfile = datadir + 'merra_precip_40E-120E_60S-60N_days91-274_1979-2014.nc'
+#vimtfile = datadir + 'merra_vimt_ps-300mb_apr-sep_1979-2014.nc'
+vimtfiles = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
+mfcfiles = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
+precipfiles = [datadir + 'merra_precip_%d.nc' % yr for yr in years]
+#precipfile = datadir + 'merra_precip_40E-120E_60S-60N_days91-274_1979-2014.nc'
 cmapfile = atm.homedir() + 'datastore/cmap/cmap.precip.pentad.mean.nc'
 eraIfile = atm.homedir() + ('datastore/era_interim/analysis/'
                             'era_interim_JJAS_60-100E_index.csv')
@@ -51,7 +54,9 @@ short = { 'HOWI_50' : 'HOWI_50',
           'WLH_MERRA_PRECIP_unsmth' : 'W_MP_u',
           'OCI' : 'OCI',
           'SJKE' : 'SJKE',
-          'TT' : 'TT'}
+          'TT' : 'TT',
+          'CHP_MFC' : 'CHP_M',
+          'CHP_PRECIP' : 'CHP_P'}
 
 short_inv = {v : k for k, v in short.items()}
 
@@ -65,8 +70,8 @@ def saveclose(name, isave, exts):
 # ----------------------------------------------------------------------
 # HOWI index (Webster and Fasullo 2003)
 maxbreak = 10
-with xray.open_dataset(vimtfile) as ds:
-    ds.load()
+ds = atm.combine_daily_years(['uq_int', 'vq_int'], vimtfiles, years,
+                             yearname='year')
 ds_howi = {}
 for npts in [50, 100]:
     howi, ds_howi[npts] = indices.onset_HOWI(ds['uq_int'], ds['vq_int'], npts,
@@ -118,15 +123,15 @@ cmapbar = atm.mean_over_geobox(cmap, lat1, lat2, lon1, lon2)
 cmapdays = [atm.pentad_to_jday(p, pmin=1) for p in cmap.pentad.values]
 
 # MERRA moisture flux convergence
-print('Calculating MFC')
-mfc = atm.moisture_flux_conv(ds['uq_int'], ds['vq_int'], already_int=True)
+mfc = atm.combine_daily_years('MFC', mfcfiles, years, yearname='year')
 mfcbar = atm.mean_over_geobox(mfc, lat1, lat2, lon1, lon2)
 
 # MERRA precip
-print('Reading MERRA precip ' + precipfile)
-with xray.open_dataset(precipfile) as dsprecip:
-    precip = dsprecip['PRECTOT']
-    precipbar = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)
+precip = atm.combine_daily_years('PRECTOT', precipfiles, years, yearname='year',
+                                 subset1=('lat', lat1, lat2),
+                                 subset2=('lon', lon1, lon2))
+precip = atm.precip_convert(precip, precip.attrs['units'], 'mm/day')
+precipbar = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)
 
 # Compute indices for each dataset
 for name in ['CMAP', 'MERRA_MFC', 'MERRA_PRECIP']:
@@ -185,9 +190,9 @@ index['SJKE'] = indices.onset_SJKE(u850, v850, yearnm='year', daynm='day')
 index['SJKE'].attrs['title'] = 'SJKE'
 
 # Day range to extract for timeseries plots
-daymin, daymax = 91, 274
-for key in ['OCI', 'SJKE']:
-    index[key] = atm.subset(index[key], 'day', daymin, daymax)
+# daymin, daymax = 91, 274
+# for key in ['OCI', 'SJKE']:
+#     index[key] = atm.subset(index[key], 'day', daymin, daymax)
 
 # ----------------------------------------------------------------------
 # TT index (Goswami et al 2006)
@@ -227,6 +232,15 @@ for nm in ['ttn', 'tts', 'tseries']:
     vals = np.ma.masked_array(vals, abs(vals) > 1e30).filled(np.nan)
     index['TT'][nm].values = vals
 index['TT'].attrs['title'] = 'TT'
+
+# ----------------------------------------------------------------------
+# Changepoint method with accumulated MFC / precip (Cook & Buckley 2009)
+mfc_acc = np.cumsum(mfcbar, axis=1)
+precip_acc = np.cumsum(precipbar, axis=1)
+index['CHP_MFC'] = indices.onset_changepoint(mfc_acc)
+index['CHP_PRECIP'] = indices.onset_changepoint(precip_acc)
+for key in ['CHP_MFC', 'CHP_PRECIP']:
+    index[key].attrs['title'] = key
 
 # ----------------------------------------------------------------------
 # Monsoon strength indices
@@ -295,7 +309,7 @@ for key in tseries.data_vars.keys():
 
 # Add other timeseries
 for key in index.keys():
-    tseries[short[key]] = index[key]['tseries']
+    tseries[short[key]] = atm.subset(index[key]['tseries'], 'day', daymin, daymax)
 tseries['MFC_box'] = tseries['W_MP_n7']
 tseries['PRECIP_box'] = tseries['W_MM_n7']
 
@@ -361,7 +375,8 @@ saveclose('strength_', isave, exts)
 
 # ----------------------------------------------------------------------
 # Histograms of each index
-for key in index.keys():
+keys = index.keys()
+for key in keys:
     ind = index[key]
     if 'retreat' in ind.keys():
         retreat = ind.retreat
@@ -381,8 +396,10 @@ for key in keys:
 # ----------------------------------------------------------------------
 # Compare indices with each other
 
-keys = ['HOWI_100', 'HOWI_50', 'OCI', 'SJKE', 'TT', 'WLH_CMAP_kmax12',
-        'WLH_CMAP_nroll3', 'WLH_MERRA_PRECIP_nroll7']
+# keys = ['HOWI_100', 'HOWI_50', 'OCI', 'SJKE', 'TT', 'WLH_CMAP_kmax12',
+#         'WLH_CMAP_nroll3', 'WLH_MERRA_PRECIP_nroll7']
+keys = ['HOWI_100', 'OCI', 'SJKE', 'TT', 'WLH_MERRA_PRECIP_nroll7',
+        'CHP_MFC', 'CHP_PRECIP']
 shortkeys = [short[key] for key in keys]
 
 years = index[keys[0]].year.values
@@ -404,7 +421,7 @@ plt.ylabel('Day of Year')
 
 # Scatter plots with correlation coeffs
 titlestr = 'Yearly Onset Indices 1979-2014'
-atm.scatter_matrix(ind_comp, corr_fmt='.2f', corr_pos=(0.1, 0.85),
+atm.scatter_matrix(ind_comp, corr_fmt='.2f', annotation_pos=(0.1, 0.85),
                    figsize=(16,10), suptitle=titlestr)
 
 saveclose('onset_', isave, exts)
@@ -413,11 +430,12 @@ saveclose('onset_', isave, exts)
 # Plot onset day vs. year along with histograms
 
 # Subset of indices to focus on
-keys_sub = ['HOWI_100', 'OCI', 'SJKE', 'TT', 'WLH_MERRA_PRECIP_nroll7']
+keys_sub = ['HOWI_100', 'OCI', 'SJKE', 'TT', 'WLH_MERRA_PRECIP_nroll7',
+            'CHP_MFC', 'CHP_PRECIP']
 shortkeys_sub = [short[key] for key in keys_sub]
 n = len(keys_sub)
 
-fig, axes = plt.subplots(n, 2, figsize=(10,10), sharex='col')
+fig, axes = plt.subplots(n, 2, figsize=(10,14), sharex='col')
 plt.subplots_adjust(left=0.08, right=0.95, wspace=0.2, hspace=0.3)
 plt.suptitle('Onset Day Indices')
 for i, key in enumerate(shortkeys_sub):
@@ -441,11 +459,13 @@ saveclose('onset_yrs_', isave, exts)
 key_onset = 'HOWI_100'
 d_onset = index[key_onset]['onset'].values
 
-keys_list = [['HOWI_100', 'OCI', 'TT', 'SJKE', 'MFC_box', 'PRECIP_box'],
-             ['U200_box', 'Ro200_box', 'MFC_box'],
-             ['Ro200_30S-20S', 'Ro200_20S-10S'],
-             ['Ro200_10S-0N', 'Ro200_0N-10N'],
-             ['Ro200_10N-20N', 'Ro200_20N-30N']]
+# keys_list = [['HOWI_100', 'OCI', 'TT', 'SJKE', 'MFC_box', 'PRECIP_box'],
+#              ['U200_box', 'Ro200_box', 'MFC_box'],
+#              ['Ro200_30S-20S', 'Ro200_20S-10S'],
+#              ['Ro200_10S-0N', 'Ro200_0N-10N'],
+#              ['Ro200_10N-20N', 'Ro200_20N-30N']]
+
+keys_list = [['HOWI_100', 'CHP_M', 'CHP_P']]
 
 for i, keys in enumerate(keys_list):
     if i == 0:
@@ -460,11 +480,13 @@ saveclose('tseries_', isave, exts)
 
 # Compare onset days and daily timeseries of pairs of indices
 # side by side
-keys_list = [['HOWI_100', 'OCI'],
-             ['HOWI_100', 'SJKE'],
-             ['HOWI_100', 'W_MP_n7'],
-             ['HOWI_100', 'W_MM_n7'],
-             ['OCI', 'SJKE']]
+# keys_list = [['HOWI_100', 'OCI'],
+#              ['HOWI_100', 'SJKE'],
+#              ['HOWI_100', 'W_MP_n7'],
+#              ['HOWI_100', 'W_MM_n7'],
+#              ['OCI', 'SJKE']]
+keys_list = [['HOWI_100', 'CHP_M'],
+             ['HOWI_100', 'CHP_P']]
 clrs = ['b', 'r']
 
 for keys in keys_list:
@@ -480,8 +502,13 @@ saveclose('tseries_pairs_', isave, exts)
 
 # Compare daily timeseries and onset days for multiple indices
 # as stacked plots for each year
-keys = ['HOWI_100', 'OCI', 'SJKE', 'W_MP_n7', 'W_MM_n7']
-data = tseries[keys]
+# keys = ['HOWI_100', 'OCI', 'SJKE', 'W_MP_n7', 'W_MM_n7']
+# data = tseries[keys]
+keys = ['HOWI_100', 'W_MM_n7', 'W_MP_n7', 'CHP_M', 'CHP_P']
+data = xray.Dataset()
+for key in keys:
+    # Full timeseries rather than Apr-Sep subset
+    data[key] = index[short_inv[key]]['tseries']
 d_onset = collections.OrderedDict()
 for key in keys:
     d_onset[key] = index[short_inv[key]]['onset'].values
@@ -490,27 +517,46 @@ nrow = len(keys)
 ncol = 4
 style = 'k'
 ylim1, ylim2 = -2.5, 2.5
+std_ts = False
 
 for y, year in enumerate(years):
     df = atm.subset(data, 'year', year).to_dataframe()
     df.drop('year', axis=1, inplace=True)
-    for key in df.columns:
-        df[key] = (df[key] - np.nanmean(df[key])) / np.nanstd(df[key])
+    if std_ts:
+        for key in df.columns:
+            df[key] = (df[key] - np.nanmean(df[key])) / np.nanstd(df[key])
     if y % ncol == 0:
-        fig, axes = plt.subplots(nrow, ncol, figsize=figsize, sharex=True,
-                                 sharey=True)
+        fig, axes = plt.subplots(nrow, ncol, figsize=figsize, sharex=True)
         plt.subplots_adjust(left=0.08, right=0.95, wspace=0.2, hspace=0)
 
     iplot = y % ncol + 1
     for i, key in enumerate(keys):
+        keylong = short_inv[key]
         plt.subplot(nrow, ncol, iplot)
         ax = plt.gca()
         d0 = d_onset[key][y]
+        if 'retreat' in index[keylong].keys():
+            d1 = index[keylong]['retreat'].values[y]
+        else:
+            d1 = None
         df[key].plot(ax=ax, style=style)
-        ax.plot([d0, d0], [ylim1, ylim2], style)
-        ax.set_ylim(ylim1, ylim2)
+        if key.startswith('CHP'):
+            for nm, clr in zip(['onset', 'retreat'], ['r', 'g']):
+                pred = index[keylong]['tseries_fit_' + nm][y]
+                pred = atm.subset(pred, 'day', df.index)
+                ax.plot(df.index, pred, clr)
+        if std_ts:
+            ax.set_ylim(ylim1, ylim2)
+        else:
+            plt.autoscale(tight=True)
+        ax.plot([d0, d0], ax.get_ylim(), style)
+        txt = '%d' % d0
+        if d1 is not None:
+            ax.plot([d1, d1], ax.get_ylim(), style)
+            txt = txt + ', %d' % d1
         ax.grid()
-        atm.text(d0, (0.05, 0.9), ax=ax, color=style)
+        atm.text(txt, (0.05, 0.9), ax=ax, color=style)
+
         if i == 0:
             ax.set_title(year)
         if i == nrow - 1:
@@ -581,7 +627,7 @@ saveclose('corr_tseries_', isave, exts)
 # ----------------------------------------------------------------------
 # Composite indices relative to onset day
 
-keys = ['HOWI_100', 'OCI', 'SJKE', 'TT', 'WLH_MERRA_MFC_nroll7', 
+keys = ['HOWI_100', 'OCI', 'SJKE', 'TT', 'WLH_MERRA_MFC_nroll7',
         'WLH_MERRA_PRECIP_nroll7']
 npre, npost = 30, 80
 
@@ -590,7 +636,7 @@ for key in keys:
     print(key)
     ts = index[key]['tseries']
     d_onset = index[key]['onset'].values
-    tseries_rel[key] = utils.daily_rel2onset(ts, d_onset, npre, npost, 
+    tseries_rel[key] = utils.daily_rel2onset(ts, d_onset, npre, npost,
                                              yearnm='year', daynm='day')
 dayrel = tseries_rel['dayrel'].values
 
@@ -623,4 +669,4 @@ for i, key in enumerate(keys):
 
 plt.suptitle('1979-2014 Climatological Composites Relative to Onset Day')
 
-saveclose('ind_tseries_composites', isave, exts)    
+saveclose('ind_tseries_composites', isave, exts)
