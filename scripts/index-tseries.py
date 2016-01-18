@@ -16,57 +16,71 @@ import indices
 from utils import daily_rel2onset, comp_days_centered, composite
 
 # ----------------------------------------------------------------------
+#onset_nm = 'HOWI'
+#onset_nm = 'CHP_MFC'
+onset_nm = 'CHP_PRECIP'
+
 years = range(1979, 2015)
 datadir = atm.homedir() + 'datastore/merra/daily/'
-savedir = 'mp4/'
-onsetfile = datadir + 'merra_vimt_ps-300mb_apr-sep_1979-2014.nc'
+vimtfiles = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
+mfcfiles = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
+precipfiles = [datadir + 'merra_precip_%d.nc' % yr for yr in years]
 ensofile = atm.homedir() + 'dynamics/calc/ENSO/enso_oni.csv'
 enso_ssn = 'JJA'
 enso_nm = 'ONI JJA'
-
-remove_tricky = False
-years_tricky = [2002, 2004, 2007, 2009, 2010]
 
 # Lat-lon box for MFC / precip
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 
 # ----------------------------------------------------------------------
+# MFC over SASM region
+mfc = atm.combine_daily_years('MFC', mfcfiles, years, yearname='year')
+mfcbar = atm.mean_over_geobox(mfc, lat1, lat2, lon1, lon2)
+mfc_acc = np.cumsum(mfcbar, axis=1)
+
+nroll = 7
+mfcbar = atm.rolling_mean(mfcbar, nroll, axis=-1, center=True)
+tseries = xray.Dataset()
+tseries['MFC'] = mfcbar
+
+# ----------------------------------------------------------------------
 # Monsoon onset day and index timeseries
-onset_nm = 'HOWI'
-maxbreak = 10
-npts = 100
-with xray.open_dataset(onsetfile) as ds:
-    uq_int = ds['uq_int'].load()
-    vq_int = ds['vq_int'].load()
-    howi, _ = indices.onset_HOWI(uq_int, vq_int, npts, maxbreak=maxbreak)
-    howi.attrs['title'] = 'HOWI (N=%d)' % npts
+
+if onset_nm == 'HOWI':
+    maxbreak = 10
+    npts = 100
+    ds = atm.combine_daily_years(['uq_int', 'vq_int'],vimtfiles, years,
+                                 yearname='year')
+    index, _ = indices.onset_HOWI(ds['uq_int'], ds['vq_int'], npts, maxbreak=maxbreak)
+    index.attrs['title'] = 'HOWI (N=%d)' % npts
+elif onset_nm == 'CHP_MFC':
+    index = indices.onset_changepoint(mfc_acc)
+elif onset_nm == 'CHP_PRECIP':
+    precip = atm.combine_daily_years('PRECTOT', precipfiles, years, yearname='year',
+                                     subset1=('lat', lat1, lat2),
+                                     subset2=('lon', lon1, lon2))
+    precip = atm.precip_convert(precip, precip.attrs['units'], 'mm/day')
+    precipbar = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)
+    precip_acc = np.cumsum(precipbar, axis=1)
+    index = indices.onset_changepoint(precip_acc)
 
 # Array of onset days
-onset = howi['onset']
+onset = index['onset']
 
 # Tile the climatology to each year
-tseries_clim = howi['tseries_clim']
-vals = atm.biggify(tseries_clim.values, howi['tseries'].values, tile=True)
-_, _, coords, dims = atm.meta(howi['tseries'])
+if 'tseries_clim' in index:
+    tseries_clim = index['tseries_clim']
+else:
+    tseries_clim = index['tseries'].mean(dim='year')
+vals = atm.biggify(tseries_clim.values, index['tseries'].values, tile=True)
+_, _, coords, dims = atm.meta(index['tseries'])
 tseries_clim = xray.DataArray(vals, name=tseries_clim.name, coords=coords,
                               dims=dims)
 
 # Daily timeseries for each year
-tseries = xray.Dataset()
-tseries[onset_nm] = howi['tseries']
+tseries[onset_nm] = index['tseries']
 tseries[onset_nm + '_clim'] = tseries_clim
-
-# ----------------------------------------------------------------------
-# MFC over SASM region
-print('Calculating MFC')
-mfc = atm.moisture_flux_conv(ds['uq_int'], ds['vq_int'], already_int=True)
-mfcbar = atm.mean_over_geobox(mfc, lat1, lat2, lon1, lon2)
-
-nroll = 7
-mfcbar = atm.rolling_mean(mfcbar, nroll, axis=-1, center=True)
-tseries['MFC'] = mfcbar
-
 
 # ----------------------------------------------------------------------
 # ENSO
@@ -138,6 +152,7 @@ for i, key in enumerate(keys):
 nyrs = 5
 comp_ind = {}
 comp_ts = {}
+comp_ts_rel = {}
 
 # Earliest / latest onset years
 onset_sorted = onset.to_series()
@@ -157,14 +172,23 @@ for key in comp_yrs:
     print(key)
     print(comp_ind[key])
 
+# Timeseries relative to onset, shifted to 0 at onset day
+npre, npost = 0, 200
+ts_rel = daily_rel2onset(tseries[onset_nm], onset, npre, npost, yearnm='year',
+                         daynm='day')
+if onset_nm.startswith('CHP'):
+    ts_rel = ts_rel - ts_rel[:, 0]
+
 # Composite timeseries
 for key in comp_yrs:
     comp_ts[key] = atm.subset(tseries[onset_nm], 'year', comp_yrs[key])
+    comp_ts_rel[key] = atm.subset(ts_rel, 'year', comp_yrs[key])
 
 # Plot composites and individual years
-def ts_subplot(comp_ts, key, onset, enso, clim_ts):
+def ts_subplot(comp_ts, key, onset, enso, clim_ts, ymin=None, ymax=None,
+                daynm='day'):
     ts = comp_ts[key]
-    days = ts['day'].values
+    days = ts[daynm].values
     yrs = ts['year'].values
     for y, year in enumerate(yrs):
         onset_ind = onset.loc[year].values
@@ -176,25 +200,41 @@ def ts_subplot(comp_ts, key, onset, enso, clim_ts):
     plt.plot(days, ts.mean(dim='year'), linewidth=2, color='k', label=label)
     label = 'clim %.1f %.1f' % (onset.mean().values, enso.mean().values)
     plt.plot(days, clim_ts, 'k--', linewidth=2, label=label)
-    plt.xticks(range(75, 275, 25))
+    #plt.xticks(range(75, 275, 25))
     plt.xlim(days.min(), days.max())
-    plt.ylim(-1, 2)
+    if ymin is not None:
+        plt.ylim(ymin, ymax)
     plt.grid(True)
     plt.legend(loc='upper left', fontsize=10)
     plt.title(key)
 
-nrow, ncol = 2, 2
-fig, axes = plt.subplots(nrow, ncol, figsize=(14, 10), sharex=True, sharey=True)
-plt.subplots_adjust(left=0.08, right=0.97, wspace=0.1, hspace=0.2)
-for i, key in enumerate(['Early', 'Nina', 'Late', 'Nino']):
-    plt.subplot(nrow, ncol, i + 1)
-    ts_subplot(comp_ts, key, onset, enso, tseries[onset_nm + '_clim'][0])
-    row, col = atm.subplot_index(nrow, ncol, i + 1)
-    if row == nrow:
-        plt.xlabel('Day of Year')
-    if col == 1:
-        plt.ylabel(onset_nm)
 
+def ts_plot_all(comp_ts, ts_clim, onset, enso, ymin, ymax, daynm):
+    nrow, ncol = 2, 2
+    fig, axes = plt.subplots(nrow, ncol, figsize=(14, 10), sharex=True, sharey=True)
+    plt.subplots_adjust(left=0.08, right=0.97, wspace=0.1, hspace=0.2)
+    if daynm == 'dayrel':
+        xlabel = 'Day Since Onset'
+        suptitle = onset_nm + ' Index, Relative to Onset Day'
+    else:
+        xlabel = 'Day of Year'
+        suptitle = onset_nm + ' Index'
+    for i, key in enumerate(['Early', 'Nina', 'Late', 'Nino']):
+        plt.subplot(nrow, ncol, i + 1)
+        ts_subplot(comp_ts, key, onset, enso, ts_clim, ymin, ymax, daynm)
+        row, col = atm.subplot_index(nrow, ncol, i + 1)
+        if row == nrow:
+            plt.xlabel(xlabel)
+        if col == 1:
+            plt.ylabel(onset_nm)
+    plt.suptitle(suptitle)
+
+ylims = {'HOWI' : (-1, 2), 'CHP_MFC' : (-400, 400), 'CHP_PRECIP' : (0, 1700)}
+ymin, ymax = ylims[onset_nm]
+ts_plot_all(comp_ts, tseries[onset_nm + '_clim'][0], onset, enso,  ymin, ymax,
+            'day')
+ts_plot_all(comp_ts_rel, ts_rel.mean(dim='year'), onset, enso,  ymin, ymax,
+            'dayrel')            
 # ----------------------------------------------------------------------
 # Correlations between onset day and ENSO
 
