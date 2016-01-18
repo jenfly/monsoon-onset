@@ -545,6 +545,96 @@ def onset_TT(T, north=(5, 35, 40, 100), south=(-15, 5, 40, 100),
 
 
 # ----------------------------------------------------------------------
+def onset_changepoint(precip_acc, onset_range=(1, 250),
+                      retreat_range=(201, 366), order=1, yearnm='year',
+                      daynm='day'):
+    """Return monsoon onset/retreat based on changepoint in precip.
+
+    Uses piecewise least-squares fit of data to detect changepoints.
+
+    Parameters
+    ----------
+    precip_acc : xray.DataArray
+        Accumulated precipitation.
+    onset_range, retreat_range : 2-tuple of ints, optional
+        Range of days to use when calculating onset / retreat.
+    order : int, optional
+        Order of polynomial to fit.
+    yearnm, daynm : str, optional
+        Name of year and day dimensions in precip_acc.
+
+    Returns
+    -------
+    chp : xray.Dataset
+        Onset/retreat days, daily timeseries, piecewise polynomial
+        fits, and rss values.
+
+    Reference
+    ---------
+    Cook, B. I., & Buckley, B. M. (2009). Objective determination of
+    monsoon season onset, withdrawal, and length. Journal of Geophysical
+    Research, 114(D23), D23109. doi:10.1029/2009JD012795
+    """
+
+    def split(x, n):
+        return x[:n], x[n:]
+
+    def piecewise_polyfit(x, y, n, order=1):
+        y = np.ma.masked_array(y, np.isnan(y))
+        x1, x2 = split(x, n)
+        y1, y2 = split(y, n)
+        p1 = np.ma.polyfit(x1, y1, order)
+        p2 = np.ma.polyfit(x2, y2, order)
+        if np.isnan(p1).any() or np.isnan(p2).any():
+            raise ValueError('NaN for polyfit coeffs. Check data.')
+        ypred1 = np.polyval(p1, x1)
+        ypred2 = np.polyval(p2, x2)
+        ypred = np.concatenate([ypred1, ypred2])
+        rss = np.sum((y - ypred)**2)
+        return ypred, rss
+
+    def find_changepoint(x, y, order=1):
+        rss = np.nan * x
+        for n in range(2, len(x)- 2):
+            _, rssval = piecewise_polyfit(x, y, n, order)
+            rss[n] = rssval
+        n0 = np.nanargmin(rss)
+        x0 = x[n0]
+        ypred, _ = piecewise_polyfit(x, y, n0)
+        return x0, ypred, rss
+
+    years = precip_acc[yearnm].values
+    chp = xray.Dataset()
+    chp['tseries'] = precip_acc
+
+    for key, drange in zip(['onset', 'retreat'], [onset_range, retreat_range]):
+        print('Calculating ' + key)
+        print(drange)
+        dmin, dmax = drange
+        precip_sub = atm.subset(precip_acc, daynm, dmin, dmax)
+        dsub = precip_sub[daynm].values
+
+        d_cp = np.nan * np.ones(years.shape)
+        pred = np.nan * np.ones(precip_sub.shape)
+        rss = np.nan * np.ones(precip_sub.shape)
+        for y, year in enumerate(years):
+            print (year)
+            results = find_changepoint(dsub, precip_sub[y], order)
+            d_cp[y], pred[y,:], rss[y,:] = results
+        chp[key] = xray.DataArray(d_cp, dims=[yearnm], coords={yearnm : years})
+        chp['tseries_fit_' + key] = xray.DataArray(
+            pred, dims=[yearnm, daynm], coords={yearnm : years, daynm : dsub})
+        chp['rss_' + key] = xray.DataArray(
+            rss, dims=[yearnm, daynm], coords={yearnm : years, daynm : dsub})
+
+    chp.attrs['order'] = order
+    chp.attrs['onset_range'] = onset_range
+    chp.attrs['retreat_range'] = retreat_range
+
+    return chp
+
+
+# ----------------------------------------------------------------------
 def plot_hist(ind, binwidth=5, incl_daystr=True, ax=None):
     """Plot histogram of onset days.
     """
