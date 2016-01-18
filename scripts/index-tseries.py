@@ -234,7 +234,7 @@ ymin, ymax = ylims[onset_nm]
 ts_plot_all(comp_ts, tseries[onset_nm + '_clim'][0], onset, enso,  ymin, ymax,
             'day')
 ts_plot_all(comp_ts_rel, ts_rel.mean(dim='year'), onset, enso,  ymin, ymax,
-            'dayrel')            
+            'dayrel')
 # ----------------------------------------------------------------------
 # Correlations between onset day and ENSO
 
