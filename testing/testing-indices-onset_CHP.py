@@ -18,7 +18,9 @@ lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 varnms = ['MFC', 'precip']
 datadir = atm.homedir() + 'datastore/merra/daily/'
+datadir2 = atm.homedir() + 'datastore/merra/analysis/'
 isave = True
+incl_merged = True
 
 data = {}
 data_acc = {}
@@ -42,6 +44,13 @@ for varnm in varnms:
 
     # Compute onset and retreat days
     chp[varnm] = onset_changepoint(data_acc[varnm])
+
+if incl_merged:
+    chpm = {}
+    for varnm in varnms:
+        datafile = datadir2 + 'merra_onset_changepoint_merged_%s.nc' % varnm.upper()
+        print('Reading ' + datafile)
+        chpm[varnm] = xray.open_dataset(datafile)
 
 def plotyear(chp, y, xlims, ylims):
     days = chp['day'].values
@@ -91,14 +100,27 @@ df = pd.DataFrame()
 for key in ['onset', 'retreat']:
     for varnm in varnms:
         df['%s_%s' % (key, varnm.upper())] = chp[varnm][key].to_series()
-atm.scatter_matrix(df, incl_p=True, incl_line=True, annotation_pos=(0.05, 0.7))
+        if incl_merged:
+            key2 = '%s_%s_m' % (key, varnm.upper())
+            df[key2] = chpm[varnm][key].to_series()
+opts = {'incl_p' : True, 'incl_line' : True, 'annotation_pos' : (0.05, 0.7)}
+if incl_merged:
+    for nm in ['onset', 'retreat']:
+        keys = [key for key in df.columns if key.startswith(nm)]
+        atm.scatter_matrix(df[keys], **opts)
+else:
+    atm.scatter_matrix(df, **opts)
 
 plt.figure(figsize=(8, 10))
+clrs = ['b', 'r']
 for i, key in enumerate(['onset', 'retreat']):
     plt.subplot(2, 1, i + 1)
-    for varnm in varnms:
-        plt.plot(years, df['%s_%s' % (key, varnm.upper())], label=varnm.upper())
-    plt.legend()
+    for varnm, clr in zip(varnms, clrs):
+        key1 = '%s_%s' % (key, varnm.upper())
+        plt.plot(years, df[key1], clr, label=varnm.upper())
+        if incl_merged:
+            plt.plot(years, df[key1 + '_m'], clr + '--', label=varnm.upper() + '_m')
+    plt.legend(fontsize=10)
     plt.xlabel('Year')
     plt.ylabel('Day of Year')
     plt.title(key.capitalize() + ' from Changepoint Method')

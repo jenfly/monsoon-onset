@@ -18,38 +18,49 @@ lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 varnms = ['MFC', 'precip']
 datadir = atm.homedir() + 'datastore/merra/daily/'
-isave = True
+savedir = atm.homedir() + 'datastore/merra/analysis/'
+icalc = False
+isavefigs = True
 
-data = {}
-data_acc = {}
+if icalc:
+    for varnm in varnms:
+        if varnm == 'MFC':
+            varid, filestr = 'MFC', 'MFC_ps-300mb'
+        elif varnm == 'precip':
+            varid, filestr = 'PRECTOT', 'precip'
+
+        files = [datadir + 'merra_%s_%d.nc' % (filestr, year) for year in years]
+        data = atm.combine_daily_years(varid, files, years, yearname='year',
+                                              subset1=('lat', lat1, lat2),
+                                              subset2=('lon', lon1, lon2))
+        data = atm.mean_over_geobox(data, lat1, lat2, lon1, lon2)
+        data = atm.precip_convert(data, data.attrs['units'],
+                                        'mm/day')
+
+        # Accumulated precip or MFC
+        data_acc = np.cumsum(data, axis=1)
+
+        # Compute onset and retreat days
+        chp = onset_changepoint_merged(data_acc)
+
+        # Save to file
+        savefile = savedir + 'merra_onset_changepoint_merged_%s.nc' % varnm.upper()
+        print('Saving to ' + savefile)
+        chp.to_netcdf(savefile)
+
 chp = {}
 for varnm in varnms:
-    if varnm == 'MFC':
-        varid, filestr = 'MFC', 'MFC_ps-300mb'
-    elif varnm == 'precip':
-        varid, filestr = 'PRECTOT', 'precip'
+    datafile = savedir + 'merra_onset_changepoint_merged_%s.nc' % varnm.upper()
+    print('Reading ' + datafile)
+    chp[varnm] = xray.open_dataset(datafile)
 
-    files = [datadir + 'merra_%s_%d.nc' % (filestr, year) for year in years]
-    data[varnm] = atm.combine_daily_years(varid, files, years, yearname='year',
-                                          subset1=('lat', lat1, lat2),
-                                          subset2=('lon', lon1, lon2))
-    data[varnm] = atm.mean_over_geobox(data[varnm], lat1, lat2, lon1, lon2)
-    data[varnm] = atm.precip_convert(data[varnm], data[varnm].attrs['units'],
-                                    'mm/day')
-
-    # Accumulated precip or MFC
-    data_acc[varnm] = np.cumsum(data[varnm], axis=1)
-
-    # Compute onset and retreat days
-    chp[varnm] = onset_changepoint_merged(data_acc[varnm])
 
 def plotyear(chp, y, xlims, ylims):
     days = chp['day'].values
     d_onset = chp['onset'][y]
     d_retreat = chp['retreat'][y]
     plt.plot(days, chp['tseries'][y])
-    plt.plot(days, chp['tseries_fit_onset'][y])
-    plt.plot(days, chp['tseries_fit_retreat'][y])
+    plt.plot(days, chp['tseries_fit'][y])
     plt.plot([d_onset, d_onset], ylims, 'k')
     plt.plot([d_retreat, d_retreat], ylims, 'k')
     plt.xlim(xlims[0], xlims[1])
@@ -64,7 +75,7 @@ xlims = 0, 366
 ylims = {'MFC' : (-350, 400), 'precip' : (0, 1700)}
 
 for varnm in varnms:
-    suptitle = 'Onset/Retreat from Accumulated %s Changepoints' % varnm.upper()
+    suptitle = 'Onset/Retreat from Accum. %s Changepoints (Merged)' % varnm.upper()
     for y, year in enumerate(years):
         if y % (nrow * ncol) == 0:
             fig, axes = plt.subplots(nrow, ncol, figsize=figsize, sharex=True)
@@ -83,7 +94,7 @@ for varnm in varnms:
             plt.gca().set_xticklabels('')
         if col > 1:
             plt.gca().set_yticklabels('')
-    if isave:
+    if isavefigs:
         atm.savefigs('onset_changepoint_merged_' + varnm.upper(), 'pdf')
         plt.close('all')
 
@@ -92,6 +103,7 @@ for key in ['onset', 'retreat']:
     for varnm in varnms:
         df['%s_%s' % (key, varnm.upper())] = chp[varnm][key].to_series()
 atm.scatter_matrix(df, incl_p=True, incl_line=True, annotation_pos=(0.05, 0.7))
+plt.suptitle('Merged Changepoints')
 
 plt.figure(figsize=(8, 10))
 for i, key in enumerate(['onset', 'retreat']):
