@@ -710,17 +710,14 @@ def onset_changepoint_merged(precip_acc, order=1, yearnm='year',
     onset = np.nan * np.ones(years.shape)
     retreat = np.nan * np.ones(years.shape)
     pred = np.nan * np.ones(precip_acc.shape)
-    rss = np.nan * np.ones(precip_acc.shape)
     for y, year in enumerate(years):
         print (year)
         results = find_changepoint(days, precip_acc[y], order)
-        onset[y], retreat[y], pred[y,:], rss[y,:] = results
+        onset[y], retreat[y], pred[y,:], _ = results
     chp['onset'] = xray.DataArray(onset, dims=[yearnm], coords={yearnm : years})
     chp['retreat'] = xray.DataArray(retreat, dims=[yearnm], coords={yearnm : years})
     chp['tseries_fit'] = xray.DataArray(pred, dims=[yearnm, daynm],
-                                        coords={yearnm : years, daynm : dsub})
-    chp['rss'] = xray.DataArray(rss, dims=[yearnm, daynm],
-                                coords={yearnm : years, daynm : dsub})
+                                        coords={yearnm : years, daynm : days})
     chp.attrs['order'] = order
 
     return chp
