@@ -17,12 +17,23 @@ import utils
 from utils import daily_rel2onset
 
 # ----------------------------------------------------------------------
-onset_nm = 'HOWI'
+#onset_nm = 'HOWI'
+onset_nm = 'CHP_MFC'
 
 years = range(1979, 2015)
 datadir = atm.homedir() + 'datastore/merra/daily/'
 savedir = 'mp4/'
 run_anim = False
+run_eht = False
+
+# varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'T200',
+#          'H200', 'U850', 'V850']
+# varnms = ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950', 'DSE950',
+#           'MSE950', 'V*THETA950', 'V*THETA_E950', 'V*DSE950', 'V*MSE950']
+varnms = ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950',
+          'V*THETA950', 'V*THETA_E950']
+keys_remove = ['T950', 'H950', 'QV950', 'V950',  'DSE950',
+                'MSE950', 'V*DSE950', 'V*MSE950']
 
 datafiles = {}
 datafiles['vimt'] = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
@@ -166,12 +177,6 @@ def read_data(varnm, data, onset, npre, npost):
     return var
 
 
-varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'T200',
-          'H200', 'U850', 'V850']
-# varnms = ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950', 'DSE950',
-#           'MSE950', 'V*THETA950', 'V*THETA_E950', 'V*DSE950', 'V*MSE950']
-# varnms = ['precip', 'U200']
-
 data = collections.OrderedDict()
 for varnm in varnms:
     print('Reading daily data for ' + varnm)
@@ -185,8 +190,6 @@ for varnm in varnms:
 
 # Remove data that I don't want to include in plots
 keys = data.keys()
-keys_remove = ['T950', 'H950', 'QV950', 'V950',  'DSE950',
-                'MSE950', 'V*DSE950', 'V*MSE950']
 for key in keys_remove:
     if key in keys:
         keys.remove(key)
@@ -273,7 +276,7 @@ for varnm in keys:
     plt.figure(figsize=(12, 8))
     contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm)
 
-atm.savefigs(savedir + 'sector_%d-%dE_onset_%s' % (lon1, lon2, onset_nm), 'pdf')
+atm.savefigs(savedir + 'sector_%d-%dE_onset_%s_' % (lon1, lon2, onset_nm), 'pdf')
 plt.close('all')
 
 # ----------------------------------------------------------------------
@@ -369,13 +372,12 @@ for varnm in comp:
         plt.ylabel(varnm)
         plt.grid()
 
-atm.savefigs(savedir + 'comp_clim_onset_%s' % onset_nm, 'pdf')
+atm.savefigs(savedir + 'comp_clim_onset_%s_' % onset_nm, 'pdf')
 plt.close('all')
 
 
 # ----------------------------------------------------------------------
 # Cross-equatorial atmospheric heat fluxes
-run_eht = False
 
 if run_eht:
     keys = ['V*DSE950','V*MSE950']
