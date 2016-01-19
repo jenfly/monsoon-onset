@@ -36,7 +36,7 @@ for plev in [200, 850]:
     files = [datadir + yrlyfile('uv', plev, yr) for yr in years]
     for key in ['U', 'V', 'Ro', 'rel_vort']:
         datafiles['%s%d' % (key, plev)] = files
-datafiles['T200'] = [datadir + yrlyfile('T', 200, yr, 'apr-sep_') for yr in years]
+datafiles['T200'] = [datadir + yrlyfile('T', 200, yr) for yr in years]
 datafiles['H200'] = [datadir + yrlyfile('H', 200, yr) for yr in years]
 
 for plev in [950, 975]:
@@ -69,7 +69,7 @@ elif onset_nm == 'CHP_MFC':
     mfcbar = atm.mean_over_geobox(mfc, lat1, lat2, lon1, lon2)
     mfc_acc = np.cumsum(mfcbar, axis=1)
     index = indices.onset_changepoint(mfc_acc)
-elif onset_nm == 'CHP_PRECIP':
+elif onset_nm == 'CHP_PCP':
     subset_dict = {'lat' : (lat1, lat2), 'lon' : (lon1, lon2)}
     precip = atm.combine_daily_years('PRECTOT', datafiles['precip'], years,
                                       yearname='year', subset_dict=subset_dict)
@@ -128,7 +128,6 @@ def var_type(varnm):
     return vtype
 
 def read_data(varnm, data, onset, npre, npost):
-    #daymin, daymax = 91, 274
     daymin, daymax = onset.values.min() - npre, onset.values.max() + npost
     if varnm != 'precip':
         plev = int(varnm[-3:])
@@ -167,12 +166,11 @@ def read_data(varnm, data, onset, npre, npost):
     return var
 
 
-# varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'T200',
-#           'H200', 'U850', 'V850']
+varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'T200',
+          'H200', 'U850', 'V850']
 # varnms = ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950', 'DSE950',
 #           'MSE950', 'V*THETA950', 'V*THETA_E950', 'V*DSE950', 'V*MSE950']
-
-varnms = ['precip', 'U200']
+# varnms = ['precip', 'U200']
 
 data = collections.OrderedDict()
 for varnm in varnms:
@@ -371,35 +369,39 @@ for varnm in comp:
         plt.ylabel(varnm)
         plt.grid()
 
+atm.savefigs(savedir + 'comp_clim_onset_%s' % onset_nm, 'pdf')
+plt.close('all')
 
 
 # ----------------------------------------------------------------------
 # Cross-equatorial atmospheric heat fluxes
+run_eht = False
 
-keys = ['V*DSE950','V*MSE950']
-eht = {key : data[key] for key in keys}
-lat0 = 0.625
-for key in eht:
-    eht[key] = atm.squeeze(atm.subset(eht[key], {'lat' : (lat0, lat0)}))
-    eht[key] = eht[key].mean(dim='year')
+if run_eht:
+    keys = ['V*DSE950','V*MSE950']
+    eht = {key : data[key] for key in keys}
+    lat0 = 0.625
+    for key in eht:
+        eht[key] = atm.squeeze(atm.subset(eht[key], {'lat' : (lat0, lat0)}))
+        eht[key] = eht[key].mean(dim='year')
 
-# Plot longitude-time contours
-figsize = (10, 10)
-ncont = 20
-cmap = 'RdBu_r'
-for key in eht:
-    plt.figure(figsize=figsize)
-    ehtplot = eht[key]
-    days = ehtplot['dayrel'].values
-    lon = ehtplot['XDim'].values
-    plt.contourf(lon, days, ehtplot, ncont, cmap=cmap)
-    plt.title('Cross-Equatorial ' + key)
-    plt.xlabel('Longitude')
-    plt.ylabel('Relative Day')
-    cb = plt.colorbar()
-    cmax = abs(cb.boundaries).max()
-    plt.clim(-cmax, cmax)
-    plt.gca().invert_yaxis()
+    # Plot longitude-time contours
+    figsize = (10, 10)
+    ncont = 20
+    cmap = 'RdBu_r'
+    for key in eht:
+        plt.figure(figsize=figsize)
+        ehtplot = eht[key]
+        days = ehtplot['dayrel'].values
+        lon = ehtplot['XDim'].values
+        plt.contourf(lon, days, ehtplot, ncont, cmap=cmap)
+        plt.title('Cross-Equatorial ' + key)
+        plt.xlabel('Longitude')
+        plt.ylabel('Relative Day')
+        cb = plt.colorbar()
+        cmax = abs(cb.boundaries).max()
+        plt.clim(-cmax, cmax)
+        plt.gca().invert_yaxis()
 
 # ----------------------------------------------------------------------
 # Animation of daily data relative to onset
