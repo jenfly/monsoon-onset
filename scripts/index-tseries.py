@@ -184,68 +184,123 @@ for key in comp_yrs:
 
 # Timeseries relative to onset, shifted to 0 at onset day
 npre, npost = 0, 200
-ts_rel = daily_rel2onset(tseries[onset_nm], onset, npre, npost, yearnm='year',
-                         daynm='day')
-if onset_nm.startswith('CHP'):
-    ts_rel = ts_rel - ts_rel[:, 0]
+ts_rel = xray.Dataset()
+for key in tseries.data_vars:
+    ts_rel[key] = daily_rel2onset(tseries[key], onset, npre, npost,
+                                  yearnm='year', daynm='day')
+    if key.startswith('CHP') or key.endswith('ACC'):
+        ts_rel[key] = ts_rel[key] - ts_rel[key][:, 0]
 
 # Composite timeseries
 for key in comp_yrs:
     subset_dict = {'year' : (comp_yrs[key], None)}
-    comp_ts[key] = atm.subset(tseries[onset_nm], subset_dict)
+    comp_ts[key] = atm.subset(tseries, subset_dict)
     comp_ts_rel[key] = atm.subset(ts_rel, subset_dict)
 
 # Plot composites and individual years
-def ts_subplot(comp_ts, key, onset, enso, clim_ts, ymin=None, ymax=None,
-                daynm='day'):
-    ts = comp_ts[key]
+def ts_subplot(ts, clim_ts, onset, retreat, enso,  ymin=None, ymax=None,
+                daynm='day', title='', legend_loc='upper left',
+                onset_lines=False, retreat_lines=False):
+    clrs = ['b', 'g', 'r', 'c', 'm']
     days = ts[daynm].values
     yrs = ts['year'].values
+
+    def get_label(s, d1, d2, x, dfmt='%d'):
+        s = str(s)
+        if np.isnan(d2):
+            label = ('%s ' + dfmt + ' %.1f')  % (s, d1, x)
+        else:
+            label = ('%s ' + dfmt + ' ' + dfmt + ' %.1f')  % (s, d1, d2, x)
+        return label
+
+    # Individual years
     for y, year in enumerate(yrs):
         onset_ind = onset.loc[year].values
+        retreat_ind = retreat.loc[year].values
         enso_ind = enso.loc[year].values
-        label = '%d %d %.1f' % (year, onset_ind, enso_ind)
-        plt.plot(days, ts[y], label=label)
-    label = 'comp %.1f %.1f' % (onset.loc[yrs].mean().values,
-                               enso.loc[yrs].mean().values)
+        label = get_label(year, onset_ind, retreat_ind, enso_ind)
+        plt.plot(days, ts[y], clrs[y], label=label)
+    # Composite average
+    label = get_label('comp', onset.loc[yrs].mean().values,
+                      retreat.loc[yrs].mean().values,
+                      enso.loc[yrs].mean().values, '%.1f')
     plt.plot(days, ts.mean(dim='year'), linewidth=2, color='k', label=label)
-    label = 'clim %.1f %.1f' % (onset.mean().values, enso.mean().values)
+    # Climatology
+    label = get_label('clim', onset.mean().values, retreat.mean().values,
+                      enso.mean().values, '%.1f')
     plt.plot(days, clim_ts, 'k--', linewidth=2, label=label)
-    #plt.xticks(range(75, 275, 25))
     plt.xlim(days.min(), days.max())
     if ymin is not None:
         plt.ylim(ymin, ymax)
+    for cond, ind in zip([onset_lines, retreat_lines], [onset, retreat]):
+        if cond:
+            for y, year in enumerate(yrs):
+                d0 = ind.loc[year].values
+                if np.isfinite(d0):
+                    plt.plot([d0, d0], plt.gca().get_ylim(), clrs[y])
     plt.grid(True)
-    plt.legend(loc='upper left', fontsize=10)
-    plt.title(key)
+    if legend_loc is not None:
+        plt.legend(loc=legend_loc, fontsize=10)
+    plt.title(title)
 
-
-def ts_plot_all(comp_ts, ts_clim, onset, enso, ymin, ymax, daynm):
-    nrow, ncol = 2, 2
-    fig, axes = plt.subplots(nrow, ncol, figsize=(14, 10), sharex=True, sharey=True)
-    plt.subplots_adjust(left=0.08, right=0.97, wspace=0.1, hspace=0.2)
+def ts_plot_all(comp_ts, ts_clim, comp_keys, varnms, onset, retreat, enso,
+                daynm, ylims, figsize=(14, 14), onset_lines=False,
+                retreat_lines=False,
+                subplot_fmts = {'left' : 0.08, 'right' : 0.97, 'bottom' : 0.05,
+                                'top' : 0.95, 'wspace' : 0.1, 'hspace' : 0.05}):
+    nrow, ncol = len(varnms), len(comp_keys)
+    fig, axes = plt.subplots(nrow, ncol, figsize=figsize, sharex=True)
+    plt.subplots_adjust(**subplot_fmts)
+    suptitle = onset_nm + ' Onset/ Retreat Index'
     if daynm == 'dayrel':
         xlabel = 'Day Since Onset'
-        suptitle = onset_nm + ' Index, Relative to Onset Day'
+        suptitle = suptitle + ', Daily Data Relative to Onset Day'
     else:
         xlabel = 'Day of Year'
-        suptitle = onset_nm + ' Index'
-    for i, key in enumerate(['Early', 'Nina', 'Late', 'Nino']):
-        plt.subplot(nrow, ncol, i + 1)
-        ts_subplot(comp_ts, key, onset, enso, ts_clim, ymin, ymax, daynm)
-        row, col = atm.subplot_index(nrow, ncol, i + 1)
-        if row == nrow:
-            plt.xlabel(xlabel)
-        if col == 1:
-            plt.ylabel(onset_nm)
+    for i, key in enumerate(comp_keys):
+        iplot = i + 1
+        for nm in varnms:
+            plt.subplot(nrow, ncol, iplot)
+            row, col = atm.subplot_index(nrow, ncol, iplot)
+            ymin, ymax = ylims[nm]
+            if row == 1:
+                legend_loc = 'upper left'
+                title = key
+            else:
+                legend_loc = None
+                title = ''
+            ts_subplot(comp_ts[key][nm], ts_clim[nm], onset, retreat, enso,
+                       ymin, ymax, daynm, title, legend_loc, onset_lines,
+                       retreat_lines)
+            if row == nrow:
+                plt.xlabel(xlabel)
+            else:
+                plt.gca().set_xticklabels([])
+            if col == 1:
+                plt.ylabel(nm)
+            iplot += ncol
     plt.suptitle(suptitle)
 
-ylims = {'HOWI' : (-1, 2), 'CHP_MFC' : (-400, 400), 'CHP_PCP' : (0, 1700)}
-ymin, ymax = ylims[onset_nm]
-ts_plot_all(comp_ts, tseries[onset_nm + '_clim'][0], onset, enso,  ymin, ymax,
-            'day')
-ts_plot_all(comp_ts_rel, ts_rel.mean(dim='year'), onset, enso,  ymin, ymax,
-            'dayrel')
+figsize = (14, 14)
+subplot_fmts = {'left' : 0.08, 'right' : 0.97, 'bottom' : 0.05,
+                'top' : 0.95, 'wspace' : 0.1, 'hspace' : 0.05}
+onset_lines, retreat_lines = True, True
+comp_keys = ['Early', 'Late']
+varnms = [onset_nm, 'MFC', 'PCP', 'MFC_ACC', 'PCP_ACC']
+
+# Daily data for full year
+ylims = {'HOWI' : (-1, 2), 'MFC' : (-4, 10), 'PCP' : (0, 13),
+        'MFC_ACC' : (-300, 400), 'PCP_ACC' : (0, 1500)}
+ts_plot_all(comp_ts, tseries.mean(dim='year'), comp_keys, varnms, onset,
+            retreat, enso, 'day', ylims, figsize, onset_lines, retreat_lines,
+            subplot_fmts)
+
+# Daily data relative to onset day
+ylims = {'HOWI' : (-1, 2), 'MFC' : (-4, 10), 'PCP' : (0, 13),
+        'MFC_ACC' : (-300, 400), 'PCP_ACC' : (0, 1500)}
+ts_clim = ts_rel.mean(dim='year')
+ts_plot_all(comp_ts_rel, ts_clim, comp_keys, varnms, onset, retreat, enso,
+            'dayrel', ylims, figsize, onset_lines, retreat_lines, subplot_fmts)
 
 # ----------------------------------------------------------------------
 # Correlations between onset day and ENSO
