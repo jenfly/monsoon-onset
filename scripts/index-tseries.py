@@ -18,7 +18,7 @@ from utils import daily_rel2onset, comp_days_centered, composite
 # ----------------------------------------------------------------------
 #onset_nm = 'HOWI'
 #onset_nm = 'CHP_MFC'
-onset_nm = 'CHP_PRECIP'
+onset_nm = 'CHP_PCP'
 
 years = range(1979, 2015)
 datadir = atm.homedir() + 'datastore/merra/daily/'
@@ -34,15 +34,25 @@ lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 
 # ----------------------------------------------------------------------
-# MFC over SASM region
-mfc = atm.combine_daily_years('MFC', mfcfiles, years, yearname='year')
-mfcbar = atm.mean_over_geobox(mfc, lat1, lat2, lon1, lon2)
-mfc_acc = np.cumsum(mfcbar, axis=1)
-
+# MFC and precip over SASM region
 nroll = 7
-mfcbar = atm.rolling_mean(mfcbar, nroll, axis=-1, center=True)
-tseries = xray.Dataset()
-tseries['MFC'] = mfcbar
+subset_dict = {'lat' : (lat1, lat2), 'lon' : (lon1, lon2)}
+
+mfc = atm.combine_daily_years('MFC', mfcfiles, years, yearname='year',
+                              subset_dict=subset_dict)
+pcp = atm.combine_daily_years('PRECTOT', precipfiles, years, yearname='year',
+                              subset_dict=subset_dict)
+
+databox = {'MFC' : mfc, 'PCP' : pcp}
+nms = databox.keys()
+for nm in nms:
+    var = databox[nm]
+    var = atm.precip_convert(var, var.attrs['units'], 'mm/day')
+    var = atm.mean_over_geobox(var, lat1, lat2, lon1, lon2)
+    databox[nm + '_ACC'] = np.cumsum(var, axis=1)
+    databox[nm] = atm.rolling_mean(var, nroll, axis=-1, center=True)
+
+tseries = xray.Dataset(databox)
 
 # ----------------------------------------------------------------------
 # Monsoon onset day and index timeseries
@@ -56,19 +66,16 @@ if onset_nm == 'HOWI':
                                   maxbreak=maxbreak)
     index.attrs['title'] = 'HOWI (N=%d)' % npts
 elif onset_nm == 'CHP_MFC':
-    index = indices.onset_changepoint(mfc_acc)
-elif onset_nm == 'CHP_PRECIP':
-    subset_dict = {'lat' (lat1, lat2), 'lon' : (lon1, lon2)}
-    precip = atm.combine_daily_years('PRECTOT', precipfiles, years,
-                                     yearname='year',
-                                     subset_dict=subset_dict)
-    precip = atm.precip_convert(precip, precip.attrs['units'], 'mm/day')
-    precipbar = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)
-    precip_acc = np.cumsum(precipbar, axis=1)
-    index = indices.onset_changepoint(precip_acc)
+    index = indices.onset_changepoint(tseries['MFC_ACC'])
+elif onset_nm == 'CHP_PCP':
+    index = indices.onset_changepoint(tseries['PCP_ACC'])
 
 # Array of onset days
 onset = index['onset']
+if 'retreat' in index:
+    retreat = index['retreat']
+else:
+    retreat = np.nan * onset
 
 # Tile the climatology to each year
 if 'tseries_clim' in index:
@@ -100,7 +107,8 @@ enso = xray.DataArray(enso).rename({'Year' : 'year'})
 style = {onset_nm : 'k', onset_nm + '_clim' : 'k--', 'MFC' : 'b'}
 onset_style = {onset_nm : 'k'}
 d_onset = {onset_nm : onset.values}
-indices.plot_tseries_together(tseries, onset=d_onset, data_style=style,
+keys = [onset_nm, onset_nm + '_clim', 'MFC']
+indices.plot_tseries_together(tseries[keys], onset=d_onset, data_style=style,
                               onset_style=onset_style, show_days=True)
 
 # ----------------------------------------------------------------------
@@ -232,12 +240,13 @@ def ts_plot_all(comp_ts, ts_clim, onset, enso, ymin, ymax, daynm):
             plt.ylabel(onset_nm)
     plt.suptitle(suptitle)
 
-ylims = {'HOWI' : (-1, 2), 'CHP_MFC' : (-400, 400), 'CHP_PRECIP' : (0, 1700)}
+ylims = {'HOWI' : (-1, 2), 'CHP_MFC' : (-400, 400), 'CHP_PCP' : (0, 1700)}
 ymin, ymax = ylims[onset_nm]
 ts_plot_all(comp_ts, tseries[onset_nm + '_clim'][0], onset, enso,  ymin, ymax,
             'day')
 ts_plot_all(comp_ts_rel, ts_rel.mean(dim='year'), onset, enso,  ymin, ymax,
             'dayrel')
+
 # ----------------------------------------------------------------------
 # Correlations between onset day and ENSO
 
