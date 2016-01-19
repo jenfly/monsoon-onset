@@ -20,6 +20,7 @@ isave = True
 exts = ['png', 'eps', 'pdf']
 index = collections.OrderedDict()
 
+years = np.arange(1979, 2015)
 datadir = atm.homedir() + 'datastore/merra/daily/'
 #vimtfile = datadir + 'merra_vimt_ps-300mb_apr-sep_1979-2014.nc'
 vimtfiles = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
@@ -29,7 +30,6 @@ precipfiles = [datadir + 'merra_precip_%d.nc' % yr for yr in years]
 cmapfile = atm.homedir() + 'datastore/cmap/cmap.precip.pentad.mean.nc'
 eraIfile = atm.homedir() + ('datastore/era_interim/analysis/'
                             'era_interim_JJAS_60-100E_index.csv')
-years = np.arange(1979, 2015)
 ocifiles = [datadir + 'merra_uv850_40E-120E_60S-60N_%d.nc' % y for y in years]
 ttfiles = [datadir + 'merra_T200-600_apr-sep_%d.nc' % yr for yr in years]
 airfile = atm.homedir() + 'datastore/AIR/AIR_JJAS.csv'

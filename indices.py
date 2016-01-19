@@ -227,7 +227,7 @@ def onset_HOWI(uq_int, vq_int, npts=50, nroll=7, days_pre=range(138, 145),
 
     # Pre- and post- monsoon climatology composites
     dspre = atm.subset(dsbar, {daynm : (days_pre, None)}).mean(dim=daynm)
-    dspost = atm.subset(dsbar, {daynm : (days_post)}).mean(dim=daynm)
+    dspost = atm.subset(dsbar, {daynm : (days_post, None)}).mean(dim=daynm)
     dsdiff = dspost - dspre
     ds['uq_bar_pre'], ds['vq_bar_pre'] = dspre['uq'], dspre['vq']
     ds['uq_bar_post'], ds['vq_bar_post'] = dspost['uq'], dspost['vq']
