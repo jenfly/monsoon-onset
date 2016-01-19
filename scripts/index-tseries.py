@@ -292,18 +292,47 @@ comp_keys = ['Early', 'Late']
 varnms = [onset_nm, 'MFC', 'PCP', 'MFC_ACC', 'PCP_ACC']
 
 # Daily data for full year
-ylims = {'HOWI' : (-1, 2), 'MFC' : (-4, 10), 'PCP' : (0, 13),
+ylims = {'HOWI' : (-1, 2), 'MFC' : (-4, 9), 'PCP' : (0, 13),
         'MFC_ACC' : (-300, 400), 'PCP_ACC' : (0, 1500)}
+ylims['CHP_MFC'] = ylims['MFC_ACC']
 ts_plot_all(comp_ts, tseries.mean(dim='year'), comp_keys, varnms, onset,
-            retreat, enso, 'day', ylims, onset_nm, figsize, onset_lines,
+            retreat, enso, 'day', ylims, 'PCP_ACC', figsize, onset_lines,
             retreat_lines, subplot_fmts)
 
 # Daily data relative to onset day
-ylims = {'HOWI' : (-1, 2), 'MFC' : (-4, 10), 'PCP' : (0, 13),
+ylims = {'HOWI' : (-1, 2), 'MFC' : (-4, 9), 'PCP' : (0, 13),
         'MFC_ACC' : (0, 600), 'PCP_ACC' : (0, 1400)}
+ylims['CHP_MFC'] = ylims['MFC_ACC']
 ts_plot_all(comp_ts_rel, ts_rel.mean(dim='year'), comp_keys, varnms, onset,
             retreat, enso, 'dayrel', ylims, 'PCP_ACC', figsize, onset_lines,
             retreat_lines, subplot_fmts)
+
+# ----------------------------------------------------------------------
+# Variability in Accumulated precip / MFC over climatology
+for ts, daynm in zip([tseries, ts_rel], ['day', 'dayrel']):
+    plt.figure(figsize=(8, 10))
+    for i, key in enumerate(['MFC_ACC', 'PCP_ACC']):
+        plt.subplot(2, 1, i + 1)
+        tsbar = ts[key].mean(dim='year')
+        tsplus = tsbar + ts[key].std(dim='year')
+        tsminus = tsbar - ts[key].std(dim='year')
+        tsmax = ts[key].max(dim='year')
+        tsmin = ts[key].min(dim='year')
+        days = tsbar[daynm]
+        plt.plot(days, tsbar, 'b', label = 'Mean')
+        plt.plot(days, tsplus, 'b--', label='Mean +/ 1 Std')
+        plt.plot(days, tsminus, 'b--')
+        plt.plot(days, tsmax, 'k-.', label='Max / Min')
+        plt.plot(days, tsmin, 'k-.')
+        plt.legend(loc='upper left', fontsize=12)
+        plt.grid()
+        plt.xlim(days.min(), days.max())
+        plt.title(key)
+        if daynm == 'day':
+            plt.xlabel('Day of Year')
+        else:
+            plt.xlabel('Days Since Onset')
+        plt.ylabel(key)
 
 # ----------------------------------------------------------------------
 # Correlations between onset day and ENSO
