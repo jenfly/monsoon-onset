@@ -56,7 +56,7 @@ short = { 'HOWI_50' : 'HOWI_50',
           'SJKE' : 'SJKE',
           'TT' : 'TT',
           'CHP_MFC' : 'CHP_M',
-          'CHP_PRECIP' : 'CHP_P'}
+          'CHP_PCP' : 'CHP_P'}
 
 short_inv = {v : k for k, v in short.items()}
 
@@ -233,8 +233,8 @@ index['TT'].attrs['title'] = 'TT'
 mfc_acc = np.cumsum(mfcbar, axis=1)
 precip_acc = np.cumsum(precipbar, axis=1)
 index['CHP_MFC'] = indices.onset_changepoint(mfc_acc)
-index['CHP_PRECIP'] = indices.onset_changepoint(precip_acc)
-for key in ['CHP_MFC', 'CHP_PRECIP']:
+index['CHP_PCP'] = indices.onset_changepoint(precip_acc)
+for key in ['CHP_MFC', 'CHP_PCP']:
     index[key].attrs['title'] = key
 
 # ----------------------------------------------------------------------
@@ -395,7 +395,7 @@ for key in keys:
 # keys = ['HOWI_100', 'HOWI_50', 'OCI', 'SJKE', 'TT', 'WLH_CMAP_kmax12',
 #         'WLH_CMAP_nroll3', 'WLH_MERRA_PRECIP_nroll7']
 keys = ['HOWI_100', 'OCI', 'SJKE', 'TT', 'WLH_MERRA_PRECIP_nroll7',
-        'CHP_MFC', 'CHP_PRECIP']
+        'CHP_MFC', 'CHP_PCP']
 shortkeys = [short[key] for key in keys]
 
 years = index[keys[0]].year.values
@@ -427,7 +427,7 @@ saveclose('onset_', isave, exts)
 
 # Subset of indices to focus on
 keys_sub = ['HOWI_100', 'OCI', 'SJKE', 'TT', 'WLH_MERRA_PRECIP_nroll7',
-            'CHP_MFC', 'CHP_PRECIP']
+            'CHP_MFC', 'CHP_PCP']
 shortkeys_sub = [short[key] for key in keys_sub]
 n = len(keys_sub)
 
