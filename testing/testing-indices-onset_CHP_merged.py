@@ -23,6 +23,7 @@ icalc = False
 isavefigs = True
 
 if icalc:
+    subset_dict = {'lat' : (lat1, lat2), 'lon' : (lon1, lon2)}
     for varnm in varnms:
         if varnm == 'MFC':
             varid, filestr = 'MFC', 'MFC_ps-300mb'
@@ -31,8 +32,7 @@ if icalc:
 
         files = [datadir + 'merra_%s_%d.nc' % (filestr, year) for year in years]
         data = atm.combine_daily_years(varid, files, years, yearname='year',
-                                              subset1=('lat', lat1, lat2),
-                                              subset2=('lon', lon1, lon2))
+                                              subset_dict=subset_dict)
         data = atm.mean_over_geobox(data, lat1, lat2, lon1, lon2)
         data = atm.precip_convert(data, data.attrs['units'],
                                         'mm/day')

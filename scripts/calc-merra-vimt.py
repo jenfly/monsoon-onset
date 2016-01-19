@@ -28,11 +28,11 @@ years = range(1979, 2015)
 #months = [5, 6, 7, 8]
 months = [4]
 
+subset_dict = {'lon' : (lon1, lon2), 'lat' : (lat1, lat2)}
 for year in years:
     for mon in months:
         dayvals = atm.season_days(atm.month_str(mon), atm.isleap(year))
-        ds = merra.read_daily(varlist, year, mon, subset1=('lon', lon1, lon2),
-                              subset2=('lat', lat1, lat2))
+        ds = merra.read_daily(varlist, year, mon, subset_dict=subset_dict)
         uq = ds['U'] * ds['QV']
         vq = ds['V'] * ds['QV']
 

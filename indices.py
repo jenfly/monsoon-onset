@@ -226,8 +226,8 @@ def onset_HOWI(uq_int, vq_int, npts=50, nroll=7, days_pre=range(138, 145),
     ds['vimt_bar'] = np.sqrt(ds['uq_bar']**2 + ds['vq_bar']**2)
 
     # Pre- and post- monsoon climatology composites
-    dspre = atm.subset(dsbar, daynm, days_pre).mean(dim=daynm)
-    dspost = atm.subset(dsbar, daynm, days_post).mean(dim=daynm)
+    dspre = atm.subset(dsbar, {daynm : (days_pre, None)}).mean(dim=daynm)
+    dspost = atm.subset(dsbar, {daynm : (days_post)}).mean(dim=daynm)
     dsdiff = dspost - dspre
     ds['uq_bar_pre'], ds['vq_bar_pre'] = dspre['uq'], dspre['vq']
     ds['uq_bar_post'], ds['vq_bar_post'] = dspost['uq'], dspost['vq']
@@ -611,7 +611,7 @@ def onset_changepoint(precip_acc, onset_range=(1, 250),
         print('Calculating ' + key)
         print(drange)
         dmin, dmax = drange
-        precip_sub = atm.subset(precip_acc, daynm, dmin, dmax)
+        precip_sub = atm.subset(precip_acc, {daynm : (dmin, dmax)})
         dsub = precip_sub[daynm].values
 
         d_cp = np.nan * np.ones(years.shape)
@@ -827,13 +827,13 @@ def plot_index_years(index, years=None, figsize=(14,10), nrow=3, ncol=4,
         # All years
         years = index[yearnm].values
 
-    tseries = atm.subset(index['tseries'], yearnm, years)
+    tseries = atm.subset(index['tseries'], {yearnm : (years, None)})
     if 'onset' in index.data_vars:
-        onset = atm.subset(index['onset'], yearnm, years).values
+        onset = atm.subset(index['onset'], {yearnm : (years, None)}).values
     else:
         onset = np.nan * years
     if 'retreat' in index.data_vars:
-        retreat = atm.subset(index['retreat'], yearnm, years).values
+        retreat = atm.subset(index['retreat'], {yearnm : (years, None)}).values
     else:
         retreat = np.nan * years
 
@@ -856,7 +856,7 @@ def plot_index_years(index, years=None, figsize=(14,10), nrow=3, ncol=4,
     # Monsoon index with onset and retreat in individual years
     def line_or_point(d, ind, daynm, vertline, ax, label, clr):
         d = int(d)
-        val = atm.subset(ind, daynm, d)
+        val = atm.subset(ind, {daynm : (d, None)})
         if vertline:
             ax.plot([d, d], ax.get_ylim(), clr, linewidth=2, label=label)
         ax.plot(d, val, clr + 'o', label=label)
@@ -943,7 +943,7 @@ def plot_tseries_together(data, onset=None, years=None, suptitle='',
     if years is None:
         # All years
         years = data[yearnm].values
-    data = atm.subset(data, yearnm, years)
+    data = atm.subset(data, {yearnm : (years, None)})
 
     if label_attr is not None:
         labels = {nm : data[nm].attrs[label_attr] for nm in data.data_vars}
@@ -960,7 +960,7 @@ def plot_tseries_together(data, onset=None, years=None, suptitle='',
 
     # Plot each year
     for y, year in enumerate(years):
-        df = atm.subset(data, yearnm, year).to_dataframe()
+        df = atm.subset(data, {yearnm : (year, None)}).to_dataframe()
         df.drop(yearnm, axis=1, inplace=True)
         if label_attr is not None:
             df.rename(columns=labels, inplace=True)

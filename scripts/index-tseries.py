@@ -52,14 +52,16 @@ if onset_nm == 'HOWI':
     npts = 100
     ds = atm.combine_daily_years(['uq_int', 'vq_int'],vimtfiles, years,
                                  yearname='year')
-    index, _ = indices.onset_HOWI(ds['uq_int'], ds['vq_int'], npts, maxbreak=maxbreak)
+    index, _ = indices.onset_HOWI(ds['uq_int'], ds['vq_int'], npts,
+                                  maxbreak=maxbreak)
     index.attrs['title'] = 'HOWI (N=%d)' % npts
 elif onset_nm == 'CHP_MFC':
     index = indices.onset_changepoint(mfc_acc)
 elif onset_nm == 'CHP_PRECIP':
-    precip = atm.combine_daily_years('PRECTOT', precipfiles, years, yearname='year',
-                                     subset1=('lat', lat1, lat2),
-                                     subset2=('lon', lon1, lon2))
+    subset_dict = {'lat' (lat1, lat2), 'lon' : (lon1, lon2)}
+    precip = atm.combine_daily_years('PRECTOT', precipfiles, years,
+                                     yearname='year',
+                                     subset_dict=subset_dict)
     precip = atm.precip_convert(precip, precip.attrs['units'], 'mm/day')
     precipbar = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)
     precip_acc = np.cumsum(precipbar, axis=1)
@@ -181,8 +183,9 @@ if onset_nm.startswith('CHP'):
 
 # Composite timeseries
 for key in comp_yrs:
-    comp_ts[key] = atm.subset(tseries[onset_nm], 'year', comp_yrs[key])
-    comp_ts_rel[key] = atm.subset(ts_rel, 'year', comp_yrs[key])
+    subset_dict = {'year' : (comp_yrs[key], None)}
+    comp_ts[key] = atm.subset(tseries[onset_nm], subset_dict)
+    comp_ts_rel[key] = atm.subset(ts_rel, subset_dict)
 
 # Plot composites and individual years
 def ts_subplot(comp_ts, key, onset, enso, clim_ts, ymin=None, ymax=None,

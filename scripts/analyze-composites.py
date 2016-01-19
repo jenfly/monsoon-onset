@@ -70,9 +70,9 @@ elif onset_nm == 'CHP_MFC':
     mfc_acc = np.cumsum(mfcbar, axis=1)
     index = indices.onset_changepoint(mfc_acc)
 elif onset_nm == 'CHP_PRECIP':
-    precip = atm.combine_daily_years('PRECTOT', datafiles['precip'], years, yearname='year',
-                                     subset1=('lat', lat1, lat2),
-                                     subset2=('lon', lon1, lon2))
+    subset_dict = {'lat' : (lat1, lat2), 'lon' : (lon1, lon2)}
+    precip = atm.combine_daily_years('PRECTOT', datafiles['precip'], years,
+                                      yearname='year', subset_dict=subset_dict)
     precip = atm.precip_convert(precip, precip.attrs['units'], 'mm/day')
     precipbar = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)
     precip_acc = np.cumsum(precipbar, axis=1)
@@ -134,11 +134,11 @@ def read_data(varnm, data, onset, npre, npost):
         plev = int(varnm[-3:])
         varid = varnm[:-3]
     if varnm == 'precip':
+        subset_dict = {'day' : (daymin, daymax),
+                       'lon' : (40, 120),
+                       'lat' : (-60, 60)}
         var = atm.combine_daily_years('PRECTOT', datafiles['precip'], years,
-                                      yearname='year',
-                                      subset1=('day', daymin, daymax),
-                                      subset2=('lon', 40, 120))
-        var = atm.subset(var, 'lat', -60, 60)
+                                      yearname='year', subset_dict=subset_dict)
         var = atm.precip_convert(var, var.attrs['units'], 'mm/day')
     elif var_type(varnm) == 'calc':
         pres = atm.pres_convert(plev, 'hPa', 'Pa')
@@ -160,7 +160,7 @@ def read_data(varnm, data, onset, npre, npost):
             var.name = varid
     else:
         var = atm.combine_daily_years(varid, datafiles[varnm], years,
-                                      subset1=('Day', daymin, daymax))
+                                      subset_dict={'Day' : (daymin, daymax)})
         var = var.rename({'Year' : 'year', 'Day' : 'day'})
         var = atm.squeeze(var)
 
@@ -210,7 +210,7 @@ if varnm in data:
 lonname, latname = 'XDim', 'YDim'
 sectordata = collections.OrderedDict()
 for varnm in data.keys():
-    var = atm.subset(data[varnm], lonname, lon1, lon2)
+    var = atm.subset(data[varnm], {lonname : (lon1, lon2)})
     sectordata[varnm] = var.mean(dim=lonname)
 
 # ----------------------------------------------------------------------
@@ -228,13 +228,13 @@ if remove_tricky:
     years = np.array(years)
 
     # Remove tricky years from all indices and data variables
-    onset = atm.subset(onset, yearnm, years)
-    mfcbar = atm.subset(mfcbar, yearnm, years)
-    enso = atm.subset(enso, yearnm, years)
+    onset = atm.subset(onset, {yearnm : (years, None)})
+    mfcbar = atm.subset(mfcbar, {yearnm : (years, None)})
+    enso = atm.subset(enso, {yearnm : (years, None)})
 
     for nm in data.keys():
         print(nm)
-        data[nm] = atm.subset(data[nm], yearnm, years)
+        data[nm] = atm.subset(data[nm], {yearnm : (years, None)})
 
 # ----------------------------------------------------------------------
 # Plotting params
@@ -380,7 +380,7 @@ keys = ['V*DSE950','V*MSE950']
 eht = {key : data[key] for key in keys}
 lat0 = 0.625
 for key in eht:
-    eht[key] = atm.squeeze(atm.subset(eht[key], 'lat', lat0, lat0))
+    eht[key] = atm.squeeze(atm.subset(eht[key], {'lat' : (lat0, lat0)}))
     eht[key] = eht[key].mean(dim='year')
 
 # Plot longitude-time contours

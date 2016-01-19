@@ -29,11 +29,11 @@ months = [4, 5, 6, 7, 8, 9]
 g = atm.constants.g.values
 nperday = 8
 
+subset_dict = {'lon' : (lon1, lon2), 'lat' : (lat1, lat2)}
 for year in years:
     for mon in months:
         dayvals = atm.season_days(atm.month_str(mon), atm.isleap(year))
-        T = merra.read_daily(varlist, year, mon, subset1=('lon', lon1, lon2),
-                              subset2=('lat', lat1, lat2))
+        T = merra.read_daily(varlist, year, mon, subset_dict=subset_dict)
 
         # Daily means of 3-hourly data
         T = atm.daily_from_subdaily(T, nperday, dayvals=dayvals)

@@ -67,7 +67,7 @@ if plev is not None:
 T_p = {}
 for p in plist:
     T1 = atm.combine_daily_years('T', datafiles, years, yearname='year',
-                              subset1=('plev', p, p))
+                              subset_dict={'plev' : (p, p)})
     T_p[p] = atm.squeeze(T1)
 Tbar = atm.combine_daily_years('Tbar', datafiles, years, yearname='year')
 

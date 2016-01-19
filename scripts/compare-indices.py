@@ -127,9 +127,9 @@ mfc = atm.combine_daily_years('MFC', mfcfiles, years, yearname='year')
 mfcbar = atm.mean_over_geobox(mfc, lat1, lat2, lon1, lon2)
 
 # MERRA precip
+subset_dict = {'lon' : (lon1, lon2), 'lat' : (lat1, lat2)}
 precip = atm.combine_daily_years('PRECTOT', precipfiles, years, yearname='year',
-                                 subset1=('lat', lat1, lat2),
-                                 subset2=('lon', lon1, lon2))
+                                 subset_dict=subset_dict)
 precip = atm.precip_convert(precip, precip.attrs['units'], 'mm/day')
 precipbar = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)
 
@@ -189,11 +189,6 @@ index['OCI'].attrs['title'] = 'OCI'
 index['SJKE'] = indices.onset_SJKE(u850, v850, yearnm='year', daynm='day')
 index['SJKE'].attrs['title'] = 'SJKE'
 
-# Day range to extract for timeseries plots
-# daymin, daymax = 91, 274
-# for key in ['OCI', 'SJKE']:
-#     index[key] = atm.subset(index[key], 'day', daymin, daymax)
-
 # ----------------------------------------------------------------------
 # TT index (Goswami et al 2006)
 
@@ -210,7 +205,7 @@ if plev is None:
     T = atm.combine_daily_years('Tbar', ttfiles, years, yearname='year')
 else:
     T = atm.combine_daily_years('T', ttfiles, years, yearname='year',
-                                subset1=('plev', plev, plev))
+                                subset_dict={'plev' : (plev, plev)})
     # Remove extra dimension (vertical)
     pdim = atm.get_coord(T, 'plev', 'dim')
     pname = atm.get_coord(T, 'plev', 'name')
@@ -252,7 +247,7 @@ def detrend(vals, index):
     return output
 
 # MERRA MFC
-mfc_JJAS = atm.subset(mfcbar, 'day', atm.season_days('JJAS'))
+mfc_JJAS = atm.subset(mfcbar, {'day' : (atm.season_days('JJAS'), None)})
 mfc_JJAS = mfc_JJAS.mean(dim='day')
 
 # ERA-Interim MFC
@@ -277,11 +272,11 @@ for key in strength.columns:
 varnames = ['U', 'V', 'Ro']
 latmax = 35
 daymin, daymax = 91, 274 # Day subset to extract
+subset_dict = {'lat' : (-latmax, latmax), 'lon' : (lon1, lon2)}
 uv = atm.combine_daily_years(varnames, uvfiles, years, yearname='year',
-                             subset1=('lat', -latmax, latmax),
-                             subset2=('lon', lon1, lon2))
+                             subset_dict=subset_dict)
 uv.rename({'Day' : 'day'}, inplace=True)
-uv = atm.subset(uv, 'day', daymin, daymax)
+uv = atm.subset(uv, {'day' : (daymin, daymax)})
 uv = atm.squeeze(uv)
 uv = uv.drop('Height')
 
@@ -309,7 +304,8 @@ for key in tseries.data_vars.keys():
 
 # Add other timeseries
 for key in index.keys():
-    tseries[short[key]] = atm.subset(index[key]['tseries'], 'day', daymin, daymax)
+    tseries[short[key]] = atm.subset(index[key]['tseries'],
+                                     {'day' : (daymin, daymax)})
 tseries['MFC_box'] = tseries['W_MP_n7']
 tseries['PRECIP_box'] = tseries['W_MM_n7']
 
@@ -520,7 +516,7 @@ ylim1, ylim2 = -2.5, 2.5
 std_ts = False
 
 for y, year in enumerate(years):
-    df = atm.subset(data, 'year', year).to_dataframe()
+    df = atm.subset(data, {'year' : (year, None)}).to_dataframe()
     df.drop('year', axis=1, inplace=True)
     if std_ts:
         for key in df.columns:
@@ -543,7 +539,7 @@ for y, year in enumerate(years):
         if key.startswith('CHP'):
             for nm, clr in zip(['onset', 'retreat'], ['r', 'g']):
                 pred = index[keylong]['tseries_fit_' + nm][y]
-                pred = atm.subset(pred, 'day', df.index)
+                pred = atm.subset(pred, {'day' : (df.index, None)})
                 ax.plot(df.index, pred, clr)
         if std_ts:
             ax.set_ylim(ylim1, ylim2)
@@ -578,8 +574,9 @@ def daily_corr(ind1, ind2, yearnm='year'):
     years = ind1[yearnm]
     corr = np.zeros(years.shape)
     for y, year in enumerate(years):
-        df = atm.subset(ind1, yearnm, year).to_series().to_frame(name=ind1.name)
-        df[ind2.name] = atm.subset(ind2, yearnm, year).to_series()
+        subset_dict = {yearnm : (year, None)}
+        df = atm.subset(ind1, subset_dict).to_series().to_frame(name=ind1.name)
+        df[ind2.name] = atm.subset(ind2, subset_dict).to_series()
         corr[y] = df.corr().as_matrix()[0, 1]
     corr = pd.Series(corr, index=pd.Index(years, name=yearnm))
     return corr

@@ -44,7 +44,8 @@ def daily_rel2onset(data, d_onset, npre, npost, daynm='Day', yearnm='Year'):
 
     for y, year in enumerate(years):
         dmin, dmax = d_onset[y] - npre, d_onset[y] + npost
-        sub = atm.subset(data, yearnm, year, None, daynm, dmin, dmax)
+        subset_dict = {yearnm : (year, None), daynm : (dmin, dmax)}
+        sub = atm.subset(data, subset_dict)
         sub = sub.rename({daynm : relnm})
         sub[relnm] = dayrel
         sub[relnm].attrs['long_name'] = 'Day of year relative to onset day'
@@ -115,7 +116,7 @@ def composite(data, compdays, return_avg=True, daynm='Dayrel'):
     _, attrs, _, _ = atm.meta(data)
 
     for key in compdays:
-        comp[key] = atm.subset(data, daynm, compdays[key])
+        comp[key] = atm.subset(data, {daynm : (compdays[key], None)})
         if return_avg:
             comp[key] = comp[key].mean(dim=daynm)
             comp[key].attrs = attrs

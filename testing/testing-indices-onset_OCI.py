@@ -30,7 +30,7 @@ if combine_years:
 
     # Read daily data from each year
     u = atm.combine_daily_years('U', datafiles, years)
-    u = atm.squeeze(atm.subset(u, 'Day', daymin, daymax))
+    u = atm.squeeze(atm.subset(u, {'Day' : (daymin, daymax)}))
 
     # Save to file
     print('Saving to ' + datafile)

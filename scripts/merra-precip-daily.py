@@ -27,15 +27,16 @@ lons = atm.latlon_labels([lon1, lon2], 'lon', deg_symbol=False)
 lats = atm.latlon_labels([lat1, lat2], 'lat', deg_symbol=False)
 latlon = '%s-%s_%s-%s' % (lons[0], lons[1], lats[0], lats[1])
 
-savefile = datadir + ('merra_precip_%s_days%d-%d_%d-%d.nc' % 
+savefile = datadir + ('merra_precip_%s_days%d-%d_%d-%d.nc' %
                       (latlon, daymin, daymax, years.min(), years.max()))
 
+subset_dict = {'day' : (daymin, daymax), 'lat' : (lat1, lat2),
+               'lon' : (lon1, lon2)}
 for y, year in enumerate(years):
     datafile = datadir + 'merra_precip_%d.nc' % year
     print('Loading ' + datafile)
     with xray.open_dataset(datafile) as ds:
-        precip1 = atm.subset(ds['PRECTOT'], 'day', daymin, daymax)
-        precip1 = atm.subset(precip1, 'lat', lat1, lat2, 'lon', lon1, lon2)
+        precip1 = atm.subset(ds['PRECTOT'], subset_dict)
         precip1 = precip1.load()
         precip1.coords['year'] = year
     if y == 0:
@@ -49,4 +50,3 @@ precip.attrs['units'] = 'mm/day'
 
 print('Saving to ' + savefile)
 atm.save_nc(savefile, precip)
-     
