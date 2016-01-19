@@ -244,7 +244,7 @@ def ts_subplot(ts, clim_ts, onset, retreat, enso,  ymin=None, ymax=None,
     plt.title(title)
 
 def ts_plot_all(comp_ts, ts_clim, comp_keys, varnms, onset, retreat, enso,
-                daynm, ylims, figsize=(14, 14), onset_lines=False,
+                daynm, ylims, legend_var, figsize=(14, 14), onset_lines=False,
                 retreat_lines=False,
                 subplot_fmts = {'left' : 0.08, 'right' : 0.97, 'bottom' : 0.05,
                                 'top' : 0.95, 'wspace' : 0.1, 'hspace' : 0.05}):
@@ -264,11 +264,14 @@ def ts_plot_all(comp_ts, ts_clim, comp_keys, varnms, onset, retreat, enso,
             row, col = atm.subplot_index(nrow, ncol, iplot)
             ymin, ymax = ylims[nm]
             if row == 1:
-                legend_loc = 'upper left'
                 title = key
             else:
                 legend_loc = None
                 title = ''
+            if nm == legend_var:
+                legend_loc = 'upper left'
+            else:
+                legend_loc = None
             ts_subplot(comp_ts[key][nm], ts_clim[nm], onset, retreat, enso,
                        ymin, ymax, daynm, title, legend_loc, onset_lines,
                        retreat_lines)
@@ -292,15 +295,15 @@ varnms = [onset_nm, 'MFC', 'PCP', 'MFC_ACC', 'PCP_ACC']
 ylims = {'HOWI' : (-1, 2), 'MFC' : (-4, 10), 'PCP' : (0, 13),
         'MFC_ACC' : (-300, 400), 'PCP_ACC' : (0, 1500)}
 ts_plot_all(comp_ts, tseries.mean(dim='year'), comp_keys, varnms, onset,
-            retreat, enso, 'day', ylims, figsize, onset_lines, retreat_lines,
-            subplot_fmts)
+            retreat, enso, 'day', ylims, onset_nm, figsize, onset_lines,
+            retreat_lines, subplot_fmts)
 
 # Daily data relative to onset day
 ylims = {'HOWI' : (-1, 2), 'MFC' : (-4, 10), 'PCP' : (0, 13),
-        'MFC_ACC' : (-300, 400), 'PCP_ACC' : (0, 1500)}
-ts_clim = ts_rel.mean(dim='year')
-ts_plot_all(comp_ts_rel, ts_clim, comp_keys, varnms, onset, retreat, enso,
-            'dayrel', ylims, figsize, onset_lines, retreat_lines, subplot_fmts)
+        'MFC_ACC' : (0, 600), 'PCP_ACC' : (0, 1400)}
+ts_plot_all(comp_ts_rel, ts_rel.mean(dim='year'), comp_keys, varnms, onset,
+            retreat, enso, 'dayrel', ylims, 'PCP_ACC', figsize, onset_lines,
+            retreat_lines, subplot_fmts)
 
 # ----------------------------------------------------------------------
 # Correlations between onset day and ENSO
