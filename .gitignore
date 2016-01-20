@@ -2,7 +2,7 @@
 fram
 *.eps
 *.png
-mp4
+figs
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
