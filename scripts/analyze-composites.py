@@ -19,19 +19,36 @@ from utils import daily_rel2onset
 # ----------------------------------------------------------------------
 #onset_nm = 'HOWI'
 onset_nm = 'CHP_MFC'
+#onset_nm = 'CHP_PCP'
 
 years = range(1979, 2015)
+yearstr = '%d-%d Climatology' % (years[0], years[-1])
+
+# CHP_MFC Early/Late Years
+# years = [2004, 1999, 1990, 2000, 2001]
+# yearstr = '5 Earliest Years'
+# years = [1983, 1992, 1997, 2014, 2012]
+# yearstr = '5 Latest Years'
+
+# HOWI Early/Late Years
+# years = [2004, 2000, 1999, 2001, 1990]
+# yearstr = '5 Earliest Years'
+# years = [1983, 1979, 1997, 1992, 1995]
+# yearstr = '5 Latest Years'
+
+
 datadir = atm.homedir() + 'datastore/merra/daily/'
-savedir = 'mp4/'
+savedir = 'figs/'
 run_anim = False
 run_eht = False
 
-# varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'T200',
-#          'H200', 'U850', 'V850']
+varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'T200',
+         'H200', 'U850', 'V850']
 # varnms = ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950', 'DSE950',
 #           'MSE950', 'V*THETA950', 'V*THETA_E950', 'V*DSE950', 'V*MSE950']
-varnms = ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950',
-          'V*THETA950', 'V*THETA_E950']
+# varnms = ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950',
+#           'V*THETA950', 'V*THETA_E950']
+
 keys_remove = ['T950', 'H950', 'QV950', 'V950',  'DSE950',
                 'MSE950', 'V*DSE950', 'V*MSE950']
 
@@ -52,7 +69,7 @@ datafiles['H200'] = [datadir + yrlyfile('H', 200, yr) for yr in years]
 
 for plev in [950, 975]:
     for key in ['T', 'H','QV', 'V']:
-        files = [datadir + yrlyfile(key, plev, yr, 'apr-sep_') for yr in years]
+        files = [datadir + yrlyfile(key, plev, yr) for yr in years]
         datafiles['%s%d' % (key, plev)] = files
 
 ensofile = atm.homedir() + 'dynamics/calc/ENSO/enso_oni.csv'
@@ -217,8 +234,6 @@ for varnm in data.keys():
 # ----------------------------------------------------------------------
 # Remove tricky years before calculating composites
 
-yearstr = '%d-%d' % (years[0], years[-1])
-
 if remove_tricky:
     print('Removing tricky years')
     yearstr = yearstr + '_excl_tricky'
@@ -256,8 +271,17 @@ def contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm):
     vals = plotdata.values.T
     vals = np.ma.array(vals, mask=np.isnan(vals))
     ncont = 20
-    plt.contourf(days, lat, vals, ncont, cmap=cmap)
-    plt.colorbar(orientation='vertical')
+    if plotdata.min() * plotdata.max() > 0:
+        symmetric = False
+    else:
+        symmetric = True
+    cint = atm.cinterval(vals, n_pref=ncont, symmetric=symmetric)
+    clev = atm.clevels(vals, cint, symmetric=symmetric)
+    plt.contourf(days, lat, vals, clev, cmap=cmap)
+    if symmetric:
+        atm.colorbar_symm(orientation='vertical')
+    else:
+        plt.colorbar(orientation='vertical')
     plt.grid(True)
     plt.ylabel('Latitude')
     plt.xlabel('Day Relative to %s Onset' % onset_nm)
@@ -272,7 +296,7 @@ for varnm in keys:
     lat = plotdata[latname].values
     days = plotdata['dayrel'].values
     cmap = get_colormap(varnm)
-    title = '%d-%dE ' %(lon1, lon2) + varnm + ' ' + yearstr
+    title = '%d-%dE ' %(lon1, lon2) + varnm + ' - ' + yearstr
     plt.figure(figsize=(12, 8))
     contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm)
 
@@ -331,8 +355,8 @@ key1, key2 = 'pre', 'post'
 for varnm in comp:
     plt.figure(figsize=(12, 10))
     plt.subplots_adjust(left=0.06, right=0.95)
-    plt.suptitle('%s Climatological Composites Relative to %s Onset Day' %
-                 (varnm.upper(), onset_nm))
+    plt.suptitle('%s Composites Relative to %s Onset Day - %s' %
+                 (varnm.upper(), onset_nm, yearstr))
 
     # Lat-lon maps of composites
     for i, key in enumerate([key1, key2]):
