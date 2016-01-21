@@ -17,20 +17,20 @@ import utils
 from utils import daily_rel2onset
 
 # ----------------------------------------------------------------------
-onset_nm = 'HOWI'
-#onset_nm = 'CHP_MFC'
+#onset_nm = 'HOWI'
+onset_nm = 'CHP_MFC'
 #onset_nm = 'CHP_PCP'
 
 # years = range(1979, 2015)
 # yearstr = '%d-%d Climatology' % (years[0], years[-1])
 
 # CHP_MFC Early/Late Years
-# years, yearstr = [2004, 1999, 1990, 2000, 2001], '5 Earliest Years'
+years, yearstr = [2004, 1999, 1990, 2000, 2001], '5 Earliest Years'
 # years, yearstr = [1983, 1992, 1997, 2014, 2012], '5 Latest Years'
 
 # HOWI Early/Late Years
 # years, yearstr = [2004, 2000, 1999, 2001, 1990], '5 Earliest Years'
-years, yearstr = [1983, 1979, 1997, 1992, 1995], '5 Latest Years'
+# years, yearstr = [1983, 1979, 1997, 1992, 1995], '5 Latest Years'
 
 datadir = atm.homedir() + 'datastore/merra/daily/'
 savedir = 'figs/'
@@ -262,21 +262,28 @@ def get_colormap(varnm):
 # ----------------------------------------------------------------------
 # Latitude-time contour plot
 
-def contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm):
-    vals = plotdata.values.T
-    vals = np.ma.array(vals, mask=np.isnan(vals))
-    ncont = 20
+def symm_colors(plotdata):
     if plotdata.min() * plotdata.max() > 0:
         symmetric = False
     else:
         symmetric = True
+    return symmetric
+
+def plot_colorbar(symmetric, orientation='vertical'):
+    if symmetric:
+        atm.colorbar_symm(orientation=orientation)
+    else:
+        plt.colorbar(orientation=orientation)
+
+def contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm):
+    vals = plotdata.values.T
+    vals = np.ma.array(vals, mask=np.isnan(vals))
+    ncont = 20
+    symmetric = symm_colors(plotdata)
     cint = atm.cinterval(vals, n_pref=ncont, symmetric=symmetric)
     clev = atm.clevels(vals, cint, symmetric=symmetric)
     plt.contourf(days, lat, vals, clev, cmap=cmap)
-    if symmetric:
-        atm.colorbar_symm(orientation='vertical')
-    else:
-        plt.colorbar(orientation='vertical')
+    plot_colorbar(symmetric)
     plt.grid(True)
     plt.ylabel('Latitude')
     plt.xlabel('Day Relative to %s Onset' % onset_nm)
@@ -366,6 +373,10 @@ for varnm in comp:
     plt.subplot(2, 3, 3)
     dat = comp[varnm][key2].mean(dim='year') - comp[varnm][key1].mean(dim='year')
     atm.pcolor_latlon(dat, axlims=axlims, cmap='RdBu_r')
+    symmetric = symm_colors(dat)
+    if symmetric:
+        cmax = np.nanmax(abs(dat))
+        plt.clim(-cmax, cmax)
     plt.title('Difference (%s-%s)' % (key2.upper(), key1.upper()))
 
     # Line plot of sector mean
