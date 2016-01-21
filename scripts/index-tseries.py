@@ -17,10 +17,10 @@ from utils import daily_rel2onset, comp_days_centered, composite
 
 # ----------------------------------------------------------------------
 #onset_nm = 'HOWI'
-#onset_nm = 'CHP_MFC'
-onset_nm = 'CHP_PCP'
+onset_nm = 'CHP_MFC'
+#onset_nm = 'CHP_PCP'
 
-years = range(1979, 2015)
+years = np.arange(1979, 2015)
 datadir = atm.homedir() + 'datastore/merra/daily/'
 vimtfiles = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
 mfcfiles = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
@@ -49,6 +49,7 @@ for nm in nms:
     var = databox[nm]
     var = atm.precip_convert(var, var.attrs['units'], 'mm/day')
     var = atm.mean_over_geobox(var, lat1, lat2, lon1, lon2)
+    databox[nm + '_UNSM'] = var
     databox[nm + '_ACC'] = np.cumsum(var, axis=1)
     databox[nm] = atm.rolling_mean(var, nroll, axis=-1, center=True)
 
@@ -335,11 +336,65 @@ for ts, daynm in zip([tseries, ts_rel], ['day', 'dayrel']):
         plt.ylabel(key)
 
 # ----------------------------------------------------------------------
-# Correlations between onset day and ENSO
+# Cumulative and average rainfall over monsoon season
 
-reg = atm.Linreg(enso, onset)
-plt.figure()
-reg.plot(annotation_pos=(0.05, 0.85))
-plt.xlabel('ENSO (%s)' % enso_nm)
-plt.ylabel('Onset Day')
-plt.grid()
+ssn = xray.Dataset()
+ssn['onset'] = onset
+ssn['retreat'] = retreat
+ssn['length'] = retreat - onset
+
+for key in ['MFC', 'PCP']:
+    for key2 in ['_JJAS_AVG', '_JJAS_TOT', '_LRS_AVG', '_LRS_TOT']:
+        ssn[key + key2] = xray.DataArray(np.nan * np.ones(len(years)),
+                                         coords={'year' : years})
+
+for key in ['MFC', 'PCP']:
+    for y, year in enumerate(years):
+        d1 = int(onset.values[y])
+        d2 = int(retreat.values[y] - 1)
+        days_jjas = atm.season_days('JJAS', atm.isleap(year))
+        data = tseries[key + '_UNSM'].sel(year=year)
+        data_jjas = atm.subset(data, {'day' : (days_jjas, None)})
+        data_lrs = atm.subset(data, {'day' : (d1, d2)})
+        ssn[key + '_JJAS_AVG'][y] = data_jjas.mean(dim='day').values
+        ssn[key + '_LRS_AVG'][y] = data_lrs.mean(dim='day').values
+        ssn[key + '_JJAS_TOT'][y] = ssn[key + '_JJAS_AVG'][y] * len(days_jjas)
+        ssn[key + '_LRS_TOT'][y] = ssn[key + '_LRS_AVG'][y] * ssn['length'][y]
+ssn = ssn.to_dataframe()
+
+def line_plus_reg(years, ssn, key, clr):
+    reg = atm.Linreg(years, ssn[key].values)
+    plt.plot(years, ssn[key], clr, label=key)
+    plt.plot(years, reg.predict(years), clr + '--')
+
+
+plt.figure(figsize=(12, 10))
+clrs = ['b', 'g', 'r', 'c']
+for i, nm in enumerate(['TOT', 'AVG']):
+    plt.subplot(2, 2, i + 1)
+    for j, varnm in enumerate(['MFC_JJAS_', 'MFC_LRS_', 'PCP_JJAS_', 'PCP_LRS_']):
+        key = varnm + nm
+        line_plus_reg(years, ssn, key, clrs[j])
+    if nm == 'TOT':
+        plt.ylabel('Total (mm)')
+    else:
+        plt.ylabel('Avg (mm/day)')
+plt.subplot(2, 2, 3)
+line_plus_reg(years, ssn, 'onset', clrs[0])
+line_plus_reg(years, ssn, 'length', clrs[1])
+plt.subplot(2, 2, 4)
+line_plus_reg(years, ssn, 'retreat', clrs[0])
+for i in range(1, 5):
+    plt.subplot(2, 2, i)
+    plt.legend(loc='upper left', fontsize=10)
+    plt.grid(True)
+    plt.xlabel('Year')
+    plt.xlim(years.min(), years.max())
+plt.suptitle('Monsoon Onset/Retreat Based on ' + onset_nm)
+
+df1 = ssn[['onset', 'retreat', 'length']]
+for key in ['_TOT', '_AVG']:
+    keys = [nm + key for nm in ['MFC_JJAS', 'MFC_LRS', 'PCP_JJAS', 'PCP_LRS']]
+    df2 = ssn[keys]
+    atm.scatter_matrix_pairs(df1, df2)
+    plt.suptitle('Monsoon Onset/Retreat Based on ' + onset_nm)
