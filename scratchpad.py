@@ -11,6 +11,13 @@ import atmos as atm
 import merra
 
 # ----------------------------------------------------------------------
+ax.annotate('11.5 N', xy=(0, 11.458), xycoords='data',
+                xytext=(-50, 50), textcoords='offset points',
+                arrowprops=dict(arrowstyle="->")
+                )
+
+
+# ----------------------------------------------------------------------
 # 01/14/2016 Plots for Simona
 
 # Load data from compare-indices.py
