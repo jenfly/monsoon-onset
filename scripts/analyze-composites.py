@@ -21,11 +21,11 @@ from utils import daily_rel2onset
 onset_nm = 'CHP_MFC'
 #onset_nm = 'CHP_PCP'
 
-# years = range(1979, 2015)
-# yearstr = '%d-%d Climatology' % (years[0], years[-1])
+years = range(1979, 2015)
+yearstr = '%d-%d Climatology' % (years[0], years[-1])
 
 # CHP_MFC Early/Late Years
-years, yearstr = [2004, 1999, 1990, 2000, 2001], '5 Earliest Years'
+# years, yearstr = [2004, 1999, 1990, 2000, 2001], '5 Earliest Years'
 # years, yearstr = [1983, 1992, 1997, 2014, 2012], '5 Latest Years'
 
 # HOWI Early/Late Years
@@ -216,16 +216,6 @@ if varnm in data:
     vals = np.where(abs(latbig)>latbuf, vals, np.nan)
     data[varnm].values = vals
 
-
-# ----------------------------------------------------------------------
-# Sector mean data
-
-lonname, latname = 'XDim', 'YDim'
-sectordata = collections.OrderedDict()
-for varnm in data.keys():
-    var = atm.subset(data[varnm], {lonname : (lon1, lon2)})
-    sectordata[varnm] = var.mean(dim=lonname)
-
 # ----------------------------------------------------------------------
 # Remove tricky years before calculating composites
 
@@ -248,7 +238,33 @@ if remove_tricky:
         data[nm] = atm.subset(data[nm], {yearnm : (years, None)})
 
 # ----------------------------------------------------------------------
-# Plotting params
+# Sector mean data
+
+lonname, latname = 'XDim', 'YDim'
+sectordata = collections.OrderedDict()
+for varnm in data:
+    var = atm.subset(data[varnm], {lonname : (lon1, lon2)})
+    sectordata[varnm] = var.mean(dim=lonname)
+
+# ----------------------------------------------------------------------
+# Latitude of maximum of each field in sector mean
+
+sector_latmax = collections.OrderedDict()
+for varnm in sectordata:
+    var = sectordata[varnm]
+    lat = var[latname].values
+    coords={'year' : var['year'], 'dayrel': var['dayrel']}
+    # Yearly
+    latmax = lat[np.nanargmax(var, axis=2)]
+    sector_latmax[varnm] = xray.DataArray(latmax, dims=['year', 'dayrel'],
+                                          coords=coords)
+
+    # Climatology
+    latmax = lat[np.nanargmax(var.mean(dim='year'), axis=1)]
+    key = varnm + '_CLIM'
+    sector_latmax[key] = xray.DataArray(latmax, coords={'dayrel' : var['dayrel']})
+# ----------------------------------------------------------------------
+# Plotting params and utilities
 
 axlims = (-60, 60, 40, 120)
 
@@ -258,9 +274,6 @@ def get_colormap(varnm):
     else:
         cmap = 'RdBu_r'
     return cmap
-
-# ----------------------------------------------------------------------
-# Latitude-time contour plot
 
 def symm_colors(plotdata):
     if plotdata.min() * plotdata.max() > 0:
@@ -275,10 +288,13 @@ def plot_colorbar(symmetric, orientation='vertical'):
     else:
         plt.colorbar(orientation=orientation)
 
+# ----------------------------------------------------------------------
+# Latitude-time contour plot
+
 def contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm):
     vals = plotdata.values.T
     vals = np.ma.array(vals, mask=np.isnan(vals))
-    ncont = 20
+    ncont = 40
     symmetric = symm_colors(plotdata)
     cint = atm.cinterval(vals, n_pref=ncont, symmetric=symmetric)
     clev = atm.clevels(vals, cint, symmetric=symmetric)
@@ -294,13 +310,28 @@ def contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm):
 
 keys = sectordata.keys()
 for varnm in keys:
-    plotdata = sectordata[varnm].mean(dim='year')
+    if 'year' in sectordata[varnm].dims:
+        plotdata = sectordata[varnm].mean(dim='year')
+    else:
+        plotdata = sectordata[varnm]
     lat = plotdata[latname].values
     days = plotdata['dayrel'].values
     cmap = get_colormap(varnm)
     title = '%d-%dE ' %(lon1, lon2) + varnm + ' - ' + yearstr
     plt.figure(figsize=(12, 8))
     contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm)
+    # Add latitudes of maxima
+    if varnm in ['THETA_E950']:
+        latmax = sector_latmax[varnm].mean(dim='year')
+        latmax_0 = latmax.sel(dayrel=0)
+        plt.plot(days, latmax, 'k', linewidth=2, label='Latitude of Max')
+        plt.legend(loc='lower left')
+        ax = plt.gca()
+        s = atm.latlon_labels(latmax_0, latlon='lat', fmt='%.1f')
+        ax.annotate(s, xy=(0, latmax_0), xycoords='data',
+                    xytext=(-50, 50), textcoords='offset points',
+                    arrowprops=dict(arrowstyle="->"))
+
 
 atm.savefigs(savedir + 'sector_%d-%dE_onset_%s_' % (lon1, lon2, onset_nm), 'pdf')
 plt.close('all')
