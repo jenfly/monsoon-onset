@@ -71,6 +71,14 @@ suptitle = onset_nm + ' Monsoon Indices vs. ENSO'
 atm.scatter_matrix_pairs(enso, index, figsize, suptitle)
 
 # ----------------------------------------------------------------------
+# Correlations between onset/retreat/length
+
+atm.scatter_matrix(index, figsize=(12, 9), annotation_pos=(0.05, 0.75), 
+                   incl_p=True, incl_line=True, suptitle=onset_nm,
+                   pmax_bold=0.05)
+
+
+# ----------------------------------------------------------------------
 # Plot ENSO indices
 keys = ['ONI_JJA', 'MEI_JULAUG']
 
