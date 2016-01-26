@@ -11,11 +11,13 @@ import atmos as atm
 import merra
 
 # ----------------------------------------------------------------------
-ax.annotate('11.5 N', xy=(0, 11.458), xycoords='data',
-                xytext=(-50, 50), textcoords='offset points',
-                arrowprops=dict(arrowstyle="->")
-                )
-
+v = merra.read_daily('V', 1979, 7, days=range(1,6), 
+                     subset_dict={'lon' : (60, 100)})
+v = v.mean(dim='TIME')
+psi = atm.streamfunction(v)
+psibar = psi.mean(dim='XDim')
+plt.figure()
+atm.contourf_latpres(psibar)
 
 # ----------------------------------------------------------------------
 # 01/14/2016 Plots for Simona
