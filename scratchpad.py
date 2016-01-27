@@ -11,7 +11,22 @@ import atmos as atm
 import merra
 
 # ----------------------------------------------------------------------
-v = merra.read_daily('V', 1979, 7, days=range(1,6), 
+# EMFD
+datadir = atm.homedir() + 'datastore/merra/daily/'
+ds = xray.open_dataset(datadir + 'merra_uv200_40E-120E_60S-60N_1979.nc')
+u = atm.squeeze(ds['U'])
+v = atm.squeeze(ds['V'])
+
+nroll = 7
+u_tr = u - atm.rolling_mean(u, nroll, axis=0)
+v_tr = v - atm.rolling_mean(v, nroll, axis=0)
+
+emfd_tr, emfd_tr_x, emfd_tr_y = atm.divergence_spherical_2d(u_tr * u_tr,
+                                                            u_tr * v_tr)
+
+# ----------------------------------------------------------------------
+# Lat-pres streamfunction
+v = merra.read_daily('V', 1979, 7, days=range(1,6),
                      subset_dict={'lon' : (60, 100)})
 v = v.mean(dim='TIME')
 psi = atm.streamfunction(v)
