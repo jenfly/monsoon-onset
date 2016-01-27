@@ -64,19 +64,33 @@ index = index[['onset', 'retreat']].to_dataframe()
 index['length'] = index['retreat'] - index['onset']
 
 # ----------------------------------------------------------------------
+# Detrend
+
+def detrend(df):
+    df_detrend = df.copy()
+    x = df.index.values
+    for col in df.columns:
+        y = df[col].values
+        reg = atm.Linreg(x, y)
+        df_detrend[col] = df[col] - reg.predict(x)
+    return df_detrend
+
+# ----------------------------------------------------------------------
 # Scatter plots and correlations between ENSO and monsoon indices
 
 figsize = (12, 9)
 suptitle = onset_nm + ' Monsoon Indices vs. ENSO'
 atm.scatter_matrix_pairs(enso, index, figsize, suptitle)
+suptitle = suptitle + ' (Detrended)'
+atm.scatter_matrix_pairs(detrend(enso), detrend(index), figsize, suptitle)
 
 # ----------------------------------------------------------------------
 # Correlations between onset/retreat/length
 
-atm.scatter_matrix(index, figsize=(12, 9), annotation_pos=(0.05, 0.75), 
-                   incl_p=True, incl_line=True, suptitle=onset_nm,
-                   pmax_bold=0.05)
-
+opts = {'figsize' : (12, 9), 'annotation_pos' : (0.05, 0.75), 'incl_p' : True,
+        'incl_line' : True, 'pmax_bold' : 0.05}
+atm.scatter_matrix(index, suptitle=onset_nm, **opts)
+atm.scatter_matrix(detrend(index), suptitle=onset_nm + ' (Detrended)', **opts)
 
 # ----------------------------------------------------------------------
 # Plot ENSO indices
