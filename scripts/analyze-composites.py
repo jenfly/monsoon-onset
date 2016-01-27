@@ -38,7 +38,7 @@ run_anim = False
 run_eht = False
 
 varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'abs_vort200',
-          'H200', 'T200']
+          'H200', 'T200', 'EMFD200']
 # varnms = ['U850', 'V850', 'rel_vort850', 'abs_vort850', 'H850', 'T850',
 #           'QV850']
 # varnms = ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950', 'DSE950',
@@ -145,7 +145,7 @@ npre, npost = 90, 90
 yearnm, daynm = 'year', 'day'
 
 def var_type(varnm):
-    keys = ['THETA', 'MSE', 'DSE', 'V*', 'abs_vort']
+    keys = ['THETA', 'MSE', 'DSE', 'V*', 'abs_vort', 'EMFD']
     test =  [varnm.startswith(key) for key in keys]
     if np.array(test).any():
         vtype = 'calc'
@@ -170,6 +170,8 @@ def read_data(varnm, data, onset, npre, npost):
         Tnm = 'T%d' % plev
         Hnm = 'H%d' % plev
         QVnm = 'QV%d' % plev
+        Unm = 'U%d' % plev
+        Vnm = 'V%d' % plev
         print('Computing ' + varid)
         if varid == 'THETA':
             var = atm.potential_temp(data[Tnm], pres)
@@ -190,6 +192,15 @@ def read_data(varnm, data, onset, npre, npost):
             f = atm.biggify(f, rel_vort, tile=True)
             var = rel_vort + f
             var.name = varid
+        elif varid == 'EMFD':
+            nroll = 7
+            u_tr = data[Unm] - atm.rolling_mean(data[Unm], nroll, axis=1)
+            v_tr = data[Vnm] - atm.rolling_mean(data[Vnm], nroll, axis=1)
+
+            _, _, var = atm.divergence_spherical_2d(u_tr * u_tr,
+                                                          u_tr * v_tr)
+            var.name = varid
+            var.attrs['long_name'] = 'Transient EMFD_y'
     else:
         var = atm.combine_daily_years(varid, datafiles[varnm], years,
                                       subset_dict={'Day' : (daymin, daymax)})
@@ -394,6 +405,7 @@ climits = {'precip' : (0, 20), 'U200' : (-50, 50), 'V200' : (-10, 10),
            'abs_vort200' : (-2e-4, 2e-4), 'T200' : (213, 227),
            'H200' : (11.2e3, 12.6e3), 'U850' : (-20, 20), 'V850' : (-10, 10),
            'rel_vort850' : (-3e-5, 3e-5), 'abs_vort850' : (-1.5e-4, 1.5e-4),
+           'EMFD200' : (-2e-4, 2e-4),
            'H850' : (1100, 1600), 'T850' : (260, 305),
            'QV850' : (0, 0.015),
            'THETA975' : (260, 315), 'THETA_E975' : (260, 370),
