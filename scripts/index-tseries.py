@@ -75,8 +75,10 @@ elif onset_nm == 'CHP_PCP':
 onset = index['onset']
 if 'retreat' in index:
     retreat = index['retreat']
+    index['length'] = retreat - onset
 else:
     retreat = np.nan * onset
+    index['length'] = np.nan * onset
 
 # Tile the climatology to each year
 if 'tseries_clim' in index:
@@ -304,9 +306,9 @@ ts_plot_all(comp_ts, tseries.mean(dim='year'), comp_keys, varnms, onset,
 ylims = {'HOWI' : (-1, 2), 'MFC' : (-4, 9), 'PCP' : (0, 13),
         'MFC_ACC' : (0, 600), 'PCP_ACC' : (0, 1400)}
 ylims['CHP_MFC'] = ylims['MFC_ACC']
-ts_plot_all(comp_ts_rel, ts_rel.mean(dim='year'), comp_keys, varnms, onset,
-            retreat, enso, 'dayrel', ylims, 'PCP_ACC', figsize, onset_lines,
-            retreat_lines, subplot_fmts)
+ts_plot_all(comp_ts_rel, ts_rel.mean(dim='year'), comp_keys, varnms, 
+            0.0*onset, index['length'], enso, 'dayrel', ylims, 'PCP_ACC', 
+            figsize, onset_lines, retreat_lines, subplot_fmts)
 
 # ----------------------------------------------------------------------
 # Variability in Accumulated precip / MFC over climatology
