@@ -37,12 +37,14 @@ savedir = 'figs/'
 run_anim = False
 run_eht = False
 
-# varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'T200',
-#          'H200', 'U850', 'V850']
+varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'abs_vort200',
+          'H200', 'T200']
+# varnms = ['U850', 'V850', 'rel_vort850', 'abs_vort850', 'H850', 'T850',
+#           'QV850']
 # varnms = ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950', 'DSE950',
 #           'MSE950', 'V*THETA950', 'V*THETA_E950', 'V*DSE950', 'V*MSE950']
-varnms = ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950',
-          'V*THETA950', 'V*THETA_E950']
+# varnms = ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950',
+#           'V*THETA950', 'V*THETA_E950']
 
 keys_remove = ['T950', 'H950', 'QV950', 'V950',  'DSE950',
                 'MSE950', 'V*DSE950', 'V*MSE950']
@@ -59,8 +61,9 @@ for plev in [200, 850]:
     files = [datadir + yrlyfile('uv', plev, yr) for yr in years]
     for key in ['U', 'V', 'Ro', 'rel_vort', 'abs_vort']:
         datafiles['%s%d' % (key, plev)] = files
-datafiles['T200'] = [datadir + yrlyfile('T', 200, yr) for yr in years]
-datafiles['H200'] = [datadir + yrlyfile('H', 200, yr) for yr in years]
+    for key in ['T', 'H', 'QV']:
+        key2 = '%s%d' % (key, plev)
+        datafiles[key2] = [datadir + yrlyfile(key, plev, yr) for yr in years]
 
 for plev in [950, 975]:
     for key in ['T', 'H','QV', 'V']:
@@ -186,7 +189,7 @@ def read_data(varnm, data, onset, npre, npost):
             f = atm.coriolis(lat)
             f = atm.biggify(f, rel_vort, tile=True)
             var = rel_vort + f
-            var.name = varid                                    
+            var.name = varid
     else:
         var = atm.combine_daily_years(varid, datafiles[varnm], years,
                                       subset_dict={'Day' : (daymin, daymax)})
@@ -276,19 +279,19 @@ for varnm in sectordata:
 
 axlims = (-60, 60, 40, 120)
 
-def get_colormap(varnm):
-    if varnm == 'precip':
-        cmap = 'hot_r'
-    else:
-        cmap = 'RdBu_r'
-    return cmap
-
 def symm_colors(plotdata):
     if plotdata.min() * plotdata.max() > 0:
         symmetric = False
     else:
         symmetric = True
     return symmetric
+
+def get_colormap(varnm):
+    if varnm == 'precip':
+        cmap = 'hot_r'
+    else:
+        cmap = 'RdBu_r'
+    return cmap
 
 def plot_colorbar(symmetric, orientation='vertical'):
     if symmetric:
@@ -299,7 +302,8 @@ def plot_colorbar(symmetric, orientation='vertical'):
 # ----------------------------------------------------------------------
 # Latitude-time contour plot
 
-def contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm):
+def contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm,
+                      zero_line=False):
     vals = plotdata.values.T
     vals = np.ma.array(vals, mask=np.isnan(vals))
     ncont = 40
@@ -308,6 +312,8 @@ def contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm):
     clev = atm.clevels(vals, cint, symmetric=symmetric)
     plt.contourf(days, lat, vals, clev, cmap=cmap)
     plot_colorbar(symmetric)
+    if symmetric and zero_line:
+        plt.contour(days, lat, vals, [0], colors='k')
     plt.grid(True)
     plt.ylabel('Latitude')
     plt.xlabel('Day Relative to %s Onset' % onset_nm)
@@ -347,7 +353,8 @@ plt.close('all')
 # ----------------------------------------------------------------------
 # Composite averages
 #compdays = utils.comp_days_centered(5)
-compdays = utils.comp_days_centered(5, offset=3)
+#compdays = utils.comp_days_centered(5, offset=3)
+compdays = {'pre' : np.arange(-5, 0), 'post' : np.arange(15, 20)}
 #compdays = {'pre' : np.array([-10]), 'post' : np.array([0])}
 
 def plusminus(num):
@@ -383,9 +390,12 @@ for varnm in data:
 # Plot lat-lon maps and sector means of pre/post onset composite averages
 axlims = (-60, 60, 40, 120)
 climits = {'precip' : (0, 20), 'U200' : (-50, 50), 'V200' : (-10, 10),
-           'Ro200' : (-1, 1), 'rel_vort200' : (-4e-5, 4e-5), 
-           'abs_vort200' : (-2e-4, 2e-4), 'T200' : (213, 227), 
+           'Ro200' : (-1, 1), 'rel_vort200' : (-4e-5, 4e-5),
+           'abs_vort200' : (-2e-4, 2e-4), 'T200' : (213, 227),
            'H200' : (11.2e3, 12.6e3), 'U850' : (-20, 20), 'V850' : (-10, 10),
+           'rel_vort850' : (-3e-5, 3e-5), 'abs_vort850' : (-1.5e-4, 1.5e-4),
+           'H850' : (1100, 1600), 'T850' : (260, 305),
+           'QV850' : (0, 0.015),
            'THETA975' : (260, 315), 'THETA_E975' : (260, 370),
            'DSE975' : (2.6e5, 3.2e5), 'MSE975' : (2.5e5, 3.5e5),
            'V*DSE975' : (-6e6,6e6), 'V*MSE975' : (-9e6, 9e6),
