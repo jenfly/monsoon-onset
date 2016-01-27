@@ -57,7 +57,7 @@ def yrlyfile(var, plev, year, subset=''):
 
 for plev in [200, 850]:
     files = [datadir + yrlyfile('uv', plev, yr) for yr in years]
-    for key in ['U', 'V', 'Ro', 'rel_vort']:
+    for key in ['U', 'V', 'Ro', 'rel_vort', 'abs_vort']:
         datafiles['%s%d' % (key, plev)] = files
 datafiles['T200'] = [datadir + yrlyfile('T', 200, yr) for yr in years]
 datafiles['H200'] = [datadir + yrlyfile('H', 200, yr) for yr in years]
@@ -142,7 +142,7 @@ npre, npost = 90, 90
 yearnm, daynm = 'year', 'day'
 
 def var_type(varnm):
-    keys = ['THETA', 'MSE', 'DSE', 'V*']
+    keys = ['THETA', 'MSE', 'DSE', 'V*', 'abs_vort']
     test =  [varnm.startswith(key) for key in keys]
     if np.array(test).any():
         vtype = 'calc'
@@ -180,6 +180,13 @@ def read_data(varnm, data, onset, npre, npost):
             varid2 = '%s%d' % (varid[2:], plev)
             var = data['V%d' % plev] * data[varid2]
             var.name = varid
+        elif varid == 'abs_vort':
+            rel_vort = data['rel_vort%d' % plev]
+            lat = atm.get_coord(rel_vort, 'lat')
+            f = atm.coriolis(lat)
+            f = atm.biggify(f, rel_vort, tile=True)
+            var = rel_vort + f
+            var.name = varid                                    
     else:
         var = atm.combine_daily_years(varid, datafiles[varnm], years,
                                       subset_dict={'Day' : (daymin, daymax)})
@@ -263,6 +270,7 @@ for varnm in sectordata:
     latmax = lat[np.nanargmax(var.mean(dim='year'), axis=1)]
     key = varnm + '_CLIM'
     sector_latmax[key] = xray.DataArray(latmax, coords={'dayrel' : var['dayrel']})
+
 # ----------------------------------------------------------------------
 # Plotting params and utilities
 
@@ -375,7 +383,8 @@ for varnm in data:
 # Plot lat-lon maps and sector means of pre/post onset composite averages
 axlims = (-60, 60, 40, 120)
 climits = {'precip' : (0, 20), 'U200' : (-50, 50), 'V200' : (-10, 10),
-           'Ro200' : (-1, 1), 'rel_vort200' : (-4e-5, 4e-5), 'T200' : (213, 227),
+           'Ro200' : (-1, 1), 'rel_vort200' : (-4e-5, 4e-5), 
+           'abs_vort200' : (-2e-4, 2e-4), 'T200' : (213, 227), 
            'H200' : (11.2e3, 12.6e3), 'U850' : (-20, 20), 'V850' : (-10, 10),
            'THETA975' : (260, 315), 'THETA_E975' : (260, 370),
            'DSE975' : (2.6e5, 3.2e5), 'MSE975' : (2.5e5, 3.5e5),
