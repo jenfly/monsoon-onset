@@ -225,18 +225,46 @@ def get_enso_indices(years,
     return enso
 
 
+# ----------------------------------------------------------------------
+def get_strength_indices(years, mfc, precip, onset, retreat, yearnm='year',
+                         daynm='day'):
+    """Return various indices of the monsoon strength.
 
+    Inputs mfc and precip are the unsmoothed daily values averaged over
+    the monsoon area.
+    """
 
+    ssn = xray.Dataset()
+    coords = {yearnm : years}
+    ssn['onset'] = xray.DataArray(onset, coords=coords)
+    ssn['retreat'] = xray.DataArray(retreat, coords=coords)
+    ssn['length'] = ssn['retreat'] - ssn['onset']
 
+    data_in = {}
+    if mfc is not None:
+        data_in['MFC'] = mfc
+    if precip is not None:
+        data_in['PCP'] = precip
 
+    for key in data_in:
+        for key2 in ['_JJAS_AVG', '_JJAS_TOT', '_LRS_AVG', '_LRS_TOT']:
+            ssn[key + key2] = xray.DataArray(np.nan * np.ones(len(years)),
+                                             coords=coords)
 
+    for key in data_in:
+        for y, year in enumerate(years):
+            d1 = int(onset.values[y])
+            d2 = int(retreat.values[y] - 1)
+            days_jjas = atm.season_days('JJAS', atm.isleap(year))
+            data = atm.subset(data_in[key], {yearnm : (year, None)})
+            data_jjas = atm.subset(data, {daynm : (days_jjas, None)})
+            data_lrs = atm.subset(data, {daynm : (d1, d2)})
+            ssn[key + '_JJAS_AVG'][y] = data_jjas.mean(dim=daynm).values
+            ssn[key + '_LRS_AVG'][y] = data_lrs.mean(dim=daynm).values
+            ssn[key + '_JJAS_TOT'][y] = ssn[key + '_JJAS_AVG'][y] * len(days_jjas)
+            ssn[key + '_LRS_TOT'][y] = ssn[key + '_LRS_AVG'][y] * ssn['length'][y]
 
+    ssn = ssn.to_dataframe()
+    return ssn
 
-
-
-
-
-
-
-
-----------------
+# ----------------------------------------------------------------------
