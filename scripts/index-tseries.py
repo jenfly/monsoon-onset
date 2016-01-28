@@ -235,7 +235,7 @@ def yearly_values(years, tsdata, index, enso):
 
 
 def ts_plot_all(tsdata, comp_yrs, keys, varnm, index, enso, ymin, ymax,
-                suptitle='', figsize=(14, 14),
+                suptitle='', figsize=(14, 14), legend_loc='upper_left',
                 subplot_fmts={'left' : 0.08, 'right' : 0.97, 'bottom' : 0.05,
                               'top' : 0.95, 'wspace' : 0.1, 'hspace' : 0.05}):
 
@@ -265,14 +265,16 @@ def ts_plot_all(tsdata, comp_yrs, keys, varnm, index, enso, ymin, ymax,
                 year, clim_leg = 'comp', True
                 ts, d1, d2, enso_val = yearly_values(compyrs, tsdata[varnm],
                                                      index, enso)
+            d1_clim, d2_clim = index_clim['onset'], index_clim['retreat']
             if daynm == 'dayrel':
-                d1, d2 = 0, d2 -d1
+                d1, d2 = 0, d2 - d1
+                d1_clim, d2_clim = 0, d2_clim - d1_clim
                 xlabel = 'Days Since Onset'
             else:
                 xlabel = 'Day of Year'
-            ts_subplot(ts, ts_clim, d1, d2, index_clim['onset'],
-                       index_clim['retreat'], enso_val, enso_clim, year, title,
-                       ymin, ymax, daynm=daynm, clim_leg=clim_leg)
+            ts_subplot(ts, ts_clim, d1, d2, d1_clim, d2_clim, enso_val,
+                       enso_clim, year, title, ymin, ymax, daynm=daynm,
+                       legend_loc=legend_loc, clim_leg=clim_leg)
             if i == nrow - 1:
                 plt.xlabel(xlabel)
             else:
@@ -285,7 +287,7 @@ ylims = {'HOWI' : (-1, 2), 'MFC' : (-4, 9), 'PCP' : (0, 13),
 ylims_rel = {'HOWI' : (-1, 2), 'MFC' : (-4, 9), 'PCP' : (0, 13),
            'MFC_ACC' : (0, 600), 'PCP_ACC' : (0, 1400)}
 
-figsize = (10, 10)
+figsize = (16, 12)
 keys = ['Early', 'Late']
 varnms = [onset_nm, 'MFC', 'PCP', 'MFC_ACC', 'PCP_ACC']
 if onset_nm.startswith('CHP'):
@@ -298,9 +300,13 @@ for i, tsdata in enumerate([tseries, tseries_rel]):
             ymin, ymax = ylims[varnm]
         else:
             ymin, ymax = ylims_rel[varnm]
+        if varnm in ['MFC', 'PCP', 'HOWI'] and i == 1:
+            legend_loc = 'lower left'
+        else:
+            legend_loc = 'upper left'
         suptitle = '%s (%s Onset/Retreat)' % (varnm, onset_nm)
         ts_plot_all(tsdata, comp_yrs, keys, varnm, index, enso, ymin, ymax,
-                    suptitle, figsize)
+                    suptitle, figsize, legend_loc=legend_loc)
 
 # ----------------------------------------------------------------------
 # Variability in Accumulated precip / MFC over climatology
@@ -332,10 +338,7 @@ for ts, daynm in zip([tseries, tseries_rel], ['day', 'dayrel']):
 # ----------------------------------------------------------------------
 # Cumulative and average rainfall over monsoon season
 
-ssn = xray.Dataset()
-ssn['onset'] = onset
-ssn['retreat'] = retreat
-ssn['length'] = retreat - onset
+ssn = index[['onset', 'retreat', 'length']]
 
 for key in ['MFC', 'PCP']:
     for key2 in ['_JJAS_AVG', '_JJAS_TOT', '_LRS_AVG', '_LRS_TOT']:
