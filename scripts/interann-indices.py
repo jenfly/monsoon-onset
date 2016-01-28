@@ -14,10 +14,13 @@ import utils
 
 # ----------------------------------------------------------------------
 onset_nm = 'CHP_MFC'
+#onset_nm = 'HOWI'
+
 enso_keys = ['ONI_MAM', 'ONI_JJA', 'MEI_MARAPR', 'MEI_JULAUG']
 plot_enso_ind = False
 
 years = np.arange(1979, 2015)
+datadir = atm.homedir() + 'datastore/merra/daily/'
 datafiles = {}
 datafiles['HOWI'] = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
 datafiles['MFC'] = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
@@ -128,17 +131,17 @@ for i_detrend in [True, False]:
         df2 = ssn[keys]
         if i_detrend:
             atm.scatter_matrix_pairs(detrend(df1), detrend(df2),
-                                     suptitle=suptitle + ' ( Detrended)')
+                                     suptitle=suptitle + ' (Detrended)')
         else:
             atm.scatter_matrix_pairs(df1, df2, suptitle=suptitle)
 
     # Scatter plots and correlations between ENSO and monsoon indices
     suptitle = onset_nm + ' Monsoon Indices vs. ENSO'
     if i_detrend:
-        atm.scatter_matrix_pairs(detrend(enso), detrend(index), figsize,
-                                 suptitle + ' (Detrended)')
+        atm.scatter_matrix_pairs(detrend(enso), detrend(index),
+                                 suptitle=suptitle + ' (Detrended)')
     else:
-        atm.scatter_matrix_pairs(enso, index, opts['figsize'], suptitle)
+        atm.scatter_matrix_pairs(enso, index, suptitle=suptitle)
 
 # ----------------------------------------------------------------------
 # Plot ENSO indices
