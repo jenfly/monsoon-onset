@@ -3,6 +3,7 @@ sys.path.append('/home/jwalker/dynamics/python/atmos-tools')
 sys.path.append('/home/jwalker/dynamics/python/atmos-read')
 
 import numpy as np
+import pandas as pd
 import xray
 import matplotlib.pyplot as plt
 import collections
@@ -159,7 +160,7 @@ def get_mfc_box(mfcfiles, precipfiles, years, nroll, lat1, lat2, lon1, lon2):
 
 
 # ----------------------------------------------------------------------
-def get_onset_indices(onset_nm, datafiles, years):
+def get_onset_indices(onset_nm, datafiles, years, data=None):
     """Return monsoon onset/retreat/length indices.
     """
 
@@ -177,11 +178,15 @@ def get_onset_indices(onset_nm, datafiles, years):
                                       maxbreak=maxbreak)
         index.attrs['title'] = 'HOWI (N=%d)' % npts
     elif onset_nm == 'CHP_MFC':
-        tseries = get_mfc_box(datafiles, None, years, *chp_opts)
-        index = indices.onset_changepoint(tseries['MFC_ACC'])
+        if data is None:
+            tseries = get_mfc_box(datafiles, None, years, *chp_opts)
+            data = tseries['MFC_ACC']
+        index = indices.onset_changepoint(data)
     elif onset_nm == 'CHP_PCP':
-        tseries = get_mfc_box(None, datafiles, years, *chp_opts)
-        index = indices.onset_changepoint(tseries['PCP_ACC'])
+        if data is None:
+            tseries = get_mfc_box(None, datafiles, years, *chp_opts)
+            data = tseries['PCP_ACC']
+        index = indices.onset_changepoint(data)
 
     # Monsoon retreat and length indices
     if 'retreat' in index:
@@ -193,3 +198,45 @@ def get_onset_indices(onset_nm, datafiles, years):
     return index
 
 # ----------------------------------------------------------------------
+def get_enso_indices(years,
+                     inds=['ONI_MAM', 'ONI_JJA', 'MEI_MARAPR', 'MEI_JULAUG'],
+                     ensofiles=None):
+    """Return ENSO indices.
+    """
+
+    if ensofiles is None:
+        ensodir = atm.homedir() + 'dynamics/calc/ENSO/'
+        ensofiles = {'MEI' : ensodir + 'enso_mei.csv',
+                     'ONI' : ensodir + 'enso_oni.csv'}
+
+
+    enso_in = {}
+    for key in ensofiles:
+        enso_in[key] = pd.read_csv(ensofiles[key], index_col=0)
+
+    enso = pd.DataFrame()
+    for key in enso_in:
+        for ssn in enso_in[key]:
+            enso[key + '_' + ssn] = enso_in[key][ssn]
+
+    enso = enso.loc[enso.index.isin(years)]
+    enso = enso[inds]
+
+    return enso
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+----------------

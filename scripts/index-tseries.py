@@ -21,14 +21,14 @@ import utils as utils
 onset_nm = 'CHP_MFC'
 #onset_nm = 'CHP_PCP'
 
+enso_nm = 'ONI_JJA'
+
 years = np.arange(1979, 2015)
 datadir = atm.homedir() + 'datastore/merra/daily/'
 vimtfiles = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
 mfcfiles = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
 precipfiles = [datadir + 'merra_precip_%d.nc' % yr for yr in years]
-ensofile = atm.homedir() + 'dynamics/calc/ENSO/enso_oni.csv'
-enso_ssn = 'JJA'
-enso_nm = 'ONI JJA'
+
 plot_all_years = False
 
 # Lat-lon box for MFC / precip
@@ -47,15 +47,18 @@ tseries = utils.get_mfc_box(mfcfiles, precipfiles, years, nroll, lat1, lat2,
                             lon1, lon2)
 
 # Monsoon onset day and index timeseries
-index = utils.get_onset_indices(onset_nm, indfiles[onset_nm], years)
+if onset_nm.startswith('CHP'):
+    # Use precip/MFC already loaded
+    data = tseries[onset_nm.split('_')[1] + '_ACC']
+else:
+    data = None
+index = utils.get_onset_indices(onset_nm, indfiles[onset_nm], years, data)
 onset, retreat, length = index['onset'], index['retreat'], index['length']
 tseries[onset_nm] = index['tseries']
 
-
 # ENSO
-enso = pd.read_csv(ensofile, index_col=0)
-enso = enso[enso_ssn].loc[years]
-enso = xray.DataArray(enso).rename({'Year' : 'year'})
+enso = utils.get_enso_indices(years)
+enso = xray.DataArray(enso[enso_nm]).rename({'Year' : 'year'})
 
 # ----------------------------------------------------------------------
 # Climatology
