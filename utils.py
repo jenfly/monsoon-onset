@@ -9,6 +9,7 @@ import collections
 
 import atmos as atm
 import merra
+import indices
 
 # ----------------------------------------------------------------------
 def daily_rel2onset(data, d_onset, npre, npost, daynm='Day', yearnm='Year'):
@@ -123,3 +124,72 @@ def composite(data, compdays, return_avg=True, daynm='Dayrel'):
             comp[key].attrs[daynm] = compdays[key]
 
     return comp
+
+
+# ----------------------------------------------------------------------
+def get_mfc_box(mfcfiles, precipfiles, years, nroll, lat1, lat2, lon1, lon2):
+    """Return daily tseries MFC and precip averaged over lat-lon box.
+    """
+    subset_dict = {'lat' : (lat1, lat2), 'lon' : (lon1, lon2)}
+
+    databox = {}
+    if mfcfiles is not None:
+        mfc = atm.combine_daily_years('MFC', mfcfiles, years, yearname='year',
+                                       subset_dict=subset_dict)
+        databox['MFC'] = mfc
+    if precipfiles is not None:
+        pcp = atm.combine_daily_years('PRECTOT', precipfiles, years, yearname='year',
+                                      subset_dict=subset_dict)
+        databox['PCP'] = pcp
+
+    nms = databox.keys()
+    for nm in nms:
+        var = databox[nm]
+        var = atm.precip_convert(var, var.attrs['units'], 'mm/day')
+        var = atm.mean_over_geobox(var, lat1, lat2, lon1, lon2)
+        databox[nm + '_UNSM'] = var
+        databox[nm + '_ACC'] = np.cumsum(var, axis=1)
+        if nroll is None:
+            databox[nm] = var
+        else:
+            databox[nm] = atm.rolling_mean(var, nroll, axis=-1, center=True)
+
+    tseries = xray.Dataset(databox)
+    return tseries
+
+
+# ----------------------------------------------------------------------
+def get_onset_indices(onset_nm, datafiles, years):
+    """Return monsoon onset/retreat/length indices.
+    """
+
+    # Options for CHP_MFC and CHP_PCP
+    lat1, lat2 = 10, 30
+    lon1, lon2 = 60, 100
+    chp_opts = [None, lat1, lat2, lon1, lon2]
+
+    if onset_nm == 'HOWI':
+        maxbreak = 10
+        npts = 100
+        ds = atm.combine_daily_years(['uq_int', 'vq_int'],vimtfiles, years,
+                                     yearname='year')
+        index, _ = indices.onset_HOWI(ds['uq_int'], ds['vq_int'], npts,
+                                      maxbreak=maxbreak)
+        index.attrs['title'] = 'HOWI (N=%d)' % npts
+    elif onset_nm == 'CHP_MFC':
+        tseries = get_mfc_box(datafiles, None, years, *chp_opts)
+        index = indices.onset_changepoint(tseries['MFC_ACC'])
+    elif onset_nm == 'CHP_PCP':
+        tseries = get_mfc_box(None, datafiles, years, *chp_opts)
+        index = indices.onset_changepoint(tseries['PCP_ACC'])
+
+    # Monsoon retreat and length indices
+    if 'retreat' in index:
+        index['length'] = index['retreat'] - index['onset']
+    else:
+        index['retreat'] = np.nan * index['onset']
+        index['length'] = np.nan * index['onset']
+
+    return index
+
+# ----------------------------------------------------------------------
