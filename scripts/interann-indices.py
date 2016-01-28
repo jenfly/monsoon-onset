@@ -15,14 +15,14 @@ import utils
 # ----------------------------------------------------------------------
 onset_nm = 'CHP_MFC'
 enso_keys = ['ONI_MAM', 'ONI_JJA', 'MEI_MARAPR', 'MEI_JULAUG']
-years = range(1979, 2015)
+years = np.arange(1979, 2015)
 
 ensodir = atm.homedir() + 'dynamics/calc/ENSO/'
 datadir = atm.homedir() + 'datastore/merra/daily/'
 datafiles = {}
-datafiles['vimt'] = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
-datafiles['mfc'] = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
-datafiles['precip'] = [datadir + 'merra_precip_%d.nc' % yr for yr in years]
+datafiles['HOWI'] = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
+datafiles['MFC'] = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
+datafiles['PCP'] = [datadir + 'merra_precip_%d.nc' % yr for yr in years]
 
 # Lat-lon box for MFC / precip
 lon1, lon2 = 60, 100
@@ -33,17 +33,18 @@ lat1, lat2 = 10, 30
 
 # MFC and precip over SASM region
 nroll = 7
-tseries = utils.get_mfc_box(datafiles['mfc'], datafiles['precip'], years,
+tseries = utils.get_mfc_box(datafiles['MFC'], datafiles['PCP'], years,
                             nroll, lat1, lat2, lon1, lon2)
 
 # Monsoon onset/retreat indices
 if onset_nm.startswith('CHP'):
     # --- Use precip/MFC already loaded
     data = tseries[onset_nm.split('_')[1] + '_ACC']
+    files = None
 else:
     data = None
-index = utils.get_onset_indices(onset_nm, indfiles[onset_nm], years, data)
-# --- Dataframe of onset, retreat, length
+    files = datafiles[onset_nm]
+index = utils.get_onset_indices(onset_nm, files, years, data)
 index = index[['onset', 'retreat']].to_dataframe()
 index['length'] = index['retreat'] - index['onset']
 
