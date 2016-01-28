@@ -30,6 +30,7 @@ mfcfiles = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
 precipfiles = [datadir + 'merra_precip_%d.nc' % yr for yr in years]
 
 plot_all_years = False
+plot_acc_clim = False
 
 # Lat-lon box for MFC / precip
 lon1, lon2 = 60, 100
@@ -111,11 +112,6 @@ for key in comp_yrs:
     print(key)
     print(comp_ind[key])
 
-# Composite timeseries
-# for key in comp_yrs:
-#     subset_dict = {'year' : (comp_yrs[key], None)}
-#     comp_ts[key] = atm.subset(tseries, subset_dict)
-#     comp_ts_rel[key] = atm.subset(ts_rel, subset_dict)
 
 # ======================================================================
 # PLOTS
@@ -313,70 +309,30 @@ for i, tsdata in enumerate([tseries, tseries_rel]):
 
 # ----------------------------------------------------------------------
 # Variability in Accumulated precip / MFC over climatology
-for ts, daynm in zip([tseries, tseries_rel], ['day', 'dayrel']):
-    plt.figure(figsize=(8, 10))
-    for i, key in enumerate(['MFC_ACC', 'PCP_ACC']):
-        plt.subplot(2, 1, i + 1)
-        tsbar = ts[key].mean(dim='year')
-        tsplus = tsbar + ts[key].std(dim='year')
-        tsminus = tsbar - ts[key].std(dim='year')
-        tsmax = ts[key].max(dim='year')
-        tsmin = ts[key].min(dim='year')
-        days = tsbar[daynm]
-        plt.plot(days, tsbar, 'b', label = 'Mean')
-        plt.plot(days, tsplus, 'b--', label='Mean +/ 1 Std')
-        plt.plot(days, tsminus, 'b--')
-        plt.plot(days, tsmax, 'k-.', label='Max / Min')
-        plt.plot(days, tsmin, 'k-.')
-        plt.legend(loc='upper left', fontsize=12)
-        plt.grid()
-        plt.xlim(days.min(), days.max())
-        plt.title(key)
-        if daynm == 'day':
-            plt.xlabel('Day of Year')
-        else:
-            plt.xlabel('Days Since Onset')
-        plt.ylabel(key)
+if plot_acc_clim:
+    for ts, daynm in zip([tseries, tseries_rel], ['day', 'dayrel']):
+        plt.figure(figsize=(8, 10))
+        for i, key in enumerate(['MFC_ACC', 'PCP_ACC']):
+            plt.subplot(2, 1, i + 1)
+            tsbar = ts[key].mean(dim='year')
+            tsplus = tsbar + ts[key].std(dim='year')
+            tsminus = tsbar - ts[key].std(dim='year')
+            tsmax = ts[key].max(dim='year')
+            tsmin = ts[key].min(dim='year')
+            days = tsbar[daynm]
+            plt.plot(days, tsbar, 'b', label = 'Mean')
+            plt.plot(days, tsplus, 'b--', label='Mean +/ 1 Std')
+            plt.plot(days, tsminus, 'b--')
+            plt.plot(days, tsmax, 'k-.', label='Max / Min')
+            plt.plot(days, tsmin, 'k-.')
+            plt.legend(loc='upper left', fontsize=12)
+            plt.grid()
+            plt.xlim(days.min(), days.max())
+            plt.title(key)
+            if daynm == 'day':
+                plt.xlabel('Day of Year')
+            else:
+                plt.xlabel('Days Since Onset')
+            plt.ylabel(key)
 
 # ----------------------------------------------------------------------
-# Cumulative and average rainfall over monsoon season
-mfc = tseries['MFC_UNSM']
-precip = tseries['PCP_UNSM']
-ssn = utils.get_strength_indices(years, mfc, precip, onset, retreat)
-
-def line_plus_reg(years, ssn, key, clr):
-    reg = atm.Linreg(years, ssn[key].values)
-    plt.plot(years, ssn[key], clr, label=key)
-    plt.plot(years, reg.predict(years), clr + '--')
-
-
-plt.figure(figsize=(12, 10))
-clrs = ['b', 'g', 'r', 'c']
-for i, nm in enumerate(['TOT', 'AVG']):
-    plt.subplot(2, 2, i + 1)
-    for j, varnm in enumerate(['MFC_JJAS_', 'MFC_LRS_', 'PCP_JJAS_', 'PCP_LRS_']):
-        key = varnm + nm
-        line_plus_reg(years, ssn, key, clrs[j])
-    if nm == 'TOT':
-        plt.ylabel('Total (mm)')
-    else:
-        plt.ylabel('Avg (mm/day)')
-plt.subplot(2, 2, 3)
-line_plus_reg(years, ssn, 'onset', clrs[0])
-line_plus_reg(years, ssn, 'length', clrs[1])
-plt.subplot(2, 2, 4)
-line_plus_reg(years, ssn, 'retreat', clrs[0])
-for i in range(1, 5):
-    plt.subplot(2, 2, i)
-    plt.legend(loc='upper left', fontsize=10)
-    plt.grid(True)
-    plt.xlabel('Year')
-    plt.xlim(years.min(), years.max())
-plt.suptitle('Monsoon Onset/Retreat Based on ' + onset_nm)
-
-df1 = ssn[['onset', 'retreat', 'length']]
-for key in ['_TOT', '_AVG']:
-    keys = [nm + key for nm in ['MFC_JJAS', 'MFC_LRS', 'PCP_JJAS', 'PCP_LRS']]
-    df2 = ssn[keys]
-    atm.scatter_matrix_pairs(df1, df2)
-    plt.suptitle('Monsoon Onset/Retreat Based on ' + onset_nm)
