@@ -172,7 +172,7 @@ def get_onset_indices(onset_nm, datafiles, years, data=None):
     if onset_nm == 'HOWI':
         maxbreak = 10
         npts = 100
-        ds = atm.combine_daily_years(['uq_int', 'vq_int'],vimtfiles, years,
+        ds = atm.combine_daily_years(['uq_int', 'vq_int'], datafiles, years,
                                      yearname='year')
         index, _ = indices.onset_HOWI(ds['uq_int'], ds['vq_int'], npts,
                                       maxbreak=maxbreak)
