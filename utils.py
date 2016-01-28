@@ -267,4 +267,24 @@ def get_strength_indices(years, mfc, precip, onset, retreat, yearnm='year',
     ssn = ssn.to_dataframe()
     return ssn
 
+
 # ----------------------------------------------------------------------
+def contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm,
+                      zero_line=False):
+    vals = plotdata.values.T
+    vals = np.ma.array(vals, mask=np.isnan(vals))
+    ncont = 40
+    symmetric = symm_colors(plotdata)
+    cint = atm.cinterval(vals, n_pref=ncont, symmetric=symmetric)
+    clev = atm.clevels(vals, cint, symmetric=symmetric)
+    plt.contourf(days, lat, vals, clev, cmap=cmap)
+    plot_colorbar(symmetric)
+    if symmetric and zero_line:
+        plt.contour(days, lat, vals, [0], colors='k')
+    plt.grid(True)
+    plt.ylabel('Latitude')
+    plt.xlabel('Day Relative to %s Onset' % onset_nm)
+    plt.title(title)
+    xmin, xmax = plt.gca().get_xlim()
+    if xmax > 60:
+        plt.xticks(range(int(xmin), int(xmax) + 1, 30))
