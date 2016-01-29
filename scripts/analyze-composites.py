@@ -50,9 +50,10 @@ keys_remove = ['T950', 'H950', 'QV950', 'V950',  'DSE950',
                 'MSE950', 'V*DSE950', 'V*MSE950']
 
 datafiles = {}
-datafiles['vimt'] = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
-datafiles['mfc'] = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
-datafiles['precip'] = [datadir + 'merra_precip_%d.nc' % yr for yr in years]
+datafiles['HOWI'] = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
+datafiles['CHP_MFC'] = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
+datafiles['CHP_PCP'] = [datadir + 'merra_precip_%d.nc' % yr for yr in years]
+datafiles['precip'] = datafiles['CHP_PCP']
 
 def yrlyfile(var, plev, year, subset=''):
     return 'merra_%s%d_40E-120E_60S-60N_%s%d.nc' % (var, plev, subset, year)
@@ -70,9 +71,6 @@ for plev in [950, 975]:
         files = [datadir + yrlyfile(key, plev, yr) for yr in years]
         datafiles['%s%d' % (key, plev)] = files
 
-ensofile = atm.homedir() + 'dynamics/calc/ENSO/enso_oni.csv'
-enso_ssn = 'JJA'
-
 remove_tricky = False
 years_tricky = [2002, 2004, 2007, 2009, 2010]
 
@@ -83,64 +81,12 @@ lat1, lat2 = 10, 30
 # ----------------------------------------------------------------------
 # Monsoon onset day and index timeseries
 
-if onset_nm == 'HOWI':
-    maxbreak = 10
-    npts = 100
-    ds = atm.combine_daily_years(['uq_int', 'vq_int'],datafiles['vimt'], years,
-                                 yearname='year')
-    index, _ = indices.onset_HOWI(ds['uq_int'], ds['vq_int'], npts, maxbreak=maxbreak)
-    index.attrs['title'] = 'HOWI (N=%d)' % npts
-elif onset_nm == 'CHP_MFC':
-    mfc = atm.combine_daily_years('MFC', datafiles['mfc'], years, yearname='year')
-    mfcbar = atm.mean_over_geobox(mfc, lat1, lat2, lon1, lon2)
-    mfc_acc = np.cumsum(mfcbar, axis=1)
-    index = indices.onset_changepoint(mfc_acc)
-elif onset_nm == 'CHP_PCP':
-    subset_dict = {'lat' : (lat1, lat2), 'lon' : (lon1, lon2)}
-    precip = atm.combine_daily_years('PRECTOT', datafiles['precip'], years,
-                                      yearname='year', subset_dict=subset_dict)
-    precip = atm.precip_convert(precip, precip.attrs['units'], 'mm/day')
-    precipbar = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)
-    precip_acc = np.cumsum(precipbar, axis=1)
-    index = indices.onset_changepoint(precip_acc)
-
-# Array of onset days
+index = utils.get_onset_indices(onset_nm, datafiles[onset_nm], years)
 onset = index['onset']
-
-# Tile the climatology to each year
-if 'tseries_clim' in index:
-    tseries_clim = index['tseries_clim']
-else:
-    tseries_clim = index['tseries'].mean(dim='year')
-vals = atm.biggify(tseries_clim.values, index['tseries'].values, tile=True)
-_, _, coords, dims = atm.meta(index['tseries'])
-tseries_clim = xray.DataArray(vals, name=tseries_clim.name, coords=coords,
-                              dims=dims)
-
-# Daily timeseries for each year
-tseries = xray.Dataset()
-tseries[onset_nm] = index['tseries']
-tseries[onset_nm + '_clim'] = tseries_clim
-
-# ----------------------------------------------------------------------
-# ENSO
-enso = pd.read_csv(ensofile, index_col=0)
-enso = enso[enso_ssn].loc[years]
-enso_sorted = enso.copy()
-enso_sorted.sort(ascending=False)
-enso = xray.DataArray(enso).rename({'Year' : 'year'})
-
-nyrs = 5
-print('El Nino Top %d' % nyrs)
-print(enso_sorted[:nyrs])
-print('La Nina Top %d' % nyrs)
-print(enso_sorted[-1:-nyrs-1:-1])
-
 
 # ----------------------------------------------------------------------
 # Read daily data fields and align relative to onset day
 
-#npre, npost = 30, 30
 npre, npost = 90, 90
 yearnm, daynm = 'year', 'day'
 
@@ -252,7 +198,6 @@ if remove_tricky:
     # Remove tricky years from all indices and data variables
     onset = atm.subset(onset, {yearnm : (years, None)})
     mfcbar = atm.subset(mfcbar, {yearnm : (years, None)})
-    enso = atm.subset(enso, {yearnm : (years, None)})
 
     for nm in data.keys():
         print(nm)
@@ -268,10 +213,11 @@ for varnm in data:
     sectordata[varnm] = var.mean(dim=lonname)
 
 # ----------------------------------------------------------------------
-# Latitude of maximum of each field in sector mean
+# Latitude of maximum theta_e in sector mean
 
 sector_latmax = collections.OrderedDict()
-for varnm in sectordata:
+varnm = 'THETA_E950'
+if varnm in sectordata:
     var = sectordata[varnm]
     lat = var[latname].values
     coords={'year' : var['year'], 'dayrel': var['dayrel']}
@@ -290,13 +236,6 @@ for varnm in sectordata:
 
 axlims = (-60, 60, 40, 120)
 
-def symm_colors(plotdata):
-    if plotdata.min() * plotdata.max() > 0:
-        symmetric = False
-    else:
-        symmetric = True
-    return symmetric
-
 def get_colormap(varnm):
     if varnm == 'precip':
         cmap = 'hot_r'
@@ -304,34 +243,27 @@ def get_colormap(varnm):
         cmap = 'RdBu_r'
     return cmap
 
-def plot_colorbar(symmetric, orientation='vertical'):
-    if symmetric:
-        atm.colorbar_symm(orientation=orientation)
-    else:
-        plt.colorbar(orientation=orientation)
+
+def plusminus(num):
+    return atm.format_num(num, ndecimals=0, plus_sym=True)
+    # if num < 0:
+    #     numstr = '%d' % num
+    # else:
+    #     numstr = '+%d' % num
+    # return numstr
+
+def annotate_theta_e(days, latmax):
+    latmax_0 = latmax.sel(dayrel=0)
+    plt.plot(days, latmax, 'k', linewidth=2, label='Latitude of Max')
+    plt.legend(loc='lower left')
+    ax = plt.gca()
+    s = atm.latlon_labels(latmax_0, latlon='lat', fmt='%.1f')
+    ax.annotate(s, xy=(0, latmax_0), xycoords='data',
+                xytext=(-50, 50), textcoords='offset points',
+                arrowprops=dict(arrowstyle="->"))
 
 # ----------------------------------------------------------------------
 # Latitude-time contour plot
-
-def contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm,
-                      zero_line=False):
-    vals = plotdata.values.T
-    vals = np.ma.array(vals, mask=np.isnan(vals))
-    ncont = 40
-    symmetric = symm_colors(plotdata)
-    cint = atm.cinterval(vals, n_pref=ncont, symmetric=symmetric)
-    clev = atm.clevels(vals, cint, symmetric=symmetric)
-    plt.contourf(days, lat, vals, clev, cmap=cmap)
-    plot_colorbar(symmetric)
-    if symmetric and zero_line:
-        plt.contour(days, lat, vals, [0], colors='k')
-    plt.grid(True)
-    plt.ylabel('Latitude')
-    plt.xlabel('Day Relative to %s Onset' % onset_nm)
-    plt.title(title)
-    xmin, xmax = plt.gca().get_xlim()
-    if xmax > 60:
-        plt.xticks(range(int(xmin), int(xmax) + 1, 30))
 
 keys = sectordata.keys()
 for varnm in keys:
@@ -344,43 +276,28 @@ for varnm in keys:
     cmap = get_colormap(varnm)
     title = '%d-%dE ' %(lon1, lon2) + varnm + ' - ' + yearstr
     plt.figure(figsize=(12, 8))
-    contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm)
+    utils.contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm)
     # Add latitudes of maxima
     if varnm in ['THETA_E950']:
         latmax = sector_latmax[varnm].mean(dim='year')
-        latmax_0 = latmax.sel(dayrel=0)
-        plt.plot(days, latmax, 'k', linewidth=2, label='Latitude of Max')
-        plt.legend(loc='lower left')
-        ax = plt.gca()
-        s = atm.latlon_labels(latmax_0, latlon='lat', fmt='%.1f')
-        ax.annotate(s, xy=(0, latmax_0), xycoords='data',
-                    xytext=(-50, 50), textcoords='offset points',
-                    arrowprops=dict(arrowstyle="->"))
-
+        annotate_theta_e(days, latmax)
 
 atm.savefigs(savedir + 'sector_%d-%dE_onset_%s_' % (lon1, lon2, onset_nm), 'pdf')
 plt.close('all')
 
 # ----------------------------------------------------------------------
 # Composite averages
-#compdays = utils.comp_days_centered(5)
-#compdays = utils.comp_days_centered(5, offset=3)
-compdays = {'pre' : np.arange(-5, 0), 'post' : np.arange(15, 20)}
+if onset_nm.startswith('CHP'):
+    compdays = {'pre' : np.arange(-5, 0), 'post' : np.arange(15, 20)}
+else:
+    compdays = utils.comp_days_centered(5, offset=3)
 #compdays = {'pre' : np.array([-10]), 'post' : np.array([0])}
-
-def plusminus(num):
-    if num < 0:
-        numstr = '%d' % num
-    else:
-        numstr = '+%d' % num
-    return numstr
 
 compnms = {}
 for key in compdays:
     d1 = plusminus(compdays[key].min())
     d2 = plusminus(compdays[key].max())
     compnms[key] = 'D0%s:D0%s' % (d1, d2)
-
 
 print('Computing composites of lat-lon and sector data')
 comp = collections.OrderedDict()
@@ -396,7 +313,6 @@ for varnm in data:
     for key in compdat:
         comp[varnm][key] = compdat[key]
         sectorcomp[varnm][key] = compsec[key]
-
 
 # Plot lat-lon maps and sector means of pre/post onset composite averages
 axlims = (-60, 60, 40, 120)
@@ -435,7 +351,7 @@ for varnm in comp:
     plt.subplot(2, 3, 3)
     dat = comp[varnm][key2].mean(dim='year') - comp[varnm][key1].mean(dim='year')
     atm.pcolor_latlon(dat, axlims=axlims, cmap='RdBu_r')
-    symmetric = symm_colors(dat)
+    symmetric = atm.symm_colors(dat)
     if symmetric:
         cmax = np.nanmax(abs(dat))
         plt.clim(-cmax, cmax)
@@ -467,7 +383,6 @@ for varnm in comp:
 
 atm.savefigs(savedir + 'comp_clim_onset_%s_' % onset_nm, 'pdf')
 plt.close('all')
-
 
 # ----------------------------------------------------------------------
 # Cross-equatorial atmospheric heat fluxes
@@ -515,8 +430,6 @@ if run_anim:
                'U850' : (-20, 20),
                'V850' : (-10, 10)}
 
-
-
     def animate(i):
         plt.clf()
         m, _ = atm.pcolor_latlon(animdata[i], axlims=axlims, cmap=cmap)
@@ -535,7 +448,6 @@ if run_anim:
         print('Saving to ' + savefile)
         anim.save(savefile, writer='mencoder', fps=fps)
         plt.close()
-
 
     # Animated line plots of 60-100E sector mean
     ylimits = {'precip' : (0, 12),
