@@ -22,7 +22,7 @@ onset_nm = 'CHP_MFC'
 
 # years = np.arange(1979, 2015)
 # years2 = None
-# yearstr = '%d-%d Climatology' % (years[0], years[-1])
+# yearstr = '%d-%d Climatology' % (years.min(), years.max())
 
 # CHP_MFC Early/Late Years
 years = [2004, 1999, 1990, 2000, 2001]
@@ -40,18 +40,25 @@ savedir = 'figs/'
 run_anim = False
 run_eht = False
 
-varnms = ['U200', 'T950', 'QV950', 'THETA_E950']
-# varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 'abs_vort200',
-#           'H200', 'T200', 'EMFD200']
-# varnms = ['U850', 'V850', 'rel_vort850', 'abs_vort850', 'H850', 'T850',
-#           'QV850']
-# varnms = ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950', 'DSE950',
-#           'MSE950', 'V*THETA950', 'V*THETA_E950', 'V*DSE950', 'V*MSE950']
-# varnms = ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950',
-#           'V*THETA950', 'V*THETA_E950']
+vargroup = 'minimal'
 
+varlist = {
+    'test' : ['precip', 'U200']
+    'minimal' : ['precip', 'U200', 'V200', 'T200', 'U850', 'T850'],
+    'upper' : ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 
+               'abs_vort200', 'H200', 'T200', 'EMFD200'],
+    'lower' : ['U850', 'V850', 'rel_vort850', 'abs_vort850', 'H850', 
+               'T850', 'QV850'],
+    'nearsurf' : ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950',
+                  'V*THETA950', 'V*THETA_E950'],
+    'nearsurf2' : ['T950', 'H950', 'QV950', 'V950', 'THETA950', 
+                  'THETA_E950', 'DSE950', 'MSE950', 'V*THETA950', 
+                  'V*THETA_E950', 'V*DSE950', 'V*MSE950']
+}                  
 keys_remove = ['T950', 'H950', 'QV950', 'V950',  'DSE950',
                 'MSE950', 'V*DSE950', 'V*MSE950']
+                
+varnms = varlist[vargroup]
 
 remove_tricky = False
 years_tricky = [2002, 2004, 2007, 2009, 2010]
@@ -60,6 +67,13 @@ years_tricky = [2002, 2004, 2007, 2009, 2010]
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 
+# Plotting anomalies (strong - weak, or regression coefficients)
+# or climatology
+if years2 is not None:
+    anom_plot = True
+else:
+    anom_plot = False
+    
 # ----------------------------------------------------------------------
 # List of data files
 
@@ -185,7 +199,7 @@ for varnm in data:
 
 sector_latmax = collections.OrderedDict()
 varnm = 'THETA_E950'
-if varnm in sectordata:
+if varnm in sectordata and not anom_plot:
     var = sectordata[varnm]
     lat = var[latname].values
     coords={'year' : var['year'], 'dayrel': var['dayrel']}
@@ -204,8 +218,8 @@ if varnm in sectordata:
 
 axlims = (-60, 60, 40, 120)
 
-def get_colormap(varnm):
-    if varnm == 'precip':
+def get_colormap(varnm, anom_plot):
+    if varnm == 'precip' and not anom_plot:
         cmap = 'hot_r'
     else:
         cmap = 'RdBu_r'
@@ -227,17 +241,23 @@ def annotate_theta_e(days, latmax):
 # ----------------------------------------------------------------------
 # Latitude-time contour plot
 
+figsize = (10, 12)
+nrow, ncol = (2, 1)
 keys = sectordata.keys()
-for varnm in keys:
+for i, varnm in enumerate(keys):
+    if i % nrow == 0:
+        plt.figure(figsize=figsize)
+    plt.subplot(nrow, ncol, 1 + i % nrow)
     plotdata = sectordata[varnm].mean(dim='year')
     lat = plotdata[latname].values
     days = plotdata['dayrel'].values
-    cmap = get_colormap(varnm)
-    title = '%d-%dE ' %(lon1, lon2) + varnm + ' - ' + yearstr
-    plt.figure(figsize=(12, 8))
+    cmap = get_colormap(varnm, anom_plot)
+    title = '%d-%dE ' %(lon1, lon2) + varnm + ' - ' + yearstr    
     utils.contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm)
+    if i % nrow == 0:
+        plt.xlabel('')
     # Add latitudes of maxima
-    if varnm in ['THETA_E950']:
+    if varnm in ['THETA_E950'] and not anom_plot:
         latmax = sector_latmax[varnm].mean(dim='year')
         annotate_theta_e(days, latmax)
 
@@ -246,11 +266,16 @@ plt.close('all')
 
 # ----------------------------------------------------------------------
 # Composite averages
-if onset_nm.startswith('CHP'):
-    compdays = {'pre' : np.arange(-5, 0), 'post' : np.arange(15, 20)}
+compdays = collections.OrderedDict()
+if anom_plot:
+    compdays['pre1'] = np.arange(-20, -10)
+    compdays['pre2'] = np.arange(-10, 0)
+elif onset_nm.startswith('CHP'):
+    compdays['pre'] = np.arange(-5, 0)
+    compdays['post'] = np.arange(15, 20)
 else:
-    compdays = utils.comp_days_centered(5, offset=3)
-#compdays = {'pre' : np.array([-10]), 'post' : np.array([0])}
+    compdays['pre'] = np.arange(-10, -5)
+    compdays['post'] = np.arange(6, 11)
 
 compnms = {}
 for key in compdays:
@@ -291,28 +316,38 @@ climits = {'precip' : (0, 20), 'U200' : (-50, 50), 'V200' : (-10, 10),
            'V*DSE950' : (-4.5e6,4.5e6), 'V*MSE950' : (-5e6, 5e6),
            'V*THETA950' : (-4500, 4500), 'V*THETA_E950' : (-4900, 4900)}
 
-key1, key2 = 'pre', 'post'
+keys = compdays.keys()
+key1, key2 = keys
+subset_dict = {'lat' : (axlims[0], axlims[1]), 'lon' : (axlims[2], axlims[3])}
 for varnm in comp:
+    cmap = get_colormap(varnm, anom_plot)
+    dat = {key : atm.subset(comp[varnm][key].mean(dim='year'), subset_dict) 
+           for key in keys}
+    if anom_plot:
+        cmax = max([abs(dat[key]).max().values for key in keys])
+        cmin = -cmax
+    else:
+        cmin, cmax = climits[varnm][0], climits[varnm][1]
+    
     plt.figure(figsize=(12, 10))
     plt.subplots_adjust(left=0.06, right=0.95)
     plt.suptitle('%s Composites Relative to %s Onset Day - %s' %
                  (varnm.upper(), onset_nm, yearstr))
 
     # Lat-lon maps of composites
-    for i, key in enumerate([key1, key2]):
-        dat = comp[varnm][key].mean(dim='year')
+    for i, key in enumerate(keys):
         plt.subplot(2, 3, i + 1)
-        atm.pcolor_latlon(dat, axlims=axlims, cmap=get_colormap(varnm))
-        plt.clim(climits[varnm][0], climits[varnm][1])
+        atm.pcolor_latlon(dat[key], axlims=axlims, cmap=cmap)
+        plt.clim(cmin, cmax)
+        #plt.clim(climits[varnm][0], climits[varnm][1])
         plt.title(key.upper() + ' ' + compnms[key])
 
     # Lat-lon map of difference between composites
     plt.subplot(2, 3, 3)
-    dat = comp[varnm][key2].mean(dim='year') - comp[varnm][key1].mean(dim='year')
-    atm.pcolor_latlon(dat, axlims=axlims, cmap='RdBu_r')
-    symmetric = atm.symm_colors(dat)
+    atm.pcolor_latlon(dat[key2] - dat[key1], axlims=axlims, cmap='RdBu_r')
+    symmetric = atm.symm_colors(dat[key2] - dat[key1])
     if symmetric:
-        cmax = np.nanmax(abs(dat))
+        cmax = np.nanmax(abs(dat[key2] - dat[key1]))
         plt.clim(-cmax, cmax)
     plt.title('Difference (%s-%s)' % (key2.upper(), key1.upper()))
 
