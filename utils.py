@@ -267,6 +267,81 @@ def get_strength_indices(years, mfc, precip, onset, retreat, yearnm='year',
     ssn = ssn.to_dataframe()
     return ssn
 
+# ----------------------------------------------------------------------
+def var_type(varnm):
+    keys = ['THETA', 'MSE', 'DSE', 'V*', 'abs_vort', 'EMFD']
+    test =  [varnm.startswith(key) for key in keys]
+    if np.array(test).any():
+        vtype = 'calc'
+    else:
+        vtype = 'basic'
+    return vtype
+
+
+# ----------------------------------------------------------------------
+def get_data_rel(varnm, years, datafiles, data, onset, npre, npost):
+    """Return daily data relative to onset date.
+
+    Data is read from datafiles[varnm] if varnm is a basic variable.
+    If varnm is a calculated variable (e.g. potential temperature),
+    the base variables for calculation are provided in the dict data.
+    """
+
+    daymin, daymax = onset.values.min() - npre, onset.values.max() + npost
+    if varnm != 'precip':
+        plev = int(varnm[-3:])
+        varid = varnm[:-3]
+    if varnm == 'precip':
+        subset_dict = {'day' : (daymin, daymax),
+                       'lon' : (40, 120),
+                       'lat' : (-60, 60)}
+        var = atm.combine_daily_years('PRECTOT', datafiles['precip'], years,
+                                      yearname='year', subset_dict=subset_dict)
+        var = atm.precip_convert(var, var.attrs['units'], 'mm/day')
+    elif var_type(varnm) == 'calc':
+        pres = atm.pres_convert(plev, 'hPa', 'Pa')
+        Tnm = 'T%d' % plev
+        Hnm = 'H%d' % plev
+        QVnm = 'QV%d' % plev
+        Unm = 'U%d' % plev
+        Vnm = 'V%d' % plev
+        print('Computing ' + varid)
+        if varid == 'THETA':
+            var = atm.potential_temp(data[Tnm], pres)
+        elif varid == 'THETA_E':
+            var = atm.equiv_potential_temp(data[Tnm], pres, data[QVnm])
+        elif varid == 'DSE':
+            var = atm.dry_static_energy(data[Tnm], data[Hnm])
+        elif varid == 'MSE':
+            var = atm.moist_static_energy(data[Tnm], data[Hnm], data[QVnm])
+        elif varid.startswith('V*'):
+            varid2 = '%s%d' % (varid[2:], plev)
+            var = data['V%d' % plev] * data[varid2]
+            var.name = varid
+        elif varid == 'abs_vort':
+            rel_vort = data['rel_vort%d' % plev]
+            lat = atm.get_coord(rel_vort, 'lat')
+            f = atm.coriolis(lat)
+            f = atm.biggify(f, rel_vort, tile=True)
+            var = rel_vort + f
+            var.name = varid
+        elif varid == 'EMFD':
+            nroll = 7
+            u_tr = data[Unm] - atm.rolling_mean(data[Unm], nroll, axis=1)
+            v_tr = data[Vnm] - atm.rolling_mean(data[Vnm], nroll, axis=1)
+
+            _, _, var = atm.divergence_spherical_2d(u_tr * u_tr,
+                                                          u_tr * v_tr)
+            var.name = varid
+            var.attrs['long_name'] = 'Transient EMFD_y'
+    else:
+        var = atm.combine_daily_years(varid, datafiles[varnm], years,
+                                      subset_dict={'Day' : (daymin, daymax)})
+        var = var.rename({'Year' : 'year', 'Day' : 'day'})
+        var = atm.squeeze(var)
+
+    return var
+
 
 # ----------------------------------------------------------------------
 def plot_colorbar(symmetric, orientation='vertical'):
