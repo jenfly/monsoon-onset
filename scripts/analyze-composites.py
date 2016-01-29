@@ -14,17 +14,20 @@ import precipdat
 import merra
 import indices
 import utils
-from utils import daily_rel2onset
 
 # ----------------------------------------------------------------------
 #onset_nm = 'HOWI'
 onset_nm = 'CHP_MFC'
 #onset_nm = 'CHP_PCP'
 
-years = range(1979, 2015)
-yearstr = '%d-%d Climatology' % (years[0], years[-1])
+# years = np.arange(1979, 2015)
+# years2 = None
+# yearstr = '%d-%d Climatology' % (years[0], years[-1])
 
 # CHP_MFC Early/Late Years
+years = [2004, 1999, 1990, 2000, 2001]
+years2 = [1983, 1992, 1997, 2014, 2012]
+yearstr = 'Late Minus Early Anomaly'
 # years, yearstr = [2004, 1999, 1990, 2000, 2001], '5 Earliest Years'
 # years, yearstr = [1983, 1992, 1997, 2014, 2012], '5 Latest Years'
 
@@ -50,28 +53,6 @@ varnms = ['U200', 'T950', 'QV950', 'THETA_E950']
 keys_remove = ['T950', 'H950', 'QV950', 'V950',  'DSE950',
                 'MSE950', 'V*DSE950', 'V*MSE950']
 
-datafiles = {}
-datafiles['HOWI'] = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
-datafiles['CHP_MFC'] = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
-datafiles['CHP_PCP'] = [datadir + 'merra_precip_%d.nc' % yr for yr in years]
-datafiles['precip'] = datafiles['CHP_PCP']
-
-def yrlyfile(var, plev, year, subset=''):
-    return 'merra_%s%d_40E-120E_60S-60N_%s%d.nc' % (var, plev, subset, year)
-
-for plev in [200, 850]:
-    files = [datadir + yrlyfile('uv', plev, yr) for yr in years]
-    for key in ['U', 'V', 'Ro', 'rel_vort', 'abs_vort']:
-        datafiles['%s%d' % (key, plev)] = files
-    for key in ['T', 'H', 'QV']:
-        key2 = '%s%d' % (key, plev)
-        datafiles[key2] = [datadir + yrlyfile(key, plev, yr) for yr in years]
-
-for plev in [950, 975]:
-    for key in ['T', 'H','QV', 'V']:
-        files = [datadir + yrlyfile(key, plev, yr) for yr in years]
-        datafiles['%s%d' % (key, plev)] = files
-
 remove_tricky = False
 years_tricky = [2002, 2004, 2007, 2009, 2010]
 
@@ -80,46 +61,7 @@ lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 
 # ----------------------------------------------------------------------
-# Monsoon onset day and index timeseries
-
-index = utils.get_onset_indices(onset_nm, datafiles[onset_nm], years)
-onset = index['onset']
-
-# ----------------------------------------------------------------------
-# Read daily data fields and align relative to onset day
-
-npre, npost = 90, 90
-yearnm, daynm = 'year', 'day'
-
-data = collections.OrderedDict()
-for varnm in varnms:
-    print('Reading daily data for ' + varnm)
-    var = utils.get_data_rel(varnm, years, datafiles, data, onset, npre, npost)
-    if utils.var_type(varnm) == 'basic':
-        print('Aligning data relative to onset day')
-        data[varnm] = daily_rel2onset(var, onset, npre, npost, yearnm=yearnm,
-                                      daynm=daynm)
-    else:
-        data[varnm] = var
-
-# Remove data that I don't want to include in plots
-keys = data.keys()
-for key in keys_remove:
-    if key in keys:
-        data = atm.odict_delete(data, key)
-
-# Fill Ro200 with NaNs near equator
-varnm = 'Ro200'
-if varnm in data:
-    latbuf = 5
-    lat = atm.get_coord(data[varnm], 'lat')
-    latbig = atm.biggify(lat, data[varnm], tile=True)
-    vals = data[varnm].values
-    vals = np.where(abs(latbig)>latbuf, vals, np.nan)
-    data[varnm].values = vals
-
-# ----------------------------------------------------------------------
-# Remove tricky years before calculating composites
+# List of data files
 
 if remove_tricky:
     print('Removing tricky years')
@@ -130,13 +72,104 @@ if remove_tricky:
         years.remove(year)
     years = np.array(years)
 
-    # Remove tricky years from all indices and data variables
-    onset = atm.subset(onset, {yearnm : (years, None)})
-    mfcbar = atm.subset(mfcbar, {yearnm : (years, None)})
+def yrlyfile(var, plev, year, subset=''):
+    return 'merra_%s%d_40E-120E_60S-60N_%s%d.nc' % (var, plev, subset, year)
 
-    for nm in data.keys():
-        print(nm)
-        data[nm] = atm.subset(data[nm], {yearnm : (years, None)})
+def get_filenames(years, datadir):
+    datafiles = {}
+    datafiles['HOWI'] = ['merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
+    datafiles['CHP_MFC'] = ['merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
+    datafiles['CHP_PCP'] = ['merra_precip_%d.nc' % yr for yr in years]
+    datafiles['precip'] = datafiles['CHP_PCP']
+
+    for plev in [200, 850]:
+        files = [yrlyfile('uv', plev, yr) for yr in years]
+        for key in ['U', 'V', 'Ro', 'rel_vort', 'abs_vort']:
+            datafiles['%s%d' % (key, plev)] = files
+        for key in ['T', 'H', 'QV']:
+            key2 = '%s%d' % (key, plev)
+            datafiles[key2] = [yrlyfile(key, plev, yr) for yr in years]
+
+    for plev in [950, 975]:
+        for key in ['T', 'H','QV', 'V']:
+            files = [yrlyfile(key, plev, yr) for yr in years]
+            datafiles['%s%d' % (key, plev)] = files
+
+    for varnm in datafiles:
+        files = datafiles[varnm]
+        datafiles[varnm] = [datadir + filenm for filenm in files]
+
+    return datafiles
+
+datafiles = get_filenames(years, datadir)
+if years2 is not None:
+    datafiles2 = get_filenames(years2, datadir)
+else:
+    datafiles2 = None
+
+# ----------------------------------------------------------------------
+# Calculate onset indices and get daily data
+
+def all_data(onset_nm, varnms, years, datafiles, npre, npost):
+
+    # Monsoon onset day and index timeseries
+    index = utils.get_onset_indices(onset_nm, datafiles[onset_nm], years)
+    onset = index['onset']
+
+    # Read daily data fields and align relative to onset day
+    yearnm, daynm = 'year', 'day'
+    data = collections.OrderedDict()
+    for varnm in varnms:
+        print('Reading daily data for ' + varnm)
+        var = utils.get_data_rel(varnm, years, datafiles, data, onset, npre,
+                                 npost)
+        if utils.var_type(varnm) == 'basic':
+            print('Aligning data relative to onset day')
+            data[varnm] = utils.daily_rel2onset(var, onset, npre, npost,
+                                                yearnm=yearnm, daynm=daynm)
+        else:
+            data[varnm] = var
+    return index, data
+
+npre, npost = 90, 90
+
+index, data = all_data(onset_nm, varnms, years, datafiles, npre, npost)
+
+if years2 is not None:
+    index2, data2 = all_data(onset_nm, varnms, years2, datafiles2, npre, npost)
+    for nm in data:
+        data[nm] = data2[nm].mean(dim='year') - data[nm].mean(dim='year')
+
+# ----------------------------------------------------------------------
+# Housekeeping
+
+# Remove data that I don't want to include in plots
+keys = data.keys()
+for key in keys_remove:
+    if key in keys:
+        data = atm.odict_delete(data, key)
+
+# Add extra dimension for year if necessary (i.e. if plotting difference
+# between two sets of years or plotting regression field)
+if years2 is not None:
+    year_coord = xray.DataArray([-1], name='year', coords={'year' : [-1]})
+    for varnm in data:
+        name, attrs, coords, dims = atm.meta(data[varnm])
+        dims = ['year'] + list(dims)
+        coords = atm.odict_insert(coords, 'year', year_coord)
+        vals = np.expand_dims(data[varnm], axis=0)
+        data[varnm] = xray.DataArray(vals, name=name, attrs=attrs, dims=dims,
+                                     coords=coords)
+
+# Fill Ro200 with NaNs near equator
+varnm = 'Ro200'
+if varnm in data:
+    latbuf = 5
+    lat = atm.get_coord(data[varnm], 'lat')
+    latbig = atm.biggify(lat, data[varnm], tile=True)
+    vals = data[varnm].values
+    vals = np.where(abs(latbig)>latbuf, vals, np.nan)
+    data[varnm].values = vals
 
 # ----------------------------------------------------------------------
 # Sector mean data
@@ -196,10 +229,7 @@ def annotate_theta_e(days, latmax):
 
 keys = sectordata.keys()
 for varnm in keys:
-    if 'year' in sectordata[varnm].dims:
-        plotdata = sectordata[varnm].mean(dim='year')
-    else:
-        plotdata = sectordata[varnm]
+    plotdata = sectordata[varnm].mean(dim='year')
     lat = plotdata[latname].values
     days = plotdata['dayrel'].values
     cmap = get_colormap(varnm)
