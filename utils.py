@@ -269,12 +269,20 @@ def get_strength_indices(years, mfc, precip, onset, retreat, yearnm='year',
 
 
 # ----------------------------------------------------------------------
+def plot_colorbar(symmetric, orientation='vertical'):
+    if symmetric:
+        atm.colorbar_symm(orientation=orientation)
+    else:
+        plt.colorbar(orientation=orientation)
+
+
+# ----------------------------------------------------------------------
 def contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm,
                       zero_line=False):
     vals = plotdata.values.T
     vals = np.ma.array(vals, mask=np.isnan(vals))
     ncont = 40
-    symmetric = symm_colors(plotdata)
+    symmetric = atm.symm_colors(plotdata)
     cint = atm.cinterval(vals, n_pref=ncont, symmetric=symmetric)
     clev = atm.clevels(vals, cint, symmetric=symmetric)
     plt.contourf(days, lat, vals, clev, cmap=cmap)
