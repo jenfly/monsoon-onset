@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 import collections
 import pandas as pd
+
 import atmos as atm
 import precipdat
 import merra
@@ -20,16 +21,17 @@ import utils
 onset_nm = 'CHP_MFC'
 #onset_nm = 'CHP_PCP'
 
-# years = np.arange(1979, 2015)
-# years2 = None
-# yearstr = '%d-%d Climatology' % (years.min(), years.max())
+# years, years2 = np.arange(1979, 2015), None
+# yearstr, savestr = '%d-%d Climatology' % (years.min(), years.max()), 'clim'
 
 # CHP_MFC Early/Late Years
 years = [2004, 1999, 1990, 2000, 2001]
 years2 = [1983, 1992, 1997, 2014, 2012]
-yearstr = 'Late Minus Early Anomaly'
+yearstr, savestr = 'Late Minus Early Anomaly', 'late_minus_early'
 # years, yearstr = [2004, 1999, 1990, 2000, 2001], '5 Earliest Years'
+# years2, savestr = None, 'early'
 # years, yearstr = [1983, 1992, 1997, 2014, 2012], '5 Latest Years'
+# years2, savestr = None, 'late'
 
 # HOWI Early/Late Years
 # years, yearstr = [2004, 2000, 1999, 2001, 1990], '5 Earliest Years'
@@ -40,24 +42,25 @@ savedir = 'figs/'
 run_anim = False
 run_eht = False
 
-vargroup = 'minimal'
+vargroup = 'group1'
 
 varlist = {
-    'test' : ['precip', 'U200']
-    'minimal' : ['precip', 'U200', 'V200', 'T200', 'U850', 'T850'],
-    'upper' : ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200', 
-               'abs_vort200', 'H200', 'T200', 'EMFD200'],
-    'lower' : ['U850', 'V850', 'rel_vort850', 'abs_vort850', 'H850', 
+    'test' : ['precip', 'U200'],
+    'subset' : ['precip', 'U200', 'V200', 'T200', 'U850', 'T850', 'T950',
+                'QV950', 'THETA_E950'],
+    'group1' : ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200',
+               'abs_vort200', 'H200', 'T200'],
+    'group2' : ['U850', 'V850', 'rel_vort850', 'abs_vort850', 'H850',
                'T850', 'QV850'],
-    'nearsurf' : ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950',
+    'group3' : ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950',
                   'V*THETA950', 'V*THETA_E950'],
-    'nearsurf2' : ['T950', 'H950', 'QV950', 'V950', 'THETA950', 
-                  'THETA_E950', 'DSE950', 'MSE950', 'V*THETA950', 
+    'nearsurf' : ['T950', 'H950', 'QV950', 'V950', 'THETA950',
+                  'THETA_E950', 'DSE950', 'MSE950', 'V*THETA950',
                   'V*THETA_E950', 'V*DSE950', 'V*MSE950']
-}                  
+}
 keys_remove = ['T950', 'H950', 'QV950', 'V950',  'DSE950',
                 'MSE950', 'V*DSE950', 'V*MSE950']
-                
+
 varnms = varlist[vargroup]
 
 remove_tricky = False
@@ -73,7 +76,19 @@ if years2 is not None:
     anom_plot = True
 else:
     anom_plot = False
-    
+
+# Day ranges for lat-lon composites
+compdays = collections.OrderedDict()
+if anom_plot or savestr in ['early', 'late']:
+    compdays['pre1'] = np.arange(-60, -45)
+    compdays['pre2'] = np.arange(-30, -15)
+elif onset_nm.startswith('CHP'):
+    compdays['pre'] = np.arange(-5, 0)
+    compdays['post'] = np.arange(15, 20)
+else:
+    compdays['pre'] = np.arange(-10, -5)
+    compdays['post'] = np.arange(6, 11)
+
 # ----------------------------------------------------------------------
 # List of data files
 
@@ -252,7 +267,7 @@ for i, varnm in enumerate(keys):
     lat = plotdata[latname].values
     days = plotdata['dayrel'].values
     cmap = get_colormap(varnm, anom_plot)
-    title = '%d-%dE ' %(lon1, lon2) + varnm + ' - ' + yearstr    
+    title = '%d-%dE ' %(lon1, lon2) + varnm + ' - ' + yearstr
     utils.contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm)
     if i % nrow == 0:
         plt.xlabel('')
@@ -261,21 +276,14 @@ for i, varnm in enumerate(keys):
         latmax = sector_latmax[varnm].mean(dim='year')
         annotate_theta_e(days, latmax)
 
-atm.savefigs(savedir + 'sector_%d-%dE_onset_%s_' % (lon1, lon2, onset_nm), 'pdf')
+filestr = 'sector_%d-%dE-onset_%s-%s-%s'
+filestr = filestr % (lon1, lon2, onset_nm, savestr, vargroup)
+atm.savefigs(savedir + filestr, 'pdf', merge=True)
 plt.close('all')
+
 
 # ----------------------------------------------------------------------
 # Composite averages
-compdays = collections.OrderedDict()
-if anom_plot:
-    compdays['pre1'] = np.arange(-20, -10)
-    compdays['pre2'] = np.arange(-10, 0)
-elif onset_nm.startswith('CHP'):
-    compdays['pre'] = np.arange(-5, 0)
-    compdays['post'] = np.arange(15, 20)
-else:
-    compdays['pre'] = np.arange(-10, -5)
-    compdays['post'] = np.arange(6, 11)
 
 compnms = {}
 for key in compdays:
@@ -321,14 +329,14 @@ key1, key2 = keys
 subset_dict = {'lat' : (axlims[0], axlims[1]), 'lon' : (axlims[2], axlims[3])}
 for varnm in comp:
     cmap = get_colormap(varnm, anom_plot)
-    dat = {key : atm.subset(comp[varnm][key].mean(dim='year'), subset_dict) 
+    dat = {key : atm.subset(comp[varnm][key].mean(dim='year'), subset_dict)
            for key in keys}
     if anom_plot:
         cmax = max([abs(dat[key]).max().values for key in keys])
         cmin = -cmax
     else:
         cmin, cmax = climits[varnm][0], climits[varnm][1]
-    
+
     plt.figure(figsize=(12, 10))
     plt.subplots_adjust(left=0.06, right=0.95)
     plt.suptitle('%s Composites Relative to %s Onset Day - %s' %
@@ -375,7 +383,8 @@ for varnm in comp:
         plt.ylabel(varnm)
         plt.grid()
 
-atm.savefigs(savedir + 'comp_clim_onset_%s_' % onset_nm, 'pdf')
+filestr = 'comp-onset_%s-%s-%s' % (onset_nm, savestr, vargroup)
+atm.savefigs(savedir + filestr, 'pdf', merge=True)
 plt.close('all')
 
 # ----------------------------------------------------------------------
