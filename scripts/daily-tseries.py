@@ -22,12 +22,18 @@ onset_nm = 'CHP_MFC'
 #onset_nm = 'CHP_PCP'
 
 enso_nm = 'ONI_JJA'
+#enso_nm = 'ONI_MAM'
+
+comp_keys, savestr = ['Early', 'Late'], 'early_late'
+#comp_keys, savestr = ['Long', 'Short'], 'long_short'
+#comp_keys, savestr = ['Nina (%s)' % enso_nm, 'Nino (%s)' % enso_nm], 'nina_nino'
 
 years = np.arange(1979, 2015)
 datadir = atm.homedir() + 'datastore/merra/daily/'
 vimtfiles = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
 mfcfiles = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
 precipfiles = [datadir + 'merra_precip_%d.nc' % yr for yr in years]
+savedir = 'figs/'
 
 plot_all_years = False
 plot_acc_clim = False
@@ -89,28 +95,21 @@ for key in tseries.data_vars:
 # ----------------------------------------------------------------------
 # Composite timeseries
 
+def lowest_highest(ind, nyrs):
+    ind_sorted = ind.to_series()
+    ind_sorted.sort()
+    lowest = ind_sorted[:nyrs].index.values
+    highest = ind_sorted[-1:-nyrs-1:-1].index.values
+    return lowest, highest
+
+# Composite definitions
 nyrs = 5
-comp_ind = {}
-comp_ts = {}
-comp_ts_rel = {}
-
-# Earliest / latest onset years
-onset_sorted = onset.to_series()
-onset_sorted.sort()
-comp_ind['Early'] = onset_sorted[:nyrs]
-comp_ind['Late'] = onset_sorted[-1:-nyrs-1:-1]
-
-# Nino / Nina years
-enso_sorted = enso.to_series()
-enso_sorted.sort()
-comp_ind['Nina'] = enso_sorted[:nyrs]
-comp_ind['Nino'] = enso_sorted[-1:-nyrs-1:-1]
-
-comp_yrs = {key : comp_ind[key].index.values for key in comp_ind}
-
-for key in comp_yrs:
-    print(key)
-    print(comp_ind[key])
+comp_yrs = {}
+comp_yrs['Early'], comp_yrs['Late'] = lowest_highest(onset, nyrs)
+comp_yrs['Short'], comp_yrs['Long'] = lowest_highest(length, nyrs)
+key1, key2 = 'Nina (%s)' % enso_nm, 'Nino (%s)' % enso_nm
+comp_yrs[key1], comp_yrs[key2] = lowest_highest(enso, nyrs)
+atm.print_odict(comp_yrs)
 
 
 # ======================================================================
@@ -287,7 +286,6 @@ ylims_rel = {'HOWI' : (-1, 2), 'MFC' : (-4, 9), 'PCP' : (0, 13),
            'MFC_ACC' : (0, 600), 'PCP_ACC' : (0, 1400)}
 
 figsize = (16, 12)
-keys = ['Early', 'Late']
 varnms = [onset_nm, 'MFC', 'PCP', 'MFC_ACC', 'PCP_ACC']
 if onset_nm.startswith('CHP'):
     varnms.remove(onset_nm)
@@ -304,8 +302,12 @@ for i, tsdata in enumerate([tseries, tseries_rel]):
         else:
             legend_loc = 'upper left'
         suptitle = '%s (%s Onset/Retreat)' % (varnm, onset_nm)
-        ts_plot_all(tsdata, comp_yrs, keys, varnm, index, enso, ymin, ymax,
+        ts_plot_all(tsdata, comp_yrs, comp_keys, varnm, index, enso, ymin, ymax,
                     suptitle, figsize, legend_loc=legend_loc)
+
+filestr = 'daily_tseries-onset_%s-enso_%s-%s' % (onset_nm, enso_nm, savestr)
+atm.savefigs(savedir + filestr, 'pdf', merge=True)
+plt.close('all')
 
 # ----------------------------------------------------------------------
 # Variability in Accumulated precip / MFC over climatology
