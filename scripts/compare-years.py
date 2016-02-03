@@ -18,7 +18,7 @@ import utils
 
 # ----------------------------------------------------------------------
 #onset_nm = 'HOWI'
-onset_nm = 'CHP_MFC'
+onset_nm, lrs_mean = 'CHP_MFC', 137
 #onset_nm = 'CHP_PCP'
 
 # CHP_MFC Early/Late Years
@@ -40,11 +40,21 @@ keys_remove = ['T950', 'H950', 'QV950', 'V950',  'DSE950',
                 'MSE950', 'V*DSE950', 'V*MSE950']
 
 # Day ranges for composites
+#comp_keys = ['pre4', 'pre3', 'pre2', 'pre1']
+comp_keys = ['post1', 'post2', 'post3', 'post4']
+
+compdays_all = {'pre4' : np.arange(-60, -45),
+                'pre3' : np.arange(-45, -30),
+                'pre2' : np.arange(-30, -15),
+                'pre1' : np.arange(-15, 0),
+                'post1' : np.arange(0, 15),
+                'post2' : np.arange(15, 30),
+                'post3' : np.arange(30, 45),
+                'post4' : np.arange(0, lrs_mean)}
+
 compdays = collections.OrderedDict()
-compdays['pre1'] = np.arange(-60, -45)
-compdays['pre2'] = np.arange(-30, -15)
-compdays['pre'] = np.arange(-5, 0)
-compdays['post'] = np.arange(15, 20)
+for key in comp_keys:
+    compdays[key] = compdays_all[key]
 
 # Lat-lon box for MFC / precip
 lon1, lon2 = 60, 100
@@ -108,7 +118,7 @@ def all_data(onset_nm, varnms, years, datafiles, npre, npost):
             data[varnm] = var
     return index, data
 
-npre, npost = 90, 90
+npre, npost = 90, 150
 
 data = collections.OrderedDict()
 index = collections.OrderedDict()
@@ -157,17 +167,14 @@ for key1 in comp_yrs:
 # Plotting params and utilities
 
 def plusminus(num):
-    return atm.format_num(num, ndecimals=0, plus_sym=True)
+    if num == 0:
+        numstr = '+0'
+    else:
+        numstr = atm.format_num(num, ndecimals=0, plus_sym=True)
+    return numstr
 
 # ----------------------------------------------------------------------
 # Composite averages
-
-compnms = {}
-for key in compdays:
-    d1 = plusminus(compdays[key].min())
-    d2 = plusminus(compdays[key].max())
-    compnms[key] = 'D0%s:D0%s' % (d1, d2)
-
 print('Computing composites relative to onset day')
 nms =  data[data.keys()[0]].keys()
 
@@ -177,17 +184,39 @@ for nm in nms:
     comp[nm] = collections.OrderedDict()
     sectorcomp[nm] = collections.OrderedDict()
     for key in data:
-        compdat = utils.composite(data[key][nm], compdays, daynm='dayrel',
+        compdat = utils.composite(data[key][nm], compdays_all, daynm='dayrel',
                                   return_avg=True)
-        compsec = utils.composite(sectordata[key][nm], compdays,
+        compsec = utils.composite(sectordata[key][nm], compdays_all,
                                   daynm='dayrel', return_avg=True)
         for dkey in compdat:
             key2 = key + '_' + dkey
             comp[nm][key2] = compdat[dkey]
             sectorcomp[nm][key2] = compsec[dkey]
 
+# Get max/min values from all composites for setting consistent
+# ylimits on plots
+ylimits = {}
+for nm in nms:
+    for i, key in enumerate(sectorcomp[nm]):
+        val1 = sectorcomp[nm][key].min().values
+        val2 = sectorcomp[nm][key].max().values
+        if i == 0:
+            ylim1, ylim2 = val1, val2
+        else:
+            ylim1, ylim2 = min([ylim1, val1]), max([ylim2, val2])
+    # Add a bit of buffer space
+    ylim1, ylim2 = ylim1 - 0.05 * abs(ylim1), ylim2 + 0.05 * abs(ylim2)
+    if nm == 'precip':
+        ylim1 = 0
+    ylimits[nm] = (ylim1, ylim2)
+
 # ----------------------------------------------------------------------
 # Line plots of sector data
+compnms = {}
+for key in compdays:
+    d1 = plusminus(compdays[key].min())
+    d2 = plusminus(compdays[key].max())
+    compnms[key] = 'D0%s:D0%s' % (d1, d2)
 
 ncol = len(compdays.keys())
 nrow = 4
@@ -195,7 +224,6 @@ figsize = (12, 9)
 suptitle = '%d-%dE Composites Relative to %s Onset Day' % (lon1, lon2, onset_nm)
 
 fmt_str = {'early' : 'k--', 'late' : 'k'}
-keys = sectorcomp.keys()
 for i, nm in enumerate(sectorcomp):
     if i % nrow == 0:
         row = 1
@@ -212,6 +240,7 @@ for i, nm in enumerate(sectorcomp):
             lat = atm.get_coord(var, 'lat')
             ax.plot(lat, var, fmt_str[yrkey], label=yrkey)
         ax.grid(True)
+        ax.set_ylim(ylimits[nm])
         if row == 1:
             ax.set_title(compnms[dkey])
         if row == nrow:
@@ -219,4 +248,4 @@ for i, nm in enumerate(sectorcomp):
         if j == 0:
             ax.set_ylabel(nm)
         if i == 0 and j == 0:
-            ax.legend(fontsize=10)
+            ax.legend(fontsize=10, loc='upper left')
