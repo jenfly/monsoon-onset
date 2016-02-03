@@ -279,10 +279,11 @@ def var_type(varnm):
 
 
 # ----------------------------------------------------------------------
-def get_data_rel(varnm, years, datafiles, data, onset, npre, npost):
+def get_data_rel(varnm, years, datafiles, data, onset, npre, npost,
+                 yearnm='year', daynm='day'):
     """Return daily data relative to onset date.
 
-    Data is read from datafiles[varnm] if varnm is a basic variable.
+    Data is read from datafiles if varnm is a basic variable.
     If varnm is a calculated variable (e.g. potential temperature),
     the base variables for calculation are provided in the dict data.
     """
@@ -295,7 +296,7 @@ def get_data_rel(varnm, years, datafiles, data, onset, npre, npost):
         subset_dict = {'day' : (daymin, daymax),
                        'lon' : (40, 120),
                        'lat' : (-60, 60)}
-        var = atm.combine_daily_years('PRECTOT', datafiles['precip'], years,
+        var = atm.combine_daily_years('PRECTOT', datafiles, years,
                                       yearname='year', subset_dict=subset_dict)
         var = atm.precip_convert(var, var.attrs['units'], 'mm/day')
     elif var_type(varnm) == 'calc':
@@ -335,10 +336,16 @@ def get_data_rel(varnm, years, datafiles, data, onset, npre, npost):
             var.name = varid
             var.attrs['long_name'] = 'Transient EMFD_y'
     else:
-        var = atm.combine_daily_years(varid, datafiles[varnm], years,
+        var = atm.combine_daily_years(varid, datafiles, years,
                                       subset_dict={'Day' : (daymin, daymax)})
         var = var.rename({'Year' : 'year', 'Day' : 'day'})
         var = atm.squeeze(var)
+
+    # Align relative to onset day:
+    if var_type(varnm) == 'basic':
+        print('Aligning data relative to onset day')
+        var = daily_rel2onset(var, onset, npre, npost, yearnm=yearnm,
+                              daynm=daynm)
 
     return var
 

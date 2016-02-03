@@ -40,8 +40,8 @@ keys_remove = ['T950', 'H950', 'QV950', 'V950',  'DSE950',
                 'MSE950', 'V*DSE950', 'V*MSE950']
 
 # Day ranges for composites
-#comp_keys = ['pre4', 'pre3', 'pre2', 'pre1']
-comp_keys = ['post1', 'post2', 'post3', 'post4']
+comp_keys = ['pre4', 'pre3', 'pre2', 'pre1']
+#comp_keys = ['post1', 'post2', 'post3', 'post4']
 
 compdays_all = {'pre4' : np.arange(-60, -45),
                 'pre3' : np.arange(-45, -30),
@@ -108,14 +108,8 @@ def all_data(onset_nm, varnms, years, datafiles, npre, npost):
     data = collections.OrderedDict()
     for varnm in varnms:
         print('Reading daily data for ' + varnm)
-        var = utils.get_data_rel(varnm, years, datafiles, data, onset, npre,
-                                 npost)
-        if utils.var_type(varnm) == 'basic':
-            print('Aligning data relative to onset day')
-            data[varnm] = utils.daily_rel2onset(var, onset, npre, npost,
-                                                yearnm=yearnm, daynm=daynm)
-        else:
-            data[varnm] = var
+        data[varnm] = utils.get_data_rel(varnm, years, datafiles.get(varnm), 
+                                         data, onset, npre, npost)
     return index, data
 
 npre, npost = 90, 150
@@ -205,7 +199,8 @@ for nm in nms:
         else:
             ylim1, ylim2 = min([ylim1, val1]), max([ylim2, val2])
     # Add a bit of buffer space
-    ylim1, ylim2 = ylim1 - 0.05 * abs(ylim1), ylim2 + 0.05 * abs(ylim2)
+    delta = (ylim2 - ylim1) * 0.05
+    ylim1, ylim2 = ylim1 - delta, ylim2 + delta
     if nm == 'precip':
         ylim1 = 0
     ylimits[nm] = (ylim1, ylim2)
@@ -235,6 +230,12 @@ for i, nm in enumerate(sectorcomp):
         row += 1
     for j, dkey in enumerate(compdays):
         ax = axes[row - 1, j]
+        ### Temporary - put real climatology in here
+        lat = atm.get_coord(sectorcomp[nm]['early_' + dkey], 'lat')
+        varbar = 0.5 * (sectorcomp[nm]['early_' + dkey] +
+                        sectorcomp[nm]['late_' + dkey])
+        ax.plot(lat, varbar, color='k', linewidth=2, alpha=0.3, label='clim')
+        ###
         for yrkey in comp_yrs:
             var = sectorcomp[nm][yrkey + '_' + dkey]
             lat = atm.get_coord(var, 'lat')
@@ -248,4 +249,4 @@ for i, nm in enumerate(sectorcomp):
         if j == 0:
             ax.set_ylabel(nm)
         if i == 0 and j == 0:
-            ax.legend(fontsize=10, loc='upper left')
+            ax.legend(fontsize=8, loc='upper left')

@@ -151,14 +151,8 @@ def all_data(onset_nm, varnms, years, datafiles, npre, npost):
     data = collections.OrderedDict()
     for varnm in varnms:
         print('Reading daily data for ' + varnm)
-        var = utils.get_data_rel(varnm, years, datafiles, data, onset, npre,
-                                 npost)
-        if utils.var_type(varnm) == 'basic':
-            print('Aligning data relative to onset day')
-            data[varnm] = utils.daily_rel2onset(var, onset, npre, npost,
-                                                yearnm=yearnm, daynm=daynm)
-        else:
-            data[varnm] = var
+        data[varnm] = utils.get_data_rel(varnm, years, datafiles.get(varnm),
+                                         data, onset, npre, npost)
     return index, data
 
 npre, npost = 90, 90
@@ -365,8 +359,8 @@ for varnm in comp:
     sector2 = sectorcomp[varnm][key2].mean(dim='year')
     lat = atm.get_coord(sector1, 'lat')
     plt.subplot(2, 2, 3)
-    plt.plot(lat, sector1, label=key1.upper())
-    plt.plot(lat, sector2, label=key2.upper())
+    plt.plot(lat, sector1, 'b', label=key1.upper())
+    plt.plot(lat, sector2, 'r', label=key2.upper())
     plt.title('%d-%d E Composites' % (lon1, lon2))
     if varnm in ['precip', 'Ro_200', 'rel_vort200']:
         legend_loc = 'upper right'
