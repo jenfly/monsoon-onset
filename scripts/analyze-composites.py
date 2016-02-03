@@ -21,13 +21,14 @@ import utils
 onset_nm = 'CHP_MFC'
 #onset_nm = 'CHP_PCP'
 
-# years, years2 = np.arange(1979, 2015), None
-# yearstr, savestr = '%d-%d Climatology' % (years.min(), years.max()), 'clim'
+years, years2 = np.arange(1979, 2015), None
+yearstr, savestr = '%d-%d Climatology' % (years.min(), years.max()), 'clim'
+savestr = 'clim_pre1pre2'
 
 # CHP_MFC Early/Late Years
-years = [2004, 1999, 1990, 2000, 2001]
-years2 = [1983, 1992, 1997, 2014, 2012]
-yearstr, savestr = 'Late Minus Early Anomaly', 'late_minus_early'
+# years = [2004, 1999, 1990, 2000, 2001]
+# years2 = [1983, 1992, 1997, 2014, 2012]
+# yearstr, savestr = 'Late Minus Early Anomaly', 'late_minus_early'
 # years, yearstr = [2004, 1999, 1990, 2000, 2001], '5 Earliest Years'
 # years2, savestr = None, 'early'
 # years, yearstr = [1983, 1992, 1997, 2014, 2012], '5 Latest Years'
@@ -42,7 +43,7 @@ savedir = 'figs/'
 run_anim = False
 run_eht = False
 
-vargroup = 'group1'
+vargroup = 'group3'
 
 varlist = {
     'test' : ['precip', 'U200'],
@@ -79,7 +80,7 @@ else:
 
 # Day ranges for lat-lon composites
 compdays = collections.OrderedDict()
-if anom_plot or savestr in ['early', 'late']:
+if anom_plot or savestr in ['early', 'late', 'clim_pre1pre2']:
     compdays['pre1'] = np.arange(-60, -45)
     compdays['pre2'] = np.arange(-30, -15)
 elif onset_nm.startswith('CHP'):
