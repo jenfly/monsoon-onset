@@ -21,14 +21,14 @@ import utils
 onset_nm = 'CHP_MFC'
 #onset_nm = 'CHP_PCP'
 
-years, years2 = np.arange(1979, 2015), None
-yearstr, savestr = '%d-%d Climatology' % (years.min(), years.max()), 'clim'
-#savestr = 'clim_pre1pre2'
+# years, years2 = np.arange(1979, 2015), None
+# yearstr, savestr = '%d-%d Climatology' % (years.min(), years.max()), 'clim'
+# #savestr = 'clim_pre1pre2'
 
 # CHP_MFC Early/Late Years
-# years = [2004, 1999, 1990, 2000, 2001]
-# years2 = [1983, 1992, 1997, 2014, 2012]
-# yearstr, savestr = 'Late Minus Early Anomaly', 'late_minus_early'
+years = [2004, 1999, 1990, 2000, 2001]
+years2 = [1983, 1992, 1997, 2014, 2012]
+yearstr, savestr = 'Late Minus Early Anomaly', 'late_minus_early'
 # years, yearstr = [2004, 1999, 1990, 2000, 2001], '5 Earliest Years'
 # years2, savestr = None, 'early'
 # years, yearstr = [1983, 1992, 1997, 2014, 2012], '5 Latest Years'
@@ -101,36 +101,6 @@ if remove_tricky:
         years.remove(year)
     years = np.array(years)
 
-# def yrlyfile(var, plev, year, subset=''):
-#     return 'merra_%s%d_40E-120E_60S-60N_%s%d.nc' % (var, plev, subset, year)
-#
-# def get_filenames(years, datadir):
-#     datafiles = {}
-#     datafiles['HOWI'] = ['merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
-#     datafiles['CHP_MFC'] = ['merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
-#     datafiles['CHP_PCP'] = ['merra_precip_%d.nc' % yr for yr in years]
-#     datafiles['precip'] = datafiles['CHP_PCP']
-#
-#     for plev in [200, 850]:
-#         files = [yrlyfile('uv', plev, yr) for yr in years]
-#         for key in ['U', 'V', 'Ro', 'rel_vort', 'abs_vort']:
-#             datafiles['%s%d' % (key, plev)] = files
-#         for key in ['T', 'H', 'QV']:
-#             key2 = '%s%d' % (key, plev)
-#             datafiles[key2] = [yrlyfile(key, plev, yr) for yr in years]
-#
-#     for plev in [950, 975]:
-#         for key in ['T', 'H','QV', 'V']:
-#             files = [yrlyfile(key, plev, yr) for yr in years]
-#             datafiles['%s%d' % (key, plev)] = files
-#
-#     for varnm in datafiles:
-#         files = datafiles[varnm]
-#         datafiles[varnm] = [datadir + filenm for filenm in files]
-#
-#     return datafiles
-
-
 def get_filenames(yrs, varnms, onset_nm, datadir, reldir):
 
     # Data for computing onset/retreat indices
@@ -160,18 +130,14 @@ def all_data(onset_nm, varnms, years, datafiles, npre, npost):
 
     # Monsoon onset day and index timeseries
     index = utils.get_onset_indices(onset_nm, datafiles[onset_nm], years)
-    #onset = index['onset']
 
     # Read daily data fields aligned relative to onset day
-    #yearnm, daynm = 'year', 'day'
     data = collections.OrderedDict()
     for varnm in varnms:
         print('Reading daily data for ' + varnm)
         ds = atm.load_concat(datafiles[varnm], concat_dim='year')
         varid = ds.data_vars.keys()[0]
         data[varnm] = atm.subset(ds[varid], {'dayrel' : (-npre, npost)})
-        # data[varnm] = utils.get_data_rel(varnm, years, datafiles.get(varnm),
-        #                                  data, onset, npre, npost)
     return index, data
 
 npre, npost = 90, 90
@@ -185,12 +151,6 @@ if years2 is not None:
 
 # ----------------------------------------------------------------------
 # Housekeeping
-
-# Remove data that I don't want to include in plots
-# keys = data.keys()
-# for key in keys_remove:
-#     if key in keys:
-#         data = atm.odict_delete(data, key)
 
 # Add extra dimension for year if necessary (i.e. if plotting difference
 # between two sets of years or plotting regression field)
@@ -236,7 +196,6 @@ if varnm in sectordata and not anom_plot:
     latmax = lat[np.nanargmax(var, axis=2)]
     sector_latmax[varnm] = xray.DataArray(latmax, dims=['year', 'dayrel'],
                                           coords=coords)
-
     # Climatology
     latmax = lat[np.nanargmax(var.mean(dim='year'), axis=1)]
     key = varnm + '_CLIM'
@@ -283,6 +242,7 @@ for i, varnm in enumerate(keys):
     cmap = get_colormap(varnm, anom_plot)
     title = '%d-%dE ' %(lon1, lon2) + varnm + ' - ' + yearstr
     utils.contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm)
+    plt.ylim(axlims[0], axlims[1])
     if i % nrow == 0:
         plt.xlabel('')
     # Add latitudes of maxima
@@ -321,7 +281,6 @@ for varnm in data:
         sectorcomp[varnm][key] = compsec[key]
 
 # Plot lat-lon maps and sector means of pre/post onset composite averages
-axlims = (-60, 60, 40, 120)
 climits = {'precip' : (0, 20), 'U200' : (-50, 50), 'V200' : (-10, 10),
            'Ro200' : (-1, 1), 'rel_vort200' : (-4e-5, 4e-5),
            'abs_vort200' : (-2e-4, 2e-4), 'T200' : (213, 227),
@@ -336,7 +295,8 @@ climits = {'precip' : (0, 20), 'U200' : (-50, 50), 'V200' : (-10, 10),
            'THETA950' : (260, 315), 'THETA_E950' : (260, 365),
            'DSE950' : (2.6e5, 3.2e5), 'MSE950' : (2.5e5, 3.5e5),
            'V*DSE950' : (-4.5e6,4.5e6), 'V*MSE950' : (-5e6, 5e6),
-           'V*THETA950' : (-4500, 4500), 'V*THETA_E950' : (-4900, 4900)}
+           'V*THETA950' : (-4500, 4500), 'V*THETA_E950' : (-4900, 4900),
+           'HFLUX' : (-125, 125), 'EFLUX' : (-200, 200), 'EVAP' : (-8, 8)}
 
 keys = compdays.keys()
 key1, key2 = keys
@@ -393,6 +353,7 @@ for varnm in comp:
     plt.title('%d-%d E Difference (%s-%s)' % (lon1, lon2, key2.upper(), key1.upper()))
     for i in [3, 4]:
         plt.subplot(2, 2, i)
+        plt.xlim(axlims[0], axlims[1])
         plt.xlabel('Latitude')
         plt.ylabel(varnm)
         plt.grid()
