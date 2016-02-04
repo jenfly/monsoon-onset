@@ -38,13 +38,12 @@ yearstr, savestr = '%d-%d Climatology' % (years.min(), years.max()), 'clim'
 # years, yearstr = [2004, 2000, 1999, 2001, 1990], '5 Earliest Years'
 # years, yearstr = [1983, 1979, 1997, 1992, 1995], '5 Latest Years'
 
-datadir = atm.homedir() + 'datastore/merra/daily/'
-reldir = atm.homedir() + 'datastore/merra/analysis/'
+datadir = atm.homedir() + 'datastore/merra/analysis/'
 savedir = 'figs/'
 run_anim = False
 run_eht = False
 
-vargroup = 'group3'
+vargroup = 'group1'
 
 varlist = {
     'test' : ['precip', 'U200'],
@@ -102,50 +101,43 @@ if remove_tricky:
         years.remove(year)
     years = np.array(years)
 
-def get_filenames(yrs, varnms, onset_nm, datadir, reldir):
+def get_filenames(yrs, varnms, onset_nm, datadir):
 
-    # Data for computing onset/retreat indices
-    files = {}
-    files['HOWI'] = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in yrs]
-    files['CHP_MFC'] = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in yrs]
-    files['CHP_PCP'] = [datadir + 'merra_precip_%d.nc' % yr for yr in yrs]
-
-    # Daily data relative to onset day
-    filestr = reldir + 'merra_%s_dailyrel_%s_%d.nc'
+    files = collections.OrderedDict()
+#    files['HOWI'] = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in yrs]
+#    files['CHP_MFC'] = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in yrs]
+#    files['CHP_PCP'] = [datadir + 'merra_precip_%d.nc' % yr for yr in yrs]
+    filestr = datadir + 'merra_%s_dailyrel_%s_%d.nc'
     for nm in varnms:
         files[nm] = [filestr % (nm, onset_nm, yr) for yr in yrs]
 
     return files
 
 
-datafiles = get_filenames(years, varnms, onset_nm, datadir, reldir)
+datafiles = get_filenames(years, varnms, onset_nm, datadir)
 if years2 is not None:
-    datafiles2 = get_filenames(years2, varnms, onset_nm, datadir, reldir)
+    datafiles2 = get_filenames(years2, varnms, onset_nm, datadir)
 else:
     datafiles2 = None
 
 # ----------------------------------------------------------------------
-# Calculate onset indices and get daily data
+# Get daily data
 
-def all_data(onset_nm, varnms, years, datafiles, npre, npost):
-    #
-    # # Monsoon onset day and index timeseries
-    # index = utils.get_onset_indices(onset_nm, datafiles[onset_nm], years)
+def all_data(datafiles, npre, npost):
 
     # Read daily data fields aligned relative to onset day
     data = collections.OrderedDict()
-    for varnm in varnms:
+    for varnm in datafiles:
         print('Reading daily data for ' + varnm)
-        ds = atm.load_concat(datafiles[varnm], concat_dim='year')
-        varid = ds.data_vars.keys()[0]
-        data[varnm] = atm.subset(ds[varid], {'dayrel' : (-npre, npost)})
-    return data
+        var, onset, retreat = utils.load_dailyrel(datafiles[varnm])
+        data[varnm] = atm.subset(var, {'dayrel' : (-npre, npost)})
+    return data, onset, retreat
 
 
-data = all_data(onset_nm, varnms, years, datafiles, npre, npost)
+data, onset, retreat = all_data(datafiles, npre, npost)
 
 if years2 is not None:
-    data2 = all_data(onset_nm, varnms, years2, datafiles2, npre, npost)
+    data2, onset2, retreat2 = all_data(datafiles2, npre, npost)
     for nm in data:
         data[nm] = data2[nm].mean(dim='year') - data[nm].mean(dim='year')
 
