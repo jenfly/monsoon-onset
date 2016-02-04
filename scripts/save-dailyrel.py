@@ -27,12 +27,12 @@ savedir = atm.homedir() + 'datastore/merra/analysis/'
 # Number of days before and after onset to include
 npre, npost = 120, 200
 
-varnms = ['EFLUX', 'HFLUX']
+varnms = ['EVAP']
 # varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200',
 #            'abs_vort200', 'H200', 'T200',
 #            'U850', 'V850', 'H850', 'T850', 'QV850',
 #            'T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950',
-#            'V*THETA_E950']
+#            'V*THETA_E950', 'EFLUX', 'HFLUX', 'EVAP']
 
 keys_remove = ['T950', 'H950', 'QV950', 'V950',  'DSE950',
                 'MSE950', 'V*DSE950', 'V*MSE950']

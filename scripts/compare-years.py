@@ -35,11 +35,11 @@ varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200',
            'abs_vort200', 'H200', 'T200',
            'U850', 'V850', 'H850', 'T850', 'QV850',
            'THETA950', 'THETA_E950', 'V*THETA_E950',
-           'HFLUX', 'EFLUX']
+           'HFLUX', 'EFLUX', 'EVAP']
 
 # Day ranges for composites
-#comp_keys = ['pre4', 'pre3', 'pre2', 'pre1']
-comp_keys = ['post1', 'post2', 'post3', 'post4']
+comp_keys = ['pre4', 'pre3', 'pre2', 'pre1']
+#comp_keys = ['post1', 'post2', 'post3', 'post4']
 
 compdays_all = {'pre4' : np.arange(-60, -45),
                 'pre3' : np.arange(-45, -30),
