@@ -36,7 +36,7 @@ def daily_rel2onset(data, d_onset, npre, npost, daynm='Day', yearnm='Year'):
     """
 
     name, attrs, coords, dimnames = atm.meta(data)
-    years = atm.get_coord(data, coord_name=yearnm)
+    years = atm.makelist(atm.get_coord(data, coord_name=yearnm))
 
     if isinstance(d_onset, xray.DataArray):
         d_onset = d_onset.values
@@ -288,7 +288,9 @@ def get_data_rel(varnm, years, datafiles, data, onset, npre, npost,
     the base variables for calculation are provided in the dict data.
     """
 
-    daymin, daymax = onset.values.min() - npre, onset.values.max() + npost
+    years = atm.makelist(years)
+    onset = atm.makelist(onset)
+    daymin, daymax = min(onset) - npre, max(onset) + npost
     if varnm != 'precip':
         plev = int(varnm[-3:])
         varid = varnm[:-3]
@@ -344,6 +346,8 @@ def get_data_rel(varnm, years, datafiles, data, onset, npre, npost,
     # Align relative to onset day:
     if var_type(varnm) == 'basic':
         print('Aligning data relative to onset day')
+        if len(years) == 1:
+            var = atm.expand_dims(var, yearnm, years[0], axis=0)
         var = daily_rel2onset(var, onset, npre, npost, yearnm=yearnm,
                               daynm=daynm)
 
