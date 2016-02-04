@@ -291,9 +291,11 @@ def get_data_rel(varnm, years, datafiles, data, onset, npre, npost,
     years = atm.makelist(years)
     onset = atm.makelist(onset)
     daymin, daymax = min(onset) - npre, max(onset) + npost
-    if varnm != 'precip':
+    if varnm not in ['precip', 'EVAP', 'EFLUX', 'HFLUX']:
         plev = int(varnm[-3:])
         varid = varnm[:-3]
+    else:
+        varid, plev = varnm, None
     if varnm == 'precip':
         subset_dict = {'day' : (daymin, daymax),
                        'lon' : (40, 120),
@@ -338,9 +340,12 @@ def get_data_rel(varnm, years, datafiles, data, onset, npre, npost,
             var.name = varid
             var.attrs['long_name'] = 'Transient EMFD_y'
     else:
+        with xray.open_dataset(datafiles[0]) as ds:
+            daynm_in = ds[varid].dims[0]
         var = atm.combine_daily_years(varid, datafiles, years,
-                                      subset_dict={'Day' : (daymin, daymax)})
-        var = var.rename({'Year' : 'year', 'Day' : 'day'})
+                                      subset_dict={daynm_in : (daymin, daymax)})
+        if 'Year' in var.dims:
+            var = var.rename({'Year' : 'year', 'Day' : 'day'})
         var = atm.squeeze(var)
 
     # Align relative to onset day:
