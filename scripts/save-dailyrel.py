@@ -27,11 +27,12 @@ savedir = atm.homedir() + 'datastore/merra/analysis/'
 # Number of days before and after onset to include
 npre, npost = 120, 200
 
-varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200',
-           'abs_vort200', 'H200', 'T200',
-           'U850', 'V850', 'H850', 'T850', 'QV850',
-           'T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950',
-           'V*THETA_E950']
+varnms = ['EFLUX', 'HFLUX']
+# varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200',
+#            'abs_vort200', 'H200', 'T200',
+#            'U850', 'V850', 'H850', 'T850', 'QV850',
+#            'T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950',
+#            'V*THETA_E950']
 
 keys_remove = ['T950', 'H950', 'QV950', 'V950',  'DSE950',
                 'MSE950', 'V*DSE950', 'V*MSE950']
@@ -43,8 +44,12 @@ lat1, lat2 = 10, 30
 # ----------------------------------------------------------------------
 # List of data files
 
-def yrlyfile(var, plev, year, subset=''):
-    return 'merra_%s%d_40E-120E_60S-60N_%s%d.nc' % (var, plev, subset, year)
+def yrlyfile(var, plev, year, subset1='40E-120E_60S-60N', subset2=''):
+    if plev is None:
+        varid = var
+    else:
+        varid = '%s%d' % (var, plev)
+    return 'merra_%s_%s_%s%d.nc' % (varid, subset1, subset2, year)
 
 def get_filenames(years, datadir):
     datafiles = {}
@@ -66,6 +71,10 @@ def get_filenames(years, datadir):
             files = [yrlyfile(key, plev, yr) for yr in years]
             datafiles['%s%d' % (key, plev)] = files
 
+    for key in ['EFLUX', 'HFLUX', 'EVAP']:
+        subset1 = '40E-120E_90S-90N'
+        datafiles[key] = [yrlyfile(key, None, yr, subset1) for yr in years]
+
     for varnm in datafiles:
         files = datafiles[varnm]
         datafiles[varnm] = [datadir + filenm for filenm in files]
@@ -73,7 +82,6 @@ def get_filenames(years, datadir):
     return datafiles
 
 datafiles = get_filenames(years, datadir)
-
 
 # ----------------------------------------------------------------------
 # Onset index for each year
@@ -106,22 +114,39 @@ def housekeeping(data, keys_remove):
     return data
 
 
-savestr = savedir + 'merra_%s_dailyrel_%s_%d.nc'
 yearnm, daynm = 'year', 'day'
-
+relfiles = {}
 for y, year in enumerate(years):
     files = {key : [datafiles[key][y]] for key in datafiles}
     d_onset = int(onset[y].values)
     data = {}
-    for varnm in varnms:        
+    for varnm in varnms:
         print('Reading daily data for ' + varnm)
         data[varnm] = utils.get_data_rel(varnm, year, files.get(varnm), data,
                                          d_onset, npre, npost)
     data = housekeeping(data, keys_remove)
     for varnm in data:
         savefile = get_savefile(savedir, varnm, onset_nm, year)
+        if y == 0:
+            relfiles[varnm] = [savefile]
+        else:
+            relfiles[varnm] = relfiles[varnm] + [savefile]
         print('Saving to ' + savefile)
         atm.save_nc(savefile, data[varnm])
 
+# ----------------------------------------------------------------------
+# Compute climatologies and save
 
-
+yearstr = '%d-%d' % (years.min(), years.max())
+for varnm in data:
+    with xray.open_dataset(relfiles[varnm][0]) as ds0:
+        attrs = ds0[varnm].attrs
+    ds = atm.load_concat(relfiles[varnm], concat_dim='year')
+    print('Computing climatological mean')
+    ds = ds.mean(dim='year')
+    ds[varnm].attrs = attrs
+    ds[varnm].attrs['d_onset'] = onset.values
+    ds[varnm].attrs['years'] = years
+    filn = savedir + 'merra_%s_dailyrel_%s_%s.nc' % (varnm, onset_nm, yearstr)
+    print('Saving to ' + filn)
+    ds.to_netcdf(filn)
