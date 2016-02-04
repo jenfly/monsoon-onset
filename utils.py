@@ -302,7 +302,6 @@ def get_data_rel(varnm, years, datafiles, data, onset, npre, npost,
                        'lat' : (-60, 60)}
         var = atm.combine_daily_years('PRECTOT', datafiles, years,
                                       yearname='year', subset_dict=subset_dict)
-        var = atm.precip_convert(var, var.attrs['units'], 'mm/day')
     elif var_type(varnm) == 'calc':
         pres = atm.pres_convert(plev, 'hPa', 'Pa')
         Tnm = 'T%d' % plev
@@ -347,6 +346,10 @@ def get_data_rel(varnm, years, datafiles, data, onset, npre, npost,
         if 'Year' in var.dims:
             var = var.rename({'Year' : 'year', 'Day' : 'day'})
         var = atm.squeeze(var)
+
+    # Convert precip and evap to mm/day
+    if varnm in ['precip', 'EVAP']:
+        var = atm.precip_convert(var, var.attrs['units'], 'mm/day')
 
     # Align relative to onset day:
     if var_type(varnm) == 'basic':
