@@ -301,7 +301,7 @@ def get_data_rel(varnm, years, datafiles, data, onset, npre, npost,
                        'lon' : (40, 120),
                        'lat' : (-60, 60)}
         var = atm.combine_daily_years('PRECTOT', datafiles, years,
-                                      yearname='year', subset_dict=subset_dict)
+                                      yearname=yearnm, subset_dict=subset_dict)
     elif var_type(varnm) == 'calc':
         pres = atm.pres_convert(plev, 'hPa', 'Pa')
         Tnm = 'T%d' % plev
@@ -341,10 +341,8 @@ def get_data_rel(varnm, years, datafiles, data, onset, npre, npost,
     else:
         with xray.open_dataset(datafiles[0]) as ds:
             daynm_in = ds[varid].dims[0]
-        var = atm.combine_daily_years(varid, datafiles, years,
+        var = atm.combine_daily_years(varid, datafiles, years, yearname=yearnm,
                                       subset_dict={daynm_in : (daymin, daymax)})
-        if 'Year' in var.dims:
-            var = var.rename({'Year' : 'year', 'Day' : 'day'})
         var = atm.squeeze(var)
 
     # Convert precip and evap to mm/day
@@ -354,12 +352,41 @@ def get_data_rel(varnm, years, datafiles, data, onset, npre, npost,
     # Align relative to onset day:
     if var_type(varnm) == 'basic':
         print('Aligning data relative to onset day')
+        var = var.rename({var.dims[0] : daynm})
         if len(years) == 1:
             var = atm.expand_dims(var, yearnm, years[0], axis=0)
         var = daily_rel2onset(var, onset, npre, npost, yearnm=yearnm,
                               daynm=daynm)
 
     return var
+
+
+# ----------------------------------------------------------------------
+def load_dailyrel(datafiles, yearnm='year', onset_varnm='D_ONSET',
+                  retreat_varnm='D_RETREAT'):
+                                  
+    ds = atm.load_concat(datafiles, concat_dim=yearnm)
+    varnms = ds.data_vars.keys()
+    if onset_varnm is not None:
+        onset = ds[onset_varnm]
+        varnms.remove(onset_varnm)
+    else:
+        onset = np.nan * ds[yearnm]
+    if retreat_varnm is not None:
+        retreat = ds[retreat_varnm]
+        varnms.remove(retreat_varnm)
+    else:
+        retreat = np.nan * ds[yearnm]
+    
+    # Remaining data variable is the data field
+    varnm = varnms[0]
+    data = ds[varnm]
+    
+    # Copy attributes from the first file in the list
+    with xray.open_dataset(datafiles[0]) as ds0:
+        data.attrs = ds0[varnm].attrs
+    
+    return data, onset, retreat
 
 
 # ----------------------------------------------------------------------
