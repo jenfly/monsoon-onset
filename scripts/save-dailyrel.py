@@ -15,6 +15,7 @@ import precipdat
 import merra
 import indices
 import utils
+from utils import get_data_rel, load_dailyrel
 
 # ----------------------------------------------------------------------
 onset_nm = 'CHP_MFC'
@@ -27,12 +28,12 @@ savedir = atm.homedir() + 'datastore/merra/analysis/'
 # Number of days before and after onset to include
 npre, npost = 120, 200
 
-varnms = ['EVAP']
-# varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200',
-#            'abs_vort200', 'H200', 'T200',
-#            'U850', 'V850', 'H850', 'T850', 'QV850',
-#            'T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950',
-#            'V*THETA_E950', 'EFLUX', 'HFLUX', 'EVAP']
+# varnms = ['U200']
+varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200',
+          'abs_vort200', 'H200', 'T200',
+          'U850', 'V850', 'H850', 'T850', 'QV850',
+          'T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950',
+          'V*THETA_E950', 'EFLUX', 'HFLUX', 'EVAP']
 
 keys_remove = ['T950', 'H950', 'QV950', 'V950',  'DSE950',
                 'MSE950', 'V*DSE950', 'V*MSE950']
@@ -88,6 +89,7 @@ datafiles = get_filenames(years, datadir)
 
 index = utils.get_onset_indices(onset_nm, datafiles[onset_nm], years)
 onset = index['onset']
+retreat = index['retreat']
 
 # ----------------------------------------------------------------------
 # Get daily data
@@ -96,7 +98,7 @@ def get_savefile(savedir, varnm, onset_nm, year):
     return savedir + 'merra_%s_dailyrel_%s_%d.nc' % (varnm, onset_nm, year)
 
 def housekeeping(data, keys_remove):
-    # Remove data that I don't want to include in plots
+    # Remove intermediate data that I don't want to keep
     keys = data.keys()
     for key in keys_remove:
         if key in keys:
@@ -114,16 +116,24 @@ def housekeeping(data, keys_remove):
     return data
 
 
+# Save daily data for each year to file
 yearnm, daynm = 'year', 'day'
 relfiles = {}
 for y, year in enumerate(years):
     files = {key : [datafiles[key][y]] for key in datafiles}
     d_onset = int(onset[y].values)
+    d_retreat = int(retreat[y].values)
+    coords = {yearnm : [year]}
+    onset_var = xray.DataArray([d_onset], name='D_ONSET', coords=coords)
+    retreat_var = xray.DataArray([d_retreat], name='D_RETREAT', coords=coords)
     data = {}
     for varnm in varnms:
         print('Reading daily data for ' + varnm)
-        data[varnm] = utils.get_data_rel(varnm, year, files.get(varnm), data,
-                                         d_onset, npre, npost)
+        var = get_data_rel(varnm, year, files.get(varnm), data, d_onset,
+                           npre, npost, yearnm, daynm)
+        var.attrs = atm.odict_delete(var.attrs, 'd_onset')
+        var.name = varnm
+        data[varnm] = var
     data = housekeeping(data, keys_remove)
     for varnm in data:
         savefile = get_savefile(savedir, varnm, onset_nm, year)
@@ -132,20 +142,19 @@ for y, year in enumerate(years):
         else:
             relfiles[varnm] = relfiles[varnm] + [savefile]
         print('Saving to ' + savefile)
-        atm.save_nc(savefile, data[varnm])
+        atm.save_nc(savefile, data[varnm], onset_var, retreat_var)
 
 # ----------------------------------------------------------------------
 # Compute climatologies and save
 
 yearstr = '%d-%d' % (years.min(), years.max())
-for varnm in data:
-    with xray.open_dataset(relfiles[varnm][0]) as ds0:
-        attrs = ds0[varnm].attrs
-    ds = atm.load_concat(relfiles[varnm], concat_dim='year')
+for varnm in relfiles:
+    var, onset, retreat = load_dailyrel(relfiles[varnm])
+    ds = xray.Dataset()
+    ds[varnm], ds['D_ONSET'], ds['D_RETREAT'] = var, onset, retreat
     print('Computing climatological mean')
-    ds = ds.mean(dim='year')
-    ds[varnm].attrs = attrs
-    ds[varnm].attrs['d_onset'] = onset.values
+    ds = ds.mean(dim=yearnm)
+    ds[varnm].attrs = var.attrs
     ds[varnm].attrs['years'] = years
     filn = savedir + 'merra_%s_dailyrel_%s_%s.nc' % (varnm, onset_nm, yearstr)
     print('Saving to ' + filn)
