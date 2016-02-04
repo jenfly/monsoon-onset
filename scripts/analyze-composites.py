@@ -23,7 +23,7 @@ onset_nm = 'CHP_MFC'
 
 years, years2 = np.arange(1979, 2015), None
 yearstr, savestr = '%d-%d Climatology' % (years.min(), years.max()), 'clim'
-savestr = 'clim_pre1pre2'
+#savestr = 'clim_pre1pre2'
 
 # CHP_MFC Early/Late Years
 # years = [2004, 1999, 1990, 2000, 2001]
@@ -39,11 +39,12 @@ savestr = 'clim_pre1pre2'
 # years, yearstr = [1983, 1979, 1997, 1992, 1995], '5 Latest Years'
 
 datadir = atm.homedir() + 'datastore/merra/daily/'
+reldir = atm.homedir() + 'datastore/merra/analysis/'
 savedir = 'figs/'
 run_anim = False
 run_eht = False
 
-vargroup = 'group3'
+vargroup = 'group1'
 
 varlist = {
     'test' : ['precip', 'U200'],
@@ -53,14 +54,12 @@ varlist = {
                'abs_vort200', 'H200', 'T200'],
     'group2' : ['U850', 'V850', 'rel_vort850', 'abs_vort850', 'H850',
                'T850', 'QV850'],
-    'group3' : ['T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950',
-                  'V*THETA950', 'V*THETA_E950'],
+    'group3' : ['THETA950', 'THETA_E950','V*THETA950', 'V*THETA_E950',
+                'HFLUX', 'EFLUX', 'EVAP'],
     'nearsurf' : ['T950', 'H950', 'QV950', 'V950', 'THETA950',
                   'THETA_E950', 'DSE950', 'MSE950', 'V*THETA950',
                   'V*THETA_E950', 'V*DSE950', 'V*MSE950']
 }
-keys_remove = ['T950', 'H950', 'QV950', 'V950',  'DSE950',
-                'MSE950', 'V*DSE950', 'V*MSE950']
 
 varnms = varlist[vargroup]
 
@@ -102,38 +101,55 @@ if remove_tricky:
         years.remove(year)
     years = np.array(years)
 
-def yrlyfile(var, plev, year, subset=''):
-    return 'merra_%s%d_40E-120E_60S-60N_%s%d.nc' % (var, plev, subset, year)
+# def yrlyfile(var, plev, year, subset=''):
+#     return 'merra_%s%d_40E-120E_60S-60N_%s%d.nc' % (var, plev, subset, year)
+#
+# def get_filenames(years, datadir):
+#     datafiles = {}
+#     datafiles['HOWI'] = ['merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
+#     datafiles['CHP_MFC'] = ['merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
+#     datafiles['CHP_PCP'] = ['merra_precip_%d.nc' % yr for yr in years]
+#     datafiles['precip'] = datafiles['CHP_PCP']
+#
+#     for plev in [200, 850]:
+#         files = [yrlyfile('uv', plev, yr) for yr in years]
+#         for key in ['U', 'V', 'Ro', 'rel_vort', 'abs_vort']:
+#             datafiles['%s%d' % (key, plev)] = files
+#         for key in ['T', 'H', 'QV']:
+#             key2 = '%s%d' % (key, plev)
+#             datafiles[key2] = [yrlyfile(key, plev, yr) for yr in years]
+#
+#     for plev in [950, 975]:
+#         for key in ['T', 'H','QV', 'V']:
+#             files = [yrlyfile(key, plev, yr) for yr in years]
+#             datafiles['%s%d' % (key, plev)] = files
+#
+#     for varnm in datafiles:
+#         files = datafiles[varnm]
+#         datafiles[varnm] = [datadir + filenm for filenm in files]
+#
+#     return datafiles
 
-def get_filenames(years, datadir):
-    datafiles = {}
-    datafiles['HOWI'] = ['merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
-    datafiles['CHP_MFC'] = ['merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
-    datafiles['CHP_PCP'] = ['merra_precip_%d.nc' % yr for yr in years]
-    datafiles['precip'] = datafiles['CHP_PCP']
 
-    for plev in [200, 850]:
-        files = [yrlyfile('uv', plev, yr) for yr in years]
-        for key in ['U', 'V', 'Ro', 'rel_vort', 'abs_vort']:
-            datafiles['%s%d' % (key, plev)] = files
-        for key in ['T', 'H', 'QV']:
-            key2 = '%s%d' % (key, plev)
-            datafiles[key2] = [yrlyfile(key, plev, yr) for yr in years]
+def get_filenames(yrs, varnms, onset_nm, datadir, reldir):
 
-    for plev in [950, 975]:
-        for key in ['T', 'H','QV', 'V']:
-            files = [yrlyfile(key, plev, yr) for yr in years]
-            datafiles['%s%d' % (key, plev)] = files
+    # Data for computing onset/retreat indices
+    files = {}
+    files['HOWI'] = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in yrs]
+    files['CHP_MFC'] = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in yrs]
+    files['CHP_PCP'] = [datadir + 'merra_precip_%d.nc' % yr for yr in yrs]
 
-    for varnm in datafiles:
-        files = datafiles[varnm]
-        datafiles[varnm] = [datadir + filenm for filenm in files]
+    # Daily data relative to onset day
+    filestr = reldir + 'merra_%s_dailyrel_%s_%d.nc'
+    for nm in varnms:
+        files[nm] = [filestr % (nm, onset_nm, yr) for yr in yrs]
 
-    return datafiles
+    return files
 
-datafiles = get_filenames(years, datadir)
+
+datafiles = get_filenames(years, varnms, onset_nm, datadir, reldir)
 if years2 is not None:
-    datafiles2 = get_filenames(years2, datadir)
+    datafiles2 = get_filenames(years2, varnms, onset_nm, datadir, reldir)
 else:
     datafiles2 = None
 
@@ -144,15 +160,18 @@ def all_data(onset_nm, varnms, years, datafiles, npre, npost):
 
     # Monsoon onset day and index timeseries
     index = utils.get_onset_indices(onset_nm, datafiles[onset_nm], years)
-    onset = index['onset']
+    #onset = index['onset']
 
-    # Read daily data fields and align relative to onset day
-    yearnm, daynm = 'year', 'day'
+    # Read daily data fields aligned relative to onset day
+    #yearnm, daynm = 'year', 'day'
     data = collections.OrderedDict()
     for varnm in varnms:
         print('Reading daily data for ' + varnm)
-        data[varnm] = utils.get_data_rel(varnm, years, datafiles.get(varnm),
-                                         data, onset, npre, npost)
+        ds = atm.load_concat(datafiles[varnm], concat_dim='year')
+        varid = ds.data_vars.keys()[0]
+        data[varnm] = atm.subset(ds[varid], {'dayrel' : (-npre, npost)})
+        # data[varnm] = utils.get_data_rel(varnm, years, datafiles.get(varnm),
+        #                                  data, onset, npre, npost)
     return index, data
 
 npre, npost = 90, 90
@@ -168,10 +187,10 @@ if years2 is not None:
 # Housekeeping
 
 # Remove data that I don't want to include in plots
-keys = data.keys()
-for key in keys_remove:
-    if key in keys:
-        data = atm.odict_delete(data, key)
+# keys = data.keys()
+# for key in keys_remove:
+#     if key in keys:
+#         data = atm.odict_delete(data, key)
 
 # Add extra dimension for year if necessary (i.e. if plotting difference
 # between two sets of years or plotting regression field)
