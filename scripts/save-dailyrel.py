@@ -87,172 +87,41 @@ onset = index['onset']
 def get_savefile(savedir, varnm, onset_nm, year):
     return savedir + 'merra_%s_dailyrel_%s_%d.nc' % (varnm, onset_nm, year)
 
-year = 1979
-varnm = 'U200'
+def housekeeping(data, keys_remove):
+    # Remove data that I don't want to include in plots
+    keys = data.keys()
+    for key in keys_remove:
+        if key in keys:
+            data = atm.odict_delete(data, key)
+
+    # Fill Ro200 with NaNs near equator
+    varnm = 'Ro200'
+    if varnm in data:
+        latbuf = 5
+        lat = atm.get_coord(data[varnm], 'lat')
+        latbig = atm.biggify(lat, data[varnm], tile=True)
+        vals = data[varnm].values
+        vals = np.where(abs(latbig)>latbuf, vals, np.nan)
+        data[varnm].values = vals
+    return data
+
+
 savestr = savedir + 'merra_%s_dailyrel_%s_%d.nc'
 yearnm, daynm = 'year', 'day'
 
 for y, year in enumerate(years):
     files = {key : [datafiles[key][y]] for key in datafiles}
-    d_onset = onset[y]
+    d_onset = int(onset[y].values)
     data = {}
-    for varnm in varnms:
-        savefile = get_savefile(savedir, varnm, onset_nm, year)
+    for varnm in varnms:        
         print('Reading daily data for ' + varnm)
-        data[varnm] = utils.get_data_rel(varnm, [year], files.get(varnm), data,
+        data[varnm] = utils.get_data_rel(varnm, year, files.get(varnm), data,
                                          d_onset, npre, npost)
+    data = housekeeping(data, keys_remove)
+    for varnm in data:
+        savefile = get_savefile(savedir, varnm, onset_nm, year)
+        print('Saving to ' + savefile)
+        atm.save_nc(savefile, data[varnm])
 
 
-def all_data(onset_nm, varnms, years, datafiles, npre, npost):
 
-    # Read daily data fields and align relative to onset day
-    yearnm, daynm = 'year', 'day'
-    data = collections.OrderedDict()
-    for varnm in varnms:
-        print('Reading daily data for ' + varnm)
-        var = utils.get_data_rel(varnm, years, datafiles, data, onset, npre,
-                                 npost, yearnm, daynm)
-        if utils.var_type(varnm) == 'basic':
-            print('Aligning data relative to onset day')
-            data[varnm] = utils.daily_rel2onset(var, onset, npre, npost,
-                                                yearnm=yearnm, daynm=daynm)
-        else:
-            data[varnm] = var
-    return index, data
-
-data = collections.OrderedDict()
-index = collections.OrderedDict()
-for key in comp_yrs:
-    index[key], data[key] = all_data(onset_nm, varnms, comp_yrs[key],
-                                     datafiles[key], npre, npost)
-
-    # Mean over years for each composite
-    for nm in data[key]:
-        data[key][nm] = data[key][nm].mean(dim='year')
-
-# ----------------------------------------------------------------------
-# Housekeeping
-
-# Remove data that I don't want to include in plots
-for key1 in comp_yrs:
-    keys = data[key1].keys()
-    for key in keys_remove:
-        if key in keys:
-            data[key1] = atm.odict_delete(data[key1], key)
-
-
-# Fill Ro200 with NaNs near equator
-varnm = 'Ro200'
-for key1 in comp_yrs:
-    if varnm in data[key1]:
-        latbuf = 5
-        lat = atm.get_coord(data[key1][varnm], 'lat')
-        latbig = atm.biggify(lat, data[key1][varnm], tile=True)
-        vals = data[key1][varnm].values
-        vals = np.where(abs(latbig)>latbuf, vals, np.nan)
-        data[key1][varnm].values = vals
-
-# ----------------------------------------------------------------------
-# Sector mean data
-
-lonname, latname = 'XDim', 'YDim'
-sectordata = collections.OrderedDict()
-for key1 in comp_yrs:
-    sectordata[key1] = collections.OrderedDict()
-    for varnm in data[key1]:
-        var = atm.subset(data[key1][varnm], {lonname : (lon1, lon2)})
-        sectordata[key1][varnm] = var.mean(dim=lonname)
-
-# ----------------------------------------------------------------------
-# Plotting params and utilities
-
-def plusminus(num):
-    if num == 0:
-        numstr = '+0'
-    else:
-        numstr = atm.format_num(num, ndecimals=0, plus_sym=True)
-    return numstr
-
-# ----------------------------------------------------------------------
-# Composite averages
-print('Computing composites relative to onset day')
-nms =  data[data.keys()[0]].keys()
-
-comp = collections.OrderedDict()
-sectorcomp = collections.OrderedDict()
-for nm in nms:
-    comp[nm] = collections.OrderedDict()
-    sectorcomp[nm] = collections.OrderedDict()
-    for key in data:
-        compdat = utils.composite(data[key][nm], compdays_all, daynm='dayrel',
-                                  return_avg=True)
-        compsec = utils.composite(sectordata[key][nm], compdays_all,
-                                  daynm='dayrel', return_avg=True)
-        for dkey in compdat:
-            key2 = key + '_' + dkey
-            comp[nm][key2] = compdat[dkey]
-            sectorcomp[nm][key2] = compsec[dkey]
-
-# Get max/min values from all composites for setting consistent
-# ylimits on plots
-ylimits = {}
-for nm in nms:
-    for i, key in enumerate(sectorcomp[nm]):
-        val1 = sectorcomp[nm][key].min().values
-        val2 = sectorcomp[nm][key].max().values
-        if i == 0:
-            ylim1, ylim2 = val1, val2
-        else:
-            ylim1, ylim2 = min([ylim1, val1]), max([ylim2, val2])
-    # Add a bit of buffer space
-    delta = (ylim2 - ylim1) * 0.05
-    ylim1, ylim2 = ylim1 - delta, ylim2 + delta
-    if nm == 'precip':
-        ylim1 = 0
-    ylimits[nm] = (ylim1, ylim2)
-
-# ----------------------------------------------------------------------
-# Line plots of sector data
-compnms = {}
-for key in compdays:
-    d1 = plusminus(compdays[key].min())
-    d2 = plusminus(compdays[key].max())
-    compnms[key] = 'D0%s:D0%s' % (d1, d2)
-
-ncol = len(compdays.keys())
-nrow = 4
-figsize = (12, 9)
-suptitle = '%d-%dE Composites Relative to %s Onset Day' % (lon1, lon2, onset_nm)
-
-fmt_str = {'early' : 'k--', 'late' : 'k'}
-for i, nm in enumerate(sectorcomp):
-    if i % nrow == 0:
-        row = 1
-        fig, axes = plt.subplots(nrow, ncol, figsize=figsize, sharex=True,
-                                 sharey='row')
-        plt.subplots_adjust(wspace=0.1, hspace=0.2)
-        plt.suptitle(suptitle)
-    else:
-        row += 1
-    for j, dkey in enumerate(compdays):
-        ax = axes[row - 1, j]
-        ### Temporary - put real climatology in here
-        lat = atm.get_coord(sectorcomp[nm]['early_' + dkey], 'lat')
-        varbar = 0.5 * (sectorcomp[nm]['early_' + dkey] +
-                        sectorcomp[nm]['late_' + dkey])
-        ax.plot(lat, varbar, color='k', linewidth=2, alpha=0.3, label='clim')
-        ###
-        for yrkey in comp_yrs:
-            var = sectorcomp[nm][yrkey + '_' + dkey]
-            lat = atm.get_coord(var, 'lat')
-            ax.plot(lat, var, fmt_str[yrkey], label=yrkey)
-        ax.grid(True)
-        ax.set_ylim(ylimits[nm])
-        if row == 1:
-            ax.set_title(compnms[dkey])
-        if row == nrow:
-            ax.set_xlabel('Latitude')
-        if j == 0:
-            ax.set_ylabel(nm)
-        if i == 0 and j == 0:
-            ax.legend(fontsize=8, loc='upper left')
