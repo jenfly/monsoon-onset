@@ -21,14 +21,14 @@ import utils
 onset_nm = 'CHP_MFC'
 #onset_nm = 'CHP_PCP'
 
-# years, years2 = np.arange(1979, 2015), None
-# yearstr, savestr = '%d-%d Climatology' % (years.min(), years.max()), 'clim'
-# #savestr = 'clim_pre1pre2'
+years, years2 = np.arange(1979, 2015), None
+yearstr, savestr = '%d-%d Climatology' % (years.min(), years.max()), 'clim'
+#savestr = 'clim_pre1pre2'
 
 # CHP_MFC Early/Late Years
-years = [2004, 1999, 1990, 2000, 2001]
-years2 = [1983, 1992, 1997, 2014, 2012]
-yearstr, savestr = 'Late Minus Early Anomaly', 'late_minus_early'
+# years = [2004, 1999, 1990, 2000, 2001]
+# years2 = [1983, 1992, 1997, 2014, 2012]
+# yearstr, savestr = 'Late Minus Early Anomaly', 'late_minus_early'
 # years, yearstr = [2004, 1999, 1990, 2000, 2001], '5 Earliest Years'
 # years2, savestr = None, 'early'
 # years, yearstr = [1983, 1992, 1997, 2014, 2012], '5 Latest Years'
@@ -44,17 +44,15 @@ savedir = 'figs/'
 run_anim = False
 run_eht = False
 
-vargroup = 'group1'
+vargroup = 'group3'
 
 varlist = {
     'test' : ['precip', 'U200'],
-    'subset' : ['precip', 'U200', 'V200', 'T200', 'U850', 'T850', 'T950',
-                'QV950', 'THETA_E950'],
+    'subset' : ['precip', 'U200', 'V200', 'T200', 'U850', 'T850', 'THETA_E950'],
     'group1' : ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200',
                'abs_vort200', 'H200', 'T200'],
-    'group2' : ['U850', 'V850', 'rel_vort850', 'abs_vort850', 'H850',
-               'T850', 'QV850'],
-    'group3' : ['THETA950', 'THETA_E950','V*THETA950', 'V*THETA_E950',
+    'group2' : ['U850', 'V850', 'H850', 'T850', 'QV850'],
+    'group3' : ['THETA950', 'THETA_E950', 'V*THETA_E950',
                 'HFLUX', 'EFLUX', 'EVAP'],
     'nearsurf' : ['T950', 'H950', 'QV950', 'V950', 'THETA950',
                   'THETA_E950', 'DSE950', 'MSE950', 'V*THETA950',
@@ -76,6 +74,9 @@ if years2 is not None:
     anom_plot = True
 else:
     anom_plot = False
+
+# Day range for latitude vs. day plots
+npre, npost = 120, 200
 
 # Day ranges for lat-lon composites
 compdays = collections.OrderedDict()
@@ -127,9 +128,9 @@ else:
 # Calculate onset indices and get daily data
 
 def all_data(onset_nm, varnms, years, datafiles, npre, npost):
-
-    # Monsoon onset day and index timeseries
-    index = utils.get_onset_indices(onset_nm, datafiles[onset_nm], years)
+    #
+    # # Monsoon onset day and index timeseries
+    # index = utils.get_onset_indices(onset_nm, datafiles[onset_nm], years)
 
     # Read daily data fields aligned relative to onset day
     data = collections.OrderedDict()
@@ -138,14 +139,13 @@ def all_data(onset_nm, varnms, years, datafiles, npre, npost):
         ds = atm.load_concat(datafiles[varnm], concat_dim='year')
         varid = ds.data_vars.keys()[0]
         data[varnm] = atm.subset(ds[varid], {'dayrel' : (-npre, npost)})
-    return index, data
+    return data
 
-npre, npost = 90, 90
 
-index, data = all_data(onset_nm, varnms, years, datafiles, npre, npost)
+data = all_data(onset_nm, varnms, years, datafiles, npre, npost)
 
 if years2 is not None:
-    index2, data2 = all_data(onset_nm, varnms, years2, datafiles2, npre, npost)
+    data2 = all_data(onset_nm, varnms, years2, datafiles2, npre, npost)
     for nm in data:
         data[nm] = data2[nm].mean(dim='year') - data[nm].mean(dim='year')
 

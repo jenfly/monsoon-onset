@@ -38,8 +38,8 @@ varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200',
            'HFLUX', 'EFLUX', 'EVAP']
 
 # Day ranges for composites
-#comp_keys = ['pre4', 'pre3', 'pre2', 'pre1']
-comp_keys = ['post1', 'post2', 'post3', 'post4']
+comp_keys = ['pre4', 'pre3', 'pre2', 'pre1']
+#comp_keys = ['post1', 'post2', 'post3', 'post4']
 
 compdays_all = {'pre4' : np.arange(-60, -45),
                 'pre3' : np.arange(-45, -30),
@@ -47,7 +47,7 @@ compdays_all = {'pre4' : np.arange(-60, -45),
                 'pre1' : np.arange(-15, 0),
                 'post1' : np.arange(0, 15),
                 'post2' : np.arange(15, 30),
-                'post3' : np.arange(30, 45),
+                'post3' : np.arange(45, 90),
                 'post4' : np.arange(0, lrs_mean)}
 
 compdays = collections.OrderedDict()
@@ -174,7 +174,7 @@ figsize = (12, 9)
 xlimits = (-60, 60)
 fmt = {'early' : 'k--', 'late' : 'k', 'clim' : 'k'}
 lwidth = {'early' : 1, 'late' : 1, 'clim' : 2}
-alph = {'early' : 1, 'late' : 1, 'clim' : 0.3}
+alph = {'early' : 1, 'late' : 1, 'clim' : 0.35}
 if 'pre1' in compdays:
     legend_loc = 'upper right'
 else:
