@@ -128,8 +128,9 @@ def composite(data, compdays, return_avg=True, daynm='Dayrel'):
 
 
 # ----------------------------------------------------------------------
-def get_mfc_box(mfcfiles, precipfiles, years, nroll, lat1, lat2, lon1, lon2):
-    """Return daily tseries MFC and precip averaged over lat-lon box.
+def get_mfc_box(mfcfiles, precipfiles, evapfiles, years, nroll, lat1, lat2, 
+                lon1, lon2):
+    """Return daily tseries MFC, precip and evap averaged over lat-lon box.
     """
     subset_dict = {'lat' : (lat1, lat2), 'lon' : (lon1, lon2)}
 
@@ -142,7 +143,12 @@ def get_mfc_box(mfcfiles, precipfiles, years, nroll, lat1, lat2, lon1, lon2):
         pcp = atm.combine_daily_years('PRECTOT', precipfiles, years, yearname='year',
                                       subset_dict=subset_dict)
         databox['PCP'] = pcp
-
+    if evapfiles is not None:
+        evap = atm.combine_daily_years('EVAP', evapfiles, years, yearname='year',
+                                        subset_dict=subset_dict)
+        databox['EVAP'] = evap                                        
+    
+    
     nms = databox.keys()
     for nm in nms:
         var = databox[nm]
@@ -179,12 +185,12 @@ def get_onset_indices(onset_nm, datafiles, years, data=None):
         index.attrs['title'] = 'HOWI (N=%d)' % npts
     elif onset_nm == 'CHP_MFC':
         if data is None:
-            tseries = get_mfc_box(datafiles, None, years, *chp_opts)
+            tseries = get_mfc_box(datafiles, None, None, years, *chp_opts)
             data = tseries['MFC_ACC']
         index = indices.onset_changepoint(data)
     elif onset_nm == 'CHP_PCP':
         if data is None:
-            tseries = get_mfc_box(None, datafiles, years, *chp_opts)
+            tseries = get_mfc_box(None, datafiles, None, years, *chp_opts)
             data = tseries['PCP_ACC']
         index = indices.onset_changepoint(data)
 

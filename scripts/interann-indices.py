@@ -35,7 +35,7 @@ lat1, lat2 = 10, 30
 
 # MFC and precip over SASM region
 nroll = 7
-tseries = utils.get_mfc_box(datafiles['MFC'], datafiles['PCP'], years,
+tseries = utils.get_mfc_box(datafiles['MFC'], datafiles['PCP'], None, years,
                             nroll, lat1, lat2, lon1, lon2)
 
 # Monsoon onset/retreat indices

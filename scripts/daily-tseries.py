@@ -50,7 +50,7 @@ indfiles = { 'CHP_MFC' : mfcfiles, 'CHP_PCP' : precipfiles, 'HOWI' : vimtfiles}
 
 # MFC and precip over SASM region
 nroll = 7
-tseries = utils.get_mfc_box(mfcfiles, precipfiles, years, nroll, lat1, lat2,
+tseries = utils.get_mfc_box(mfcfiles, precipfiles, None, years, nroll, lat1, lat2,
                             lon1, lon2)
 
 # Monsoon onset day and index timeseries
