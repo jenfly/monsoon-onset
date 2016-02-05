@@ -70,7 +70,7 @@ def data_filenames(years, varnms, onset_nm, datadir):
 
 def clim_filenames(yearstr, varnms, onset_nm, datadir):
     filestr = datadir + 'merra_%s_dailyrel_%s_%s.nc'
-    files = {nm : filestr % (nm, onset_nm, yearstr) for nm in varnms}
+    files = {nm : [filestr % (nm, onset_nm, yearstr)] for nm in varnms}
     return files
 
 datafiles = {key: data_filenames(comp_yrs[key], varnms, onset_nm, datadir)
@@ -85,9 +85,7 @@ data = {}
 for key in datafiles:
     data[key] = {}
     for nm in datafiles[key]:
-        ds = atm.load_concat(datafiles[key][nm], concat_dim='year')
-        varid = ds.data_vars.keys()[0]
-        var = ds[varid]
+        var, _, _ = utils.load_dailyrel(datafiles[key][nm])
         if 'year' in var.dims:
             var = var.mean(dim='year')
         data[key][nm] = var
