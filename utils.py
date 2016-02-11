@@ -128,7 +128,7 @@ def composite(data, compdays, return_avg=True, daynm='Dayrel'):
 
 
 # ----------------------------------------------------------------------
-def get_mfc_box(mfcfiles, precipfiles, evapfiles, years, nroll, lat1, lat2, 
+def get_mfc_box(mfcfiles, precipfiles, evapfiles, years, nroll, lat1, lat2,
                 lon1, lon2):
     """Return daily tseries MFC, precip and evap averaged over lat-lon box.
     """
@@ -146,9 +146,9 @@ def get_mfc_box(mfcfiles, precipfiles, evapfiles, years, nroll, lat1, lat2,
     if evapfiles is not None:
         evap = atm.combine_daily_years('EVAP', evapfiles, years, yearname='year',
                                         subset_dict=subset_dict)
-        databox['EVAP'] = evap                                        
-    
-    
+        databox['EVAP'] = evap
+
+
     nms = databox.keys()
     for nm in nms:
         var = databox[nm]
@@ -233,7 +233,7 @@ def get_enso_indices(years,
 
 # ----------------------------------------------------------------------
 def get_strength_indices(years, mfc, precip, onset, retreat, yearnm='year',
-                         daynm='day'):
+                         daynm='day', varnm1='MFC', varnm2='PCP'):
     """Return various indices of the monsoon strength.
 
     Inputs mfc and precip are the unsmoothed daily values averaged over
@@ -248,9 +248,9 @@ def get_strength_indices(years, mfc, precip, onset, retreat, yearnm='year',
 
     data_in = {}
     if mfc is not None:
-        data_in['MFC'] = mfc
+        data_in[varnm1] = mfc
     if precip is not None:
-        data_in['PCP'] = precip
+        data_in[varnm2] = precip
 
     for key in data_in:
         for key2 in ['_JJAS_AVG', '_JJAS_TOT', '_LRS_AVG', '_LRS_TOT']:
@@ -370,7 +370,7 @@ def get_data_rel(varnm, years, datafiles, data, onset, npre, npost,
 # ----------------------------------------------------------------------
 def load_dailyrel(datafiles, yearnm='year', onset_varnm='D_ONSET',
                   retreat_varnm='D_RETREAT'):
-                                  
+
     ds = atm.load_concat(datafiles, concat_dim=yearnm)
     varnms = ds.data_vars.keys()
     if onset_varnm is not None:
@@ -383,15 +383,15 @@ def load_dailyrel(datafiles, yearnm='year', onset_varnm='D_ONSET',
         varnms.remove(retreat_varnm)
     else:
         retreat = np.nan * ds[yearnm]
-    
+
     # Remaining data variable is the data field
     varnm = varnms[0]
     data = ds[varnm]
-    
+
     # Copy attributes from the first file in the list
     with xray.open_dataset(datafiles[0]) as ds0:
         data.attrs = ds0[varnm].attrs
-    
+
     return data, onset, retreat
 
 
@@ -423,3 +423,28 @@ def contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm,
     xmin, xmax = plt.gca().get_xlim()
     if xmax > 60:
         plt.xticks(range(int(xmin), int(xmax) + 1, 30))
+
+
+# ----------------------------------------------------------------------
+def eddy_decomp(var, nt, lon1, lon2, taxis=0):
+    """Decompose variable into mean and eddy fields."""
+            
+    lonname = atm.get_coord(var, 'lon', 'name')
+    tstr = '%d-%s rolling' % (nt, var.dims[taxis])
+    lonstr = atm.latlon_labels([lon1, lon2], 'lon', deg_symbol=False)
+    lonstr = '-'.join(lonstr)
+    
+    varbar = atm.rolling_mean(var, nt, axis=taxis, center=True)
+    varbarzon = atm.subset(varbar, {lonname : (lon1, lon2)})
+    varbarzon = varbarzon.mean(dim=lonname)
+    
+    comp = xray.Dataset()    
+    comp['AVG'] = varbarzon
+    comp['AVG'].attrs['title'] = 'Time mean (%s), zonal mean (%s)' % (tstr, lonstr)    
+    comp['ST'] = varbar - varbarzon
+    comp['ST'].attrs['title'] = 'Stationary eddy'
+    comp['TR'] = var - varbar
+    comp['TR'].attrs['title'] = 'Transient eddy'
+    
+    return comp
+    
