@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import atmos as atm
 import merra
 
+    
 # ----------------------------------------------------------------------
 # EMFD
 datadir = atm.homedir() + 'datastore/merra/daily/'
