@@ -430,21 +430,25 @@ def eddy_decomp(var, nt, lon1, lon2, taxis=0):
     """Decompose variable into mean and eddy fields."""
             
     lonname = atm.get_coord(var, 'lon', 'name')
-    tstr = '%d-%s rolling' % (nt, var.dims[taxis])
+    tstr = 'Time mean (%d-%s rolling)' % (nt, var.dims[taxis])
     lonstr = atm.latlon_labels([lon1, lon2], 'lon', deg_symbol=False)
-    lonstr = '-'.join(lonstr)
+    lonstr = 'zonal mean (' + '-'.join(lonstr) + ')'
+    name, attrs, coords, dims = atm.meta(var)
     
     varbar = atm.rolling_mean(var, nt, axis=taxis, center=True)
     varbarzon = atm.subset(varbar, {lonname : (lon1, lon2)})
     varbarzon = varbarzon.mean(dim=lonname)
+    varbarzon.attrs = attrs
     
     comp = xray.Dataset()    
-    comp['AVG'] = varbarzon
-    comp['AVG'].attrs['title'] = 'Time mean (%s), zonal mean (%s)' % (tstr, lonstr)    
-    comp['ST'] = varbar - varbarzon
-    comp['ST'].attrs['title'] = 'Stationary eddy'
-    comp['TR'] = var - varbar
-    comp['TR'].attrs['title'] = 'Transient eddy'
+    comp[name + '_AVG'] = varbarzon
+    comp[name + '_AVG'].attrs['component'] = tstr + ', ' + lonstr    
+    comp[name + '_ST'] = varbar - varbarzon
+    comp[name + '_ST'].attrs = attrs
+    comp[name + '_ST'].attrs['component'] = 'Stationary eddy'
+    comp[name + '_TR'] = var - varbar
+    comp[name + '_TR'].attrs = attrs
+    comp[name + '_TR'].attrs['component'] = 'Transient eddy'
     
     return comp
     
