@@ -494,19 +494,41 @@ def advection(uflow, vflow, omegaflow, u, dudp):
     a = atm.constants.radius_earth
     latlon = latlon_data(u)
     latdim, londim = latlon.attrs['latdim'], latlon.attrs['londim']
-    coslat = latlon['COSLAT']
+    latrad, coslat = latlon['LATRAD'], latlon['COSLAT']
     if londim is not None:
         lonrad = latlon['LONRAD']
 
     data = xray.Dataset()
     if londim is not None:
-        data['X'] = (uflow / (a*coslat)) * atm.gradient(u, lonrad, londim)
+        data['X'] = atm.gradient(u, lonrad, londim) * uflow / (a*coslat)
     else:
         data['X'] = 0.0 * u
-    data['Y'] = (vflow / (a*coslat)) * atm.gradient(u*coslat, latrad, latdim)
+    data['Y'] = atm.gradient(u*coslat, latrad, latdim) * vflow / (a*coslat)
     data['P'] = omegaflow * dudp
 
     return data
 
 
 # ----------------------------------------------------------------------
+def fluxdiv(u, v, omega, dudp, domegadp):
+    """Return x, y and p components of EMFD terms in momentum budget.
+    """
+
+    a = atm.constants.radius_earth
+    latlon = latlon_data(u)
+    latdim, londim = latlon.attrs['latdim'], latlon.attrs['londim']
+    latrad, coslat = latlon['LATRAD'], latlon['COSLAT']
+    coslat = latlon['COSLAT']
+    coslat_sq = coslat ** 2
+    if londim is not None:
+        lonrad = latlon['LONRAD']
+
+    data = xray.Dataset()
+    if londim is not None:
+        data['X'] = atm.gradient(u * u, lonrad, londim) / (a*coslat)
+    else:
+        data['X'] = 0.0 * u
+    data['Y'] = atm.gradient(u * v * coslat_sq, latrad, latdim) / (a*coslat_sq)
+    data['P'] = omega * dudp + u * domegadp
+
+    return data

@@ -59,11 +59,35 @@ for pair in keypairs:
     adv = advection(uflow, vflow, omegaflow, u, dudp)
     for nm in adv.data_vars:
         key = 'ADV_%s_%s_%s' % (ukey, flowkey, nm)
-        ubudget[key] = - adv[nm]
+        ubudget[key] = adv[nm]
 
 # EMFD terms
+keys = ['TR', 'ST']
+print('Computing EMFD terms')
+for key in keys:
+    print(key)
+    u = data['U_' + key]
+    v = data['V_' + key]
+    omega = data['OMEGA_' + key]
+    dudp = data['DUDP_' + key]
+    domegadp = data['DOMEGADP_' + key]
+    emfd = fluxdiv(u, v, omega, dudp, domegadp)
+    for nm in emfd.data_vars:
+        ubudget['EMFD_%s_%s' % (key, nm)] = emfd[nm]
+
+# Coriolis terms
 
 
+# Pressure gradient terms
+
+
+# Acceleration
+
+
+# Time mean
+print('Computing rolling time mean')
+for nm in ubudget.data_vars:
+    ubudget[nm] = atm.rolling_mean(ubudget[nm], nt, axis=taxis, center=True)
 
 # ----------------------------------------------------------------------
 # Sector mean budget
@@ -74,4 +98,9 @@ ubudget_sector = ubudget_sector.mean(dim=lonname)
 day = 150
 df = ubudget_sector.sel(day=day).drop('day').to_dataframe()
 df.plot(legend=False)
+plt.legend(fontsize=10)
+
+keys = ['ADV_AVG_AVG_Y', 'ADV_ST_AVG_X', 'EMFD_TR_X', 'EMFD_TR_Y', 'EMFD_ST_X',
+        'EMFD_ST_Y']
+df[keys].plot(legend=False)
 plt.legend(fontsize=10)
