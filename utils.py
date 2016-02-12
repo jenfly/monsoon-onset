@@ -428,27 +428,85 @@ def contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm,
 # ----------------------------------------------------------------------
 def eddy_decomp(var, nt, lon1, lon2, taxis=0):
     """Decompose variable into mean and eddy fields."""
-            
+
     lonname = atm.get_coord(var, 'lon', 'name')
     tstr = 'Time mean (%d-%s rolling)' % (nt, var.dims[taxis])
     lonstr = atm.latlon_labels([lon1, lon2], 'lon', deg_symbol=False)
     lonstr = 'zonal mean (' + '-'.join(lonstr) + ')'
     name, attrs, coords, dims = atm.meta(var)
-    
+
     varbar = atm.rolling_mean(var, nt, axis=taxis, center=True)
     varbarzon = atm.subset(varbar, {lonname : (lon1, lon2)})
     varbarzon = varbarzon.mean(dim=lonname)
     varbarzon.attrs = attrs
-    
-    comp = xray.Dataset()    
+
+    comp = xray.Dataset()
     comp[name + '_AVG'] = varbarzon
-    comp[name + '_AVG'].attrs['component'] = tstr + ', ' + lonstr    
+    comp[name + '_AVG'].attrs['component'] = tstr + ', ' + lonstr
     comp[name + '_ST'] = varbar - varbarzon
     comp[name + '_ST'].attrs = attrs
     comp[name + '_ST'].attrs['component'] = 'Stationary eddy'
     comp[name + '_TR'] = var - varbar
     comp[name + '_TR'].attrs = attrs
     comp[name + '_TR'].attrs['component'] = 'Transient eddy'
-    
+
     return comp
-    
+
+
+# ----------------------------------------------------------------------
+def latlon_data(var, latmax=89):
+    """Return lat, lon coords in radians and cos(lat)."""
+
+    data = xray.Dataset()
+
+    # Latitude
+    latname = atm.get_coord(var, 'lat', 'name')
+    latdim = atm.get_coord(var, 'lat', 'dim')
+    lat = atm.get_coord(var, 'lat')
+    lat[abs(lat) > latmax] = np.nan
+    latrad = np.radians(lat)
+    data['LATRAD'] = xray.DataArray(latrad, coords={latname: lat})
+    data['COSLAT'] = np.cos(data['LATRAD'])
+    data.attrs['latname'] = latname
+    data.attrs['latdim'] = latdim
+
+    # Longitude
+    try:
+        lonname = atm.get_coord(var, 'lon', 'name')
+        londim = atm.get_coord(var, 'lon', 'dim')
+        lon = atm.get_coord(var, 'lon')
+        lonrad = np.radians(lon)
+        data['LONRAD'] = xray.DataArray(lonrad, coords={lonname : lon})
+        data.attrs['lonname'] = lonname
+        data.attrs['londim'] = londim
+    except ValueError:
+        data.attrs['lonname'] = None
+        data.attrs['londim'] = None
+
+    return data
+
+
+# ----------------------------------------------------------------------
+def advection(uflow, vflow, omegaflow, u, dudp):
+    """Return x, y and p components of advective terms in momentum budget.
+    """
+
+    a = atm.constants.radius_earth
+    latlon = latlon_data(u)
+    latdim, londim = latlon.attrs['latdim'], latlon.attrs['londim']
+    coslat = latlon['COSLAT']
+    if londim is not None:
+        lonrad = latlon['LONRAD']
+
+    data = xray.Dataset()
+    if londim is not None:
+        data['X'] = (uflow / (a*coslat)) * atm.gradient(u, lonrad, londim)
+    else:
+        data['X'] = 0.0 * u
+    data['Y'] = (vflow / (a*coslat)) * atm.gradient(u*coslat, latrad, latdim)
+    data['P'] = omegaflow * dudp
+
+    return data
+
+
+# ----------------------------------------------------------------------
