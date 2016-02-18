@@ -16,12 +16,11 @@ import utils
 years = np.arange(1979, 2015)
 datadir = atm.homedir() + 'datastore/merra/daily/'
 files = {}
-filestr = 'merra_MFC_40E-120E_90S-90N_%d.nc'
-files['MFC'] = [datadir + filestr % yr for yr in years]
-#files['MFC'] = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
-files['PCP'] = [datadir + 'merra_precip_%d.nc' % yr for yr in years]
 filestr = 'merra_%s_40E-120E_90S-90N_%d.nc'
+files['MFC'] = [datadir + filestr % ('MFC', yr) for yr in years]
+files['PCP'] = [datadir + 'merra_precip_%d.nc' % yr for yr in years]
 files['EVAP'] = [datadir + filestr % ('EVAP', yr) for yr in years]
+files['ANA'] = [datadir + filestr % ('DQVDT_ANA', yr) for yr in years]
 files['W'] = [datadir + filestr % ('TQV', yr) for yr in years]
 
 # Lat-lon box for MFC budget
@@ -38,7 +37,8 @@ subset_dict = {'lat' : (lat1, lat2), 'lon' : (lon1, lon2)}
 
 ts = xray.Dataset()
 ssn = xray.Dataset()
-varnms = {'PCP' : 'PRECTOT', 'MFC' : 'MFC', 'EVAP' : 'EVAP', 'W' : 'TQV'}
+varnms = {'PCP' : 'PRECTOT', 'MFC' : 'MFC', 'EVAP' : 'EVAP', 'W' : 'TQV',
+          'ANA' : 'DQVDT_ANA'}
 
 for nm in files:
     var = atm.combine_daily_years(varnms[nm], files[nm], years, yearname='year',
@@ -62,12 +62,12 @@ for nm in files:
         ssn[nm] = var.sel(day=days_ssn).mean(dim='day')
 
 # Net precip and residuals
-ts['P-E+dW/dt'] = ts['PCP'] - ts['EVAP'] + ts['dW/dt']
-ts['RESID'] = ts['MFC'] - ts['P-E+dW/dt']
+ts['P-E+dW/dt-ANA'] = ts['PCP'] - ts['EVAP'] + ts['dW/dt'] - ts['ANA']
+ts['RESID'] = ts['MFC'] - ts['P-E+dW/dt-ANA']
 
 # Standardize the seasonal averages for easier comparison
 ssn = ssn.to_dataframe()
-ssn['P-E+dW'] = ssn['PCP'] - ssn['EVAP'] + ssn['dW']
+ssn['P-E+dW-ANA'] = ssn['PCP'] - ssn['EVAP'] + ssn['dW'] - ssn['ANA']
 ssn_st = pd.DataFrame()
 for key in ssn.columns:
     ssn_st[key] = (ssn[key] - ssn[key].mean()) / ssn[key].std()
@@ -76,7 +76,7 @@ for key in ssn.columns:
 # Plot daily tseries of MFC budget components
 
 def plot_tseries(ts, year=None, ax=None):
-    keys = ['PCP', 'EVAP', 'dW/dt', 'P-E+dW/dt', 'MFC', 'RESID']
+    keys = ['PCP', 'EVAP', 'ANA', 'dW/dt', 'P-E+dW/dt-ANA', 'MFC', 'RESID']
     tseries = ts[keys]
     if year is None:
         tseries = tseries.mean(dim='year')
@@ -89,18 +89,18 @@ def plot_tseries(ts, year=None, ax=None):
     ax.set_title(title, loc='left', fontsize=11)
 
 # Plot climatology and a few individual years
+plotyears = [None, years[0], years[1], years[2]]
 plt.figure(figsize=(12, 9))
 suptitle = 'MFC Budget (%s) - Daily Tseries' % latlonstr
 plt.suptitle(suptitle)
 nrow, ncol = 2, 2
-plotyears = [None, years[0], years[1], years[2]]
 for y, year in enumerate(plotyears):
     ax = plt.subplot(nrow, ncol, y + 1)
     plot_tseries(ts, year, ax=ax)
     if y == 0:
         ax.legend(loc='upper left', fontsize=9)
-        s = 'RESID = MFC - P + E - dW/dt'
-        atm.text(s, (0.03, 0.54), fontsize=9)
+        s = 'RESID = MFC-P+E-dW/dt-ANA'
+        atm.text(s, (0.03, 0.5), fontsize=9)
 
 # ----------------------------------------------------------------------
 # Plot daily timeseries of W
@@ -123,13 +123,19 @@ plt.ylabel('Precipitable Water (mm)')
 # ----------------------------------------------------------------------
 # Average values over JJAS and LRS - interannual variability
 
-keys = ['PCP', 'EVAP', 'dW', 'P-E+dW', 'MFC']
+keys = ['PCP', 'EVAP', 'ANA', 'dW', 'P-E+dW-ANA', 'MFC']
+fmts = {'PCP' : 'b', 'EVAP' : 'g', 'ANA' : 'r', 'dW' : 'c',
+        'P-E+dW-ANA' : 'm', 'MFC' : 'k--'}
 
-ssn[keys].plot(figsize=(7, 6), legend=False, grid=True)
-plt.legend(fontsize=10)
+ssn[keys].plot(figsize=(10, 10), style=fmts, legend=False, grid=True)
+plt.legend(loc='upper left', fontsize=10)
+plt.ylabel('mm/day')
+plt.title('JJAS Mean')
+
 
 plt.figure(figsize=(7, 10))
-nrow, ncol = 5, 1
+plt.suptitle('JJAS mean standardized timeseries')
+nrow, ncol = len(keys), 1
 for i, col in enumerate(ssn_st[keys].columns):
     plt.subplot(nrow, ncol, i + 1)
     plt.plot(years, ssn_st[col], 'k')
@@ -141,5 +147,5 @@ for i, col in enumerate(ssn_st[keys].columns):
     else:
         plt.xlabel('Year')
 
-atm.scatter_matrix(ssn[keys], figsize=(12, 8), pmax_bold=0.05, incl_p=True,
-                   annotation_pos=(0.05, 0.6), incl_line=True)
+atm.scatter_matrix(ssn[keys], figsize=(14, 10), pmax_bold=0.05, incl_p=True,
+                   annotation_pos=(0.05, 0.6), incl_line=True, suptitle='JJAS Mean')
