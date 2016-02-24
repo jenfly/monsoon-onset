@@ -463,9 +463,11 @@ def latlon_data(var, latmax=89):
     latname = atm.get_coord(var, 'lat', 'name')
     latdim = atm.get_coord(var, 'lat', 'dim')
     lat = atm.get_coord(var, 'lat')
+    latcoords = {latname: lat}
     lat[abs(lat) > latmax] = np.nan
+    data['LAT'] = xray.DataArray(lat, coords=latcoords)
     latrad = np.radians(lat)
-    data['LATRAD'] = xray.DataArray(latrad, coords={latname: lat})
+    data['LATRAD'] = xray.DataArray(latrad, coords=latcoords)
     data['COSLAT'] = np.cos(data['LATRAD'])
     data.attrs['latname'] = latname
     data.attrs['latdim'] = latdim
@@ -475,6 +477,7 @@ def latlon_data(var, latmax=89):
         lonname = atm.get_coord(var, 'lon', 'name')
         londim = atm.get_coord(var, 'lon', 'dim')
         lon = atm.get_coord(var, 'lon')
+        data['LON'] = xray.DataArray(lon, coords={lonname : lon})
         lonrad = np.radians(lon)
         data['LONRAD'] = xray.DataArray(lonrad, coords={lonname : lon})
         data.attrs['lonname'] = lonname
@@ -532,3 +535,94 @@ def fluxdiv(u, v, omega, dudp, domegadp):
     data['P'] = omega * dudp + u * domegadp
 
     return data
+
+
+# ----------------------------------------------------------------------
+def calc_ubudget(datafiles, ndays, lon1, lon2):
+    """Calculate momentum budget for daily data in one year.
+
+    Keys of datafiles dict must be: U, V, DUDP, H, OMEGA, DOMEGADP
+    """
+
+    # Read data
+    data = xray.Dataset()
+    for nm in datafiles:
+        with xray.open_dataset(datafiles[nm]) as ds:
+            data[nm] = atm.squeeze(ds[nm])
+    data['PHI'] = atm.constants.g.values * data['H']
+    data = data.rename({'Day' : 'day'})
+
+    # Eddy decomposition
+    taxis = 0
+    for nm in data.data_vars:
+        print('Eddy decomposition for ' + nm)
+        comp = eddy_decomp(data[nm], ndays, lon1, lon2, taxis)
+        for compnm in comp:
+            data[compnm] = comp[compnm]
+
+    # Momentum budget calcs
+    # du/dt = sum of terms in ubudget
+    ubudget = xray.Dataset()
+    readme = 'Momentum budget: ACCEL = sum of all other data variables'
+    ubudget.attrs['readme'] = readme
+    ubudget.attrs['ndays'] = ndays
+    ubudget.attrs['lon1'] = lon1
+    ubudget.attrs['lon2'] = lon2
+
+    # Advective terms
+    keypairs = [ ('AVG', 'AVG'), ('AVG', 'ST'), ('ST', 'AVG')]
+    print('Computing advective terms')
+    for pair in keypairs:
+        print(pair)
+        ukey, flowkey = pair
+        u = data['U_' + ukey]
+        dudp = data['DUDP_' + ukey]
+        uflow = data['U_' + flowkey]
+        vflow = data['V_' + flowkey]
+        omegaflow = data['OMEGA_' + flowkey]
+        adv = advection(uflow, vflow, omegaflow, u, dudp)
+        for nm in adv.data_vars:
+            key = 'ADV_%s_%s_%s' % (ukey, flowkey, nm)
+            ubudget[key] = - adv[nm]
+
+    # EMFD terms
+    keys = ['TR', 'ST']
+    print('Computing EMFD terms')
+    for key in keys:
+        print(key)
+        u = data['U_' + key]
+        v = data['V_' + key]
+        omega = data['OMEGA_' + key]
+        dudp = data['DUDP_' + key]
+        domegadp = data['DOMEGADP_' + key]
+        emfd = fluxdiv(u, v, omega, dudp, domegadp)
+        for nm in emfd.data_vars:
+            ubudget['EMFC_%s_%s' % (key, nm)] = - emfd[nm]
+
+    # Coriolis terms
+    latlon = latlon_data(data['V_ST'])
+    lat = latlon['LAT']
+    f = atm.coriolis(lat)
+    ubudget['COR_AVG'] = data['V_AVG'] * f
+    ubudget['COR_ST'] = data['V_ST'] * f
+
+    # Pressure gradient terms
+    a = atm.constants.radius_earth.values
+    coslat = latlon['COSLAT']
+    lonrad = latlon['LONRAD']
+    londim = atm.get_coord(data['PHI_ST'], 'lon', 'dim')
+    ubudget['PGF_ST'] = - atm.gradient(data['PHI_ST'], lonrad, londim) / (a*coslat)
+
+    # Time mean
+    print('Computing rolling time mean')
+    for nm in ubudget.data_vars:
+        ubudget[nm] = atm.rolling_mean(ubudget[nm], ndays, axis=taxis, center=True)
+
+    # Acceleration
+    nseconds = 60 * 60 * 24 * ndays
+    delta_u = np.nan * data['U']
+    u = data['U'].values
+    delta_u.values[ndays//2:-ndays//2] = (u[ndays:] - u[:-ndays]) / nseconds
+    ubudget['ACCEL'] = delta_u
+
+    return ubudget, data
