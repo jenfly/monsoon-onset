@@ -40,6 +40,8 @@ def daily_rel2onset(data, d_onset, npre, npost, daynm='Day', yearnm='Year'):
 
     if isinstance(d_onset, xray.DataArray):
         d_onset = d_onset.values
+    else:
+        d_onset = atm.makelist(d_onset)
 
     dayrel = np.arange(-npre, npost + 1)
     relnm = daynm + 'rel'
