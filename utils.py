@@ -404,7 +404,7 @@ def plot_colorbar(symmetric, orientation='vertical'):
 
 
 # ----------------------------------------------------------------------
-def contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm,
+def contourf_lat_time(lat, days, plotdata, title='', cmap='RdBu_r', onset_nm='',
                       zero_line=False):
     vals = plotdata.values.T
     vals = np.ma.array(vals, mask=np.isnan(vals))
