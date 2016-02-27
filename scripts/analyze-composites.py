@@ -46,11 +46,11 @@ savedir = 'figs/'
 run_anim = False
 run_eht = False
 
-vargroup = 'group1'
+vargroup = 'subset'
 
 varlist = {
     'test' : ['precip', 'U200'],
-    'subset' : ['precip', 'U200', 'V200', 'T200', 'U850', 'T850', 'THETA_E950'],
+    'subset' : ['precip', 'U200', 'V200', 'T200', 'H200', 'U850', 'THETA_E950'],
     'group1' : ['precip', 'U200', 'V200', 'H200', 'T200'],
     'group2' : ['U850', 'V850', 'H850', 'T850', 'QV850'],
     'group3' : ['THETA950', 'THETA_E950', 'V*THETA_E950',
@@ -157,7 +157,8 @@ def housekeeping(var):
 def theta_e_latmax(var):
     lat = atm.get_coord(var, 'lat')
     coords={'year' : var['year'], 'dayrel': var['dayrel']}
-    latmax = lat[np.nanargmax(var, axis=2)]
+    latdim = atm.get_coord(var, 'lat', 'dim')
+    latmax = lat[np.nanargmax(var, axis=latdim)]
     latmax = xray.DataArray(latmax, dims=['year', 'dayrel'], coords=coords)
     latmax = atm.dim_mean(latmax, 'year')
     return latmax
@@ -176,8 +177,7 @@ def get_composites(var, compdays, comp_attrs):
         else:
             comp[key] = var.sel(dayrel=compdays[key]).mean(dim='dayrel')
 
-    # Compute climatology and add metadata
-    comp = comp.mean(dim='year')
+    # Add metadata
     for key in compdays:
         comp[key].attrs = comp_attrs[key]
 
@@ -200,19 +200,23 @@ def all_data(datafiles, npre, npost, lon1, lon2, compdays, comp_attrs):
 
         # Compute sector mean and composite averages
         sectorvar = sector_mean(var, lon1, lon2)
-        comp[varnm] = get_composites(var, compdays, comp_attrs)
-        sectorcomp[varnm] = get_composites(sectorvar, compdays, comp_attrs)
+        compvar = get_composites(var, compdays, comp_attrs)
+        sectorcompvar = get_composites(sectorvar, compdays, comp_attrs)
 
         # Latitude of maximum subcloud theta_e
         if varnm == 'THETA_E950':
-            sector_latmax[varnm] = theta_e_latmax(var)
+            sector_latmax[varnm] = theta_e_latmax(sectorvar)
 
+        # Compute regression or take the climatology
         if 'year' in var.dims:
             var = atm.dim_mean(var, 'year')
             sectorvar = atm.dim_mean(sectorvar, 'year')
+            compvar = atm.dim_mean(compvar, 'year')
+            sectorcompvar = atm.dim_mean(sectorcompvar, 'year')
 
-        data[varnm] = var
-        sectordata[varnm] = sectorvar
+        # Pack everything into dicts for output
+        data[varnm], sectordata[varnm] = var, sectorvar
+        comp[varnm], sectorcomp[varnm] = compvar, sectorcompvar
 
     return data, sectordata, sector_latmax, comp, sectorcomp
 
@@ -221,24 +225,29 @@ everything = all_data(datafiles, npre, npost, lon1, lon2, compdays, comp_attrs)
 data, sectordata, sector_latmax, comp, sectorcomp = everything
 
 if years2 is not None:
-    data2, onset2, retreat2 = all_data(datafiles2, npre, npost)
+    everything2 = all_data(datafiles2, npre, npost, lon1, lon2, compdays,
+                           comp_attrs)
+    data2, sectordata2, sector_latmax2, comp2, sectorcomp2 = everything2
     for nm in data:
-        data[nm] = data2[nm].mean(dim='year') - data[nm].mean(dim='year')
+        data[nm] = data2[nm] - data[nm]
+        sectordata[nm] = sectordata2[nm] - sectordata[nm]
+        comp[nm] = comp2[nm] - comp[nm]
+        sectorcomp[nm] = sectorcomp2[nm] - sectorcomp[nm]
 
 # ----------------------------------------------------------------------
 # Housekeeping
-
-# Add extra dimension for year if necessary (i.e. if plotting difference
-# between two sets of years or plotting regression field)
-if years2 is not None:
-    year_coord = xray.DataArray([-1], name='year', coords={'year' : [-1]})
-    for varnm in data:
-        name, attrs, coords, dims = atm.meta(data[varnm])
-        dims = ['year'] + list(dims)
-        coords = atm.odict_insert(coords, 'year', year_coord)
-        vals = np.expand_dims(data[varnm], axis=0)
-        data[varnm] = xray.DataArray(vals, name=name, attrs=attrs, dims=dims,
-                                     coords=coords)
+#
+# # Add extra dimension for year if necessary (i.e. if plotting difference
+# # between two sets of years or plotting regression field)
+# if years2 is not None:
+#     year_coord = xray.DataArray([-1], name='year', coords={'year' : [-1]})
+#     for varnm in data:
+#         name, attrs, coords, dims = atm.meta(data[varnm])
+#         dims = ['year'] + list(dims)
+#         coords = atm.odict_insert(coords, 'year', year_coord)
+#         vals = np.expand_dims(data[varnm], axis=0)
+#         data[varnm] = xray.DataArray(vals, name=name, attrs=attrs, dims=dims,
+#                                      coords=coords)
 
 
 #
