@@ -109,6 +109,35 @@ def get_daystr(plotdays):
         savestr = 'relday%d' % plotdays
     return daystr, savestr
 
+def get_zerolat(var, latmin, latmax, smoothing=30):
+    var = atm.subset(var, {'lat' : (latmin, latmax)})
+    var = atm.rolling_mean(var, smoothing, axis=0, center=True)
+    lat = atm.get_coord(var, 'lat')
+    daynm = var.dims[0]
+    days = var[daynm]
+
+    if var.name == 'V':
+        # Mask out latitudes that I want to exclude
+        xday, ylat = np.meshgrid(var[var.dims[0]], var[var.dims[1]])
+        xday, ylat = xday.T, ylat.T
+        mask = ((xday < 50) & (ylat > 30)) | ((xday > 150) & (ylat > 30)
+                | ((xday < 0) & (ylat > 10)))
+        var = np.ma.masked_array(var.values, mask=mask)
+    else:
+        var = var.values
+
+    var = abs(var)
+    ilat = np.argmin(var, axis=1)
+    ndays = len(ilat)
+    zerolat = np.nan * np.ones(ndays)
+    for i in range(ndays):
+        zerolat[i] = lat[ilat[i]]
+    zerolat[:smoothing] = np.nan
+    zerolat[-smoothing:] = np.nan
+    zerolat = xray.DataArray(zerolat, coords={daynm : days})
+
+    return zerolat
+
 
 # ----------------------------------------------------------------------
 # Plot groups together
@@ -221,12 +250,25 @@ for tropics in [True, False]:
 # ----------------------------------------------------------------------
 # Line plots on individual days
 
-keys = ['ADV_AVG', 'COR_AVG', 'ADV+COR_AVG', 'PGF_ST', 'ADV_CRS',  'COR_ST',
+keys = ['ADV_AVG', 'COR_AVG', 'ADV+COR_AVG', 'PGF_ST', 'ADV_CRS',
         'EMFC', 'SUM', 'ACCEL']
 
 style = {'ADV_AVG' : 'b', 'COR_AVG' : 'b--', 'ADV+COR_AVG' : 'r',
-         'PGF_ST' : 'k', 'ADV_CRS' : 'g', 'COR_ST' : 'y', 'EMFC' : 'm',
+         'PGF_ST' : 'k', 'ADV_CRS' : 'g', 'EMFC' : 'm',
          'SUM' : 'k--', 'ACCEL' : 'c'}
+
+zerolats = xray.Dataset()
+zerolats['U1'] = get_zerolat(ubudget_sector['U'], -30, 0)
+zerolats['U2'] = get_zerolat(ubudget_sector['U'], 0, 40)
+zerolats['V1'] = get_zerolat(ubudget_sector['V'], -40, -20)
+zerolats['V2'] = get_zerolat(ubudget_sector['V'], -12, 35)
+
+check_zerolats = False
+if check_zerolats:
+    plt.figure()
+    for nm in zerolats.data_vars:
+        plt.plot(zerolats[daynm], zerolats[nm], label=nm)
+    plt.legend()
 
 plotdays = [-90, -30, -15, 0, 15, 30, 60, 90]
 nrow, ncol = 2, 4
@@ -239,8 +281,12 @@ latname = atm.get_coord(ubudget, 'lat', 'name')
 opts = {'left' : 0.05, 'right' : 0.95, 'bottom' : 0.06, 'top' : 0.94,
         'wspace' : 0.1, 'hspace' : 0.1}
 lg_row, lg_col, lg_loc, lg_ncol = 2, 1, 'upper center', 2
+zlat_opts = {'U1' : {'label' : 'U=0'},
+             'U2' : {},
+             'V1' : {'linestyle' : 'dashed', 'label' : 'V=0'},
+             'V2' : {'linestyle' : 'dashed'}}
 
-for latlims in [(-60, 60), (-30, 30)]:
+for latlims in [(-60, 60), (-35, 35)]:
     fig, axes = plt.subplots(nrow, ncol, figsize=figsize, sharex=True, sharey=True)
     plt.subplots_adjust(**opts)
     plt.autoscale(tight=True)
@@ -252,6 +298,10 @@ for latlims in [(-60, 60), (-30, 30)]:
         data = atm.squeeze(atm.subset(ubudget_sector[keys], subset_dict))
         data = data.drop(daynm).to_dataframe()
         data.plot(ax=ax, style=style, legend=False)
+        # Plot vertical lines for U=0 and V=0
+        zlats = zerolats.sel(**{daynm : day})
+        for nm in zlats.data_vars:
+            ax.axvline(zlats[nm], color='k', alpha=0.5, **zlat_opts[nm])
         ax.set_title('Day %d' % day, fontsize=10)
         ax.grid(True)
         if row == lg_row and col == lg_col:
