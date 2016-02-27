@@ -163,9 +163,24 @@ def theta_e_latmax(var):
     latmax = atm.dim_mean(latmax, 'year')
     return latmax
 
-def sector_mean(var, lon1, lon2):
+def sector_mean(var, lon1, lon2, minfrac=0.5):
     var = atm.subset(var, {'lon' : (lon1, lon2)})
+    londim = atm.get_coord(var, 'lon', 'dim')
+
+    # Create mask for any point where more than minfrac fraction is missing
+    missings = np.isnan(var)
+    missings = missings.sum(axis=londim)
+    min_num = var.shape[londim] * minfrac
+    mask = missings > min_num
+
+    # Compute mean and apply mask
     var = atm.dim_mean(var, 'lon')
+    name, attrs, coords, dims = atm.meta(var)
+    attrs['minfrac'] = minfrac
+    kwargs = {'name' : name, 'attrs' :  attrs, 'coords' : coords, 'dims' : dims}
+    vals = np.ma.masked_array(var.values, mask).filled(np.nan)
+    var.values = xray.DataArray(vals, **kwargs)
+
     return var
 
 def get_composites(var, compdays, comp_attrs):
@@ -343,9 +358,9 @@ for i, varnm in enumerate(keys):
     if i % nrow == 0:
         plt.figure(figsize=figsize)
     plt.subplot(nrow, ncol, 1 + i % nrow)
-    plotdata = sectordata[varnm].mean(dim='year')
-    lat = plotdata[latname].values
-    days = plotdata['dayrel'].values
+    plotdata = sectordata[varnm]
+    lat = atm.get_coord(plotdata, 'lat')
+    days = atm.get_coord(plotdata, coord_name='dayrel')
     cmap = get_colormap(varnm, anom_plot)
     title = '%d-%dE ' %(lon1, lon2) + varnm + ' - ' + yearstr
     utils.contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm)
@@ -354,7 +369,7 @@ for i, varnm in enumerate(keys):
         plt.xlabel('')
     # Add latitudes of maxima
     if varnm in ['THETA_E950'] and not anom_plot:
-        latmax = sector_latmax[varnm].mean(dim='year')
+        latmax = sector_latmax[varnm]
         annotate_theta_e(days, latmax)
 
 filestr = 'sector_%d-%dE-onset_%s-%s-%s'
