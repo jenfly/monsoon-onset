@@ -586,6 +586,8 @@ def calc_ubudget(datafiles, ndays, lon1, lon2):
         for nm in adv.data_vars:
             key = 'ADV_%s_%s_%s' % (ukey, flowkey, nm)
             ubudget[key] = - adv[nm]
+            long_name = 'Advection of %s momentum by %s' % (ukey, flowkey)
+            ubudget[key].attrs['long_name'] = long_name
 
     # EMFD terms
     keys = ['TR', 'ST']
