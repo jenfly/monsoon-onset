@@ -7,6 +7,7 @@ import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt
 from matplotlib import animation
+import matplotlib as mpl
 import collections
 import pandas as pd
 
@@ -16,21 +17,23 @@ import merra
 import indices
 import utils
 
+mpl.rcParams['font.size'] = 10
+
 # ----------------------------------------------------------------------
 #onset_nm = 'HOWI'
 onset_nm = 'CHP_MFC'
 #onset_nm = 'CHP_PCP'
 
-years, years2 = np.arange(1979, 2015), None
-yearstr, savestr = '%d-%d Climatology' % (years.min(), years.max()), 'clim'
+# years, years2 = np.arange(1979, 2015), None
+# yearstr, savestr = '%d-%d Climatology' % (years.min(), years.max()), 'clim'
 #savestr = 'clim_pre1pre2'
 
 # CHP_MFC Early/Late Years
 # years = [2004, 1999, 1990, 2000, 2001]
 # years2 = [1983, 1992, 1997, 2014, 2012]
 # yearstr, savestr = 'Late Minus Early Anomaly', 'late_minus_early'
-# years, yearstr = [2004, 1999, 1990, 2000, 2001], '5 Earliest Years'
-# years2, savestr = None, 'early'
+years, yearstr = [2004, 1999, 1990, 2000, 2001], '5 Earliest Years'
+years2, savestr = None, 'early'
 # years, yearstr = [1983, 1992, 1997, 2014, 2012], '5 Latest Years'
 # years2, savestr = None, 'late'
 
@@ -48,8 +51,7 @@ vargroup = 'group1'
 varlist = {
     'test' : ['precip', 'U200'],
     'subset' : ['precip', 'U200', 'V200', 'T200', 'U850', 'T850', 'THETA_E950'],
-    'group1' : ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200',
-               'abs_vort200', 'H200', 'T200'],
+    'group1' : ['precip', 'U200', 'V200', 'H200', 'T200'],
     'group2' : ['U850', 'V850', 'H850', 'T850', 'QV850'],
     'group3' : ['THETA950', 'THETA_E950', 'V*THETA_E950',
                 'HFLUX', 'EFLUX', 'EVAP'],
@@ -78,16 +80,29 @@ else:
 npre, npost = 120, 200
 
 # Day ranges for lat-lon composites
+comps_all = {'PRE' : range(-5, 0), 'POST' : range(15, 20),
+             'PRE1' : range(-60, -45), 'PRE2' : range(-30, -15),
+             'SSN' : range(0, 137), 'DIFF' : None}
+
+compkeys = ['PRE', 'POST', 'DIFF']
+
+def plusminus(num):
+    return atm.format_num(num, ndecimals=0, plus_sym=True)
+
 compdays = collections.OrderedDict()
-if anom_plot or savestr in ['early', 'late', 'clim_pre1pre2']:
-    compdays['pre1'] = np.arange(-60, -45)
-    compdays['pre2'] = np.arange(-30, -15)
-elif onset_nm.startswith('CHP'):
-    compdays['pre'] = np.arange(-5, 0)
-    compdays['post'] = np.arange(15, 20)
-else:
-    compdays['pre'] = np.arange(-10, -5)
-    compdays['post'] = np.arange(6, 11)
+comp_attrs = {key : {} for key in compkeys}
+for key in compkeys:
+    compdays[key] = comps_all[key]
+    comp_attrs[key]['name'] = key
+    if key == 'DIFF':
+        comp_attrs[key]['long_name'] = '%s-%s' % (compkeys[1], compkeys[0])
+        comp_attrs[key]['axis'] = 2
+    else:
+        d1 = plusminus(min(compdays[key]))
+        d2 = plusminus(max(compdays[key]))
+        comp_attrs[key]['long_name'] = 'D0%s:D0%s' % (d1, d2)
+        comp_attrs[key]['axis'] = 1
+
 
 # ----------------------------------------------------------------------
 # List of data files
@@ -102,15 +117,10 @@ if remove_tricky:
     years = np.array(years)
 
 def get_filenames(yrs, varnms, onset_nm, datadir):
-
     files = collections.OrderedDict()
-#    files['HOWI'] = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in yrs]
-#    files['CHP_MFC'] = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in yrs]
-#    files['CHP_PCP'] = [datadir + 'merra_precip_%d.nc' % yr for yr in yrs]
     filestr = datadir + 'merra_%s_dailyrel_%s_%d.nc'
     for nm in varnms:
         files[nm] = [filestr % (nm, onset_nm, yr) for yr in yrs]
-
     return files
 
 
@@ -121,20 +131,94 @@ else:
     datafiles2 = None
 
 # ----------------------------------------------------------------------
-# Get daily data
+# Read data and compute averages and composites
 
-def all_data(datafiles, npre, npost):
+def housekeeping(var):
+    # Convert units
+    unit_dict={'m' : ('km', 1e-3)}
+    units_in = var.attrs['units']
+    if units_in in unit_dict:
+        attrs = var.attrs
+        attrs['units'] = unit_dict[units_in][0]
+        var = var * unit_dict[units_in][1]
+        var.attrs = attrs
 
+    # Fill Ro200 with NaNs near equator
+    if var.name == 'Ro200':
+        latbuf = 5
+        lat = atm.get_coord(var, 'lat')
+        latbig = atm.biggify(lat, var, tile=True)
+        vals = var.values
+        vals = np.where(abs(latbig)>latbuf, vals, np.nan)
+        var.values = vals
+
+    return var
+
+def theta_e_latmax(var):
+    lat = atm.get_coord(var, 'lat')
+    coords={'year' : var['year'], 'dayrel': var['dayrel']}
+    latmax = lat[np.nanargmax(var, axis=2)]
+    latmax = xray.DataArray(latmax, dims=['year', 'dayrel'], coords=coords)
+    latmax = atm.dim_mean(latmax, 'year')
+    return latmax
+
+def sector_mean(var, lon1, lon2):
+    var = atm.subset(var, {'lon' : (lon1, lon2)})
+    var = atm.dim_mean(var, 'lon')
+    return var
+
+def get_composites(var, compdays, comp_attrs):
+    keys = compdays.keys()
+    comp = xray.Dataset()
+    for key in compdays:
+        if key == 'DIFF':
+            comp[key] = comp[keys[1]] - comp[keys[0]]
+        else:
+            comp[key] = var.sel(dayrel=compdays[key]).mean(dim='dayrel')
+
+    # Compute climatology and add metadata
+    comp = comp.mean(dim='year')
+    for key in compdays:
+        comp[key].attrs = comp_attrs[key]
+
+    return comp
+
+
+def all_data(datafiles, npre, npost, lon1, lon2, compdays, comp_attrs):
     # Read daily data fields aligned relative to onset day
     data = collections.OrderedDict()
+    sectordata = collections.OrderedDict()
+    comp = collections.OrderedDict()
+    sectorcomp = collections.OrderedDict()
+    sector_latmax = {}
+
     for varnm in datafiles:
         print('Reading daily data for ' + varnm)
         var, onset, retreat = utils.load_dailyrel(datafiles[varnm])
-        data[varnm] = atm.subset(var, {'dayrel' : (-npre, npost)})
-    return data, onset, retreat
+        var = atm.subset(var, {'dayrel' : (-npre, npost)})
+        var = housekeeping(var)
+
+        # Compute sector mean and composite averages
+        sectorvar = sector_mean(var, lon1, lon2)
+        comp[varnm] = get_composites(var, compdays, comp_attrs)
+        sectorcomp[varnm] = get_composites(sectorvar, compdays, comp_attrs)
+
+        # Latitude of maximum subcloud theta_e
+        if varnm == 'THETA_E950':
+            sector_latmax[varnm] = theta_e_latmax(var)
+
+        if 'year' in var.dims:
+            var = atm.dim_mean(var, 'year')
+            sectorvar = atm.dim_mean(sectorvar, 'year')
+
+        data[varnm] = var
+        sectordata[varnm] = sectorvar
+
+    return data, sectordata, sector_latmax, comp, sectorcomp
 
 
-data, onset, retreat = all_data(datafiles, npre, npost)
+everything = all_data(datafiles, npre, npost, lon1, lon2, compdays, comp_attrs)
+data, sectordata, sector_latmax, comp, sectorcomp = everything
 
 if years2 is not None:
     data2, onset2, retreat2 = all_data(datafiles2, npre, npost)
@@ -156,42 +240,28 @@ if years2 is not None:
         data[varnm] = xray.DataArray(vals, name=name, attrs=attrs, dims=dims,
                                      coords=coords)
 
-# Fill Ro200 with NaNs near equator
-varnm = 'Ro200'
-if varnm in data:
-    latbuf = 5
-    lat = atm.get_coord(data[varnm], 'lat')
-    latbig = atm.biggify(lat, data[varnm], tile=True)
-    vals = data[varnm].values
-    vals = np.where(abs(latbig)>latbuf, vals, np.nan)
-    data[varnm].values = vals
+
+#
+#
+# # Latitude of maximum theta_e in sector mean
+# sector_latmax = collections.OrderedDict()
+# varnm = 'THETA_E950'
+# if varnm in sectordata and not anom_plot:
+#     var = sectordata[varnm]
+#     lat = var[latname].values
+#     coords={'year' : var['year'], 'dayrel': var['dayrel']}
+#     # Yearly
+#     latmax = lat[np.nanargmax(var, axis=2)]
+#     sector_latmax[varnm] = xray.DataArray(latmax, dims=['year', 'dayrel'],
+#                                           coords=coords)
+#     # Climatology
+#     latmax = lat[np.nanargmax(var.mean(dim='year'), axis=1)]
+#     key = varnm + '_CLIM'
+#     sector_latmax[key] = xray.DataArray(latmax, coords={'dayrel' : var['dayrel']})
+
 
 # ----------------------------------------------------------------------
-# Sector mean data
 
-lonname, latname = 'XDim', 'YDim'
-sectordata = collections.OrderedDict()
-for varnm in data:
-    var = atm.subset(data[varnm], {lonname : (lon1, lon2)})
-    sectordata[varnm] = var.mean(dim=lonname)
-
-# ----------------------------------------------------------------------
-# Latitude of maximum theta_e in sector mean
-
-sector_latmax = collections.OrderedDict()
-varnm = 'THETA_E950'
-if varnm in sectordata and not anom_plot:
-    var = sectordata[varnm]
-    lat = var[latname].values
-    coords={'year' : var['year'], 'dayrel': var['dayrel']}
-    # Yearly
-    latmax = lat[np.nanargmax(var, axis=2)]
-    sector_latmax[varnm] = xray.DataArray(latmax, dims=['year', 'dayrel'],
-                                          coords=coords)
-    # Climatology
-    latmax = lat[np.nanargmax(var.mean(dim='year'), axis=1)]
-    key = varnm + '_CLIM'
-    sector_latmax[key] = xray.DataArray(latmax, coords={'dayrel' : var['dayrel']})
 
 # ----------------------------------------------------------------------
 # Plotting params and utilities
@@ -205,8 +275,7 @@ def get_colormap(varnm, anom_plot):
         cmap = 'RdBu_r'
     return cmap
 
-def plusminus(num):
-    return atm.format_num(num, ndecimals=0, plus_sym=True)
+
 
 def annotate_theta_e(days, latmax):
     latmax_0 = latmax.sel(dayrel=0)
@@ -217,6 +286,43 @@ def annotate_theta_e(days, latmax):
     ax.annotate(s, xy=(0, latmax_0), xycoords='data',
                 xytext=(-50, 50), textcoords='offset points',
                 arrowprops=dict(arrowstyle="->"))
+
+def lineplot(sectors, ax1=None, y1_label='', y2_label='',
+             legend_opts = {'fontsize' : 8, 'loc' : 'lower center',
+                            'handlelength' : 3, 'frameon' : False},
+             ax2_color='r', ax2_alpha=0.5):
+    if ax1 is None:
+        ax1 = plt.gca()
+
+    ax1_fmts = [{'color' : 'k', 'linestyle' : 'dashed'}, {'color' : 'k'},
+                {'color' : 'k', 'linewidth' : 1.5}]
+    ax2_fmts = [{'linewidth' : 2, 'alpha' : ax2_alpha, 'color' : ax2_color}]
+    lat = atm.get_coord(sectors, 'lat')
+    ax1.set_xlabel('Lat')
+    ax1.set_ylabel(y1_label)
+    ax1.grid(True)
+    i1, i2 = 0, 0
+    for key in sectors.data_vars:
+        var = sectors[key]
+        if var.attrs['axis'] == 1:
+            ax, fmts = ax1, ax1_fmts[i1]
+            i1 += 1
+        else:
+            if i2 == 0:
+                ax2 = ax1.twinx()
+            ax, fmts = ax2, ax2_fmts[i2]
+            i2 += 1
+        ax.plot(lat, var, label=key, **fmts)
+
+    if legend_opts is not None:
+        legend_opts['ncol'] = i1
+        ax1.legend(**legend_opts)
+    if i2 > 0:
+        ax2.set_ylabel(y2_label, color=ax2_color, alpha=ax2_alpha)
+        for t1 in ax2.get_yticklabels():
+            t1.set_color(ax2_color)
+    plt.draw()
+    return None
 
 # ----------------------------------------------------------------------
 # Latitude-time contour plot
@@ -251,35 +357,14 @@ plt.close('all')
 # ----------------------------------------------------------------------
 # Composite averages
 
-compnms = {}
-for key in compdays:
-    d1 = plusminus(compdays[key].min())
-    d2 = plusminus(compdays[key].max())
-    compnms[key] = 'D0%s:D0%s' % (d1, d2)
-
-print('Computing composites of lat-lon and sector data')
-comp = collections.OrderedDict()
-sectorcomp = collections.OrderedDict()
-for varnm in data:
-    print varnm
-    compdat = utils.composite(data[varnm], compdays, daynm='dayrel',
-                              return_avg=True)
-    compsec = utils.composite(sectordata[varnm], compdays, daynm='dayrel',
-                              return_avg=True)
-    comp[varnm] = {}
-    sectorcomp[varnm] = {}
-    for key in compdat:
-        comp[varnm][key] = compdat[key]
-        sectorcomp[varnm][key] = compsec[key]
-
 # Plot lat-lon maps and sector means of pre/post onset composite averages
 climits = {'precip' : (0, 20), 'U200' : (-50, 50), 'V200' : (-10, 10),
            'Ro200' : (-1, 1), 'rel_vort200' : (-4e-5, 4e-5),
            'abs_vort200' : (-2e-4, 2e-4), 'T200' : (213, 227),
-           'H200' : (11.2e3, 12.6e3), 'U850' : (-20, 20), 'V850' : (-10, 10),
+           'H200' : (11.2, 12.6), 'U850' : (-20, 20), 'V850' : (-10, 10),
            'rel_vort850' : (-3e-5, 3e-5), 'abs_vort850' : (-1.5e-4, 1.5e-4),
            'EMFD200' : (-2e-4, 2e-4),
-           'H850' : (1100, 1600), 'T850' : (260, 305),
+           'H850' : (1.1, 1.6), 'T850' : (260, 305),
            'QV850' : (0, 0.015),
            'THETA975' : (260, 315), 'THETA_E975' : (260, 370),
            'DSE975' : (2.6e5, 3.2e5), 'MSE975' : (2.5e5, 3.5e5),
@@ -291,11 +376,15 @@ climits = {'precip' : (0, 20), 'U200' : (-50, 50), 'V200' : (-10, 10),
            'HFLUX' : (-125, 125), 'EFLUX' : (-200, 200), 'EVAP' : (-8, 8)}
 
 keys = compdays.keys()
-key1, key2 = keys
+y1_label = ', '.join([key for key in compdays if comp_attrs[key]['axis'] == 1])
+y2_label = ', '.join([key for key in compdays if comp_attrs[key]['axis'] == 2])
 subset_dict = {'lat' : (axlims[0], axlims[1]), 'lon' : (axlims[2], axlims[3])}
+nrow, ncol = 2, 4
+fig_opts = {'figsize' : (12, 7), 'sharex' : 'col'}
+subplot_opts = {'left' : 0.06, 'right' : 0.95}
+
 for varnm in comp:
-    cmap = get_colormap(varnm, anom_plot)
-    dat = {key : atm.subset(comp[varnm][key].mean(dim='year'), subset_dict)
+    dat = {key : atm.subset(comp[varnm][key], subset_dict)
            for key in keys}
     if anom_plot:
         cmax = max([abs(dat[key]).max().values for key in keys])
@@ -303,56 +392,70 @@ for varnm in comp:
     else:
         cmin, cmax = climits[varnm][0], climits[varnm][1]
 
-    plt.figure(figsize=(12, 10))
-    plt.subplots_adjust(left=0.06, right=0.95)
+    fig, axes = plt.subplots(nrow, ncol, **fig_opts)
+    plt.subplots_adjust(**subplot_opts)
     plt.suptitle('%s Composites Relative to %s Onset Day - %s' %
                  (varnm.upper(), onset_nm, yearstr))
 
     # Lat-lon maps of composites
     for i, key in enumerate(keys):
-        plt.subplot(2, 3, i + 1)
-        atm.pcolor_latlon(dat[key], axlims=axlims, cmap=cmap)
-        plt.clim(cmin, cmax)
-        #plt.clim(climits[varnm][0], climits[varnm][1])
-        plt.title(key.upper() + ' ' + compnms[key])
+        if comp_attrs[key]['axis'] == 1:
+            cmap = get_colormap(varnm, anom_plot)
+        else:
+            cmap = 'RdBu_r'
+        plt.subplot(nrow, ncol, i + 1)
+        atm.pcolor_latlon(dat[key], axlims=axlims, cmap=cmap, fancy=False)
+        if comp_attrs[key]['axis'] == 1:
+            plt.clim(cmin, cmax)
+        else:
+            symmetric = atm.symm_colors(dat[key])
+            if symmetric:
+                cmax = np.nanmax(abs(dat[key]))
+                plt.clim(-cmax, cmax)
+        plt.title(key.upper())
 
-    # Lat-lon map of difference between composites
-    plt.subplot(2, 3, 3)
-    atm.pcolor_latlon(dat[key2] - dat[key1], axlims=axlims, cmap='RdBu_r')
-    symmetric = atm.symm_colors(dat[key2] - dat[key1])
-    if symmetric:
-        cmax = np.nanmax(abs(dat[key2] - dat[key1]))
-        plt.clim(-cmax, cmax)
-    plt.title('Difference (%s-%s)' % (key2.upper(), key1.upper()))
-
-    # Line plot of sector mean
-    sector1 = sectorcomp[varnm][key1].mean(dim='year')
-    sector2 = sectorcomp[varnm][key2].mean(dim='year')
-    lat = atm.get_coord(sector1, 'lat')
-    plt.subplot(2, 2, 3)
-    plt.plot(lat, sector1, 'b', label=key1.upper())
-    plt.plot(lat, sector2, 'r', label=key2.upper())
-    plt.title('%d-%d E Composites' % (lon1, lon2))
-    if varnm in ['precip', 'Ro_200', 'rel_vort200']:
-        legend_loc = 'upper right'
-    elif varnm in ['V850']:
-        legend_loc = 'lower left'
-    else:
-        legend_loc = 'lower right'
-    plt.legend(loc=legend_loc)
-    plt.subplot(2, 2, 4)
-    plt.plot(lat, sector2 - sector1)
-    plt.title('%d-%d E Difference (%s-%s)' % (lon1, lon2, key2.upper(), key1.upper()))
-    for i in [3, 4]:
-        plt.subplot(2, 2, i)
-        plt.xlim(axlims[0], axlims[1])
-        plt.xlabel('Latitude')
-        plt.ylabel(varnm)
-        plt.grid()
+    # Line plots of sector averages
+    ax = axes[0, ncol - 1]
+    lineplot(sectorcomp[varnm], ax, y1_label, y2_label)
 
 filestr = 'comp-onset_%s-%s-%s' % (onset_nm, savestr, vargroup)
 atm.savefigs(savedir + filestr, 'pdf', merge=True)
 plt.close('all')
+# ----------------------------------------------------------------------
+    #
+    # # Lat-lon map of difference between composites
+    # plt.subplot(2, 3, 3)
+    # atm.pcolor_latlon(dat[key2] - dat[key1], axlims=axlims, cmap='RdBu_r')
+    # symmetric = atm.symm_colors(dat[key2] - dat[key1])
+    # if symmetric:
+    #     cmax = np.nanmax(abs(dat[key2] - dat[key1]))
+    #     plt.clim(-cmax, cmax)
+    # plt.title('Difference (%s-%s)' % (key2.upper(), key1.upper()))
+    #
+    # # Line plot of sector mean
+    # sector1 = sectorcomp[varnm][key1].mean(dim='year')
+    # sector2 = sectorcomp[varnm][key2].mean(dim='year')
+    # lat = atm.get_coord(sector1, 'lat')
+    # plt.subplot(2, 2, 3)
+    # plt.plot(lat, sector1, 'b', label=key1.upper())
+    # plt.plot(lat, sector2, 'r', label=key2.upper())
+    # plt.title('%d-%d E Composites' % (lon1, lon2))
+    # if varnm in ['precip', 'Ro_200', 'rel_vort200']:
+    #     legend_loc = 'upper right'
+    # elif varnm in ['V850']:
+    #     legend_loc = 'lower left'
+    # else:
+    #     legend_loc = 'lower right'
+    # plt.legend(loc=legend_loc)
+    # plt.subplot(2, 2, 4)
+    # plt.plot(lat, sector2 - sector1)
+    # plt.title('%d-%d E Difference (%s-%s)' % (lon1, lon2, key2.upper(), key1.upper()))
+    # for i in [3, 4]:
+    #     plt.subplot(2, 2, i)
+    #     plt.xlim(axlims[0], axlims[1])
+    #     plt.xlabel('Latitude')
+    #     plt.ylabel(varnm)
+    #     plt.grid()
 
 # ----------------------------------------------------------------------
 # Cross-equatorial atmospheric heat fluxes
