@@ -250,44 +250,6 @@ if years2 is not None:
         sectorcomp[nm] = sectorcomp2[nm] - sectorcomp[nm]
 
 # ----------------------------------------------------------------------
-# Housekeeping
-#
-# # Add extra dimension for year if necessary (i.e. if plotting difference
-# # between two sets of years or plotting regression field)
-# if years2 is not None:
-#     year_coord = xray.DataArray([-1], name='year', coords={'year' : [-1]})
-#     for varnm in data:
-#         name, attrs, coords, dims = atm.meta(data[varnm])
-#         dims = ['year'] + list(dims)
-#         coords = atm.odict_insert(coords, 'year', year_coord)
-#         vals = np.expand_dims(data[varnm], axis=0)
-#         data[varnm] = xray.DataArray(vals, name=name, attrs=attrs, dims=dims,
-#                                      coords=coords)
-
-
-#
-#
-# # Latitude of maximum theta_e in sector mean
-# sector_latmax = collections.OrderedDict()
-# varnm = 'THETA_E950'
-# if varnm in sectordata and not anom_plot:
-#     var = sectordata[varnm]
-#     lat = var[latname].values
-#     coords={'year' : var['year'], 'dayrel': var['dayrel']}
-#     # Yearly
-#     latmax = lat[np.nanargmax(var, axis=2)]
-#     sector_latmax[varnm] = xray.DataArray(latmax, dims=['year', 'dayrel'],
-#                                           coords=coords)
-#     # Climatology
-#     latmax = lat[np.nanargmax(var.mean(dim='year'), axis=1)]
-#     key = varnm + '_CLIM'
-#     sector_latmax[key] = xray.DataArray(latmax, coords={'dayrel' : var['dayrel']})
-
-
-# ----------------------------------------------------------------------
-
-
-# ----------------------------------------------------------------------
 # Plotting params and utilities
 
 axlims = (-60, 60, 40, 120)
@@ -300,21 +262,21 @@ def get_colormap(varnm, anom_plot):
     return cmap
 
 
-
-def annotate_theta_e(days, latmax):
+def annotate_theta_e(days, latmax, ax=None):
+    if ax is None:
+        ax = plt.gca()
     latmax_0 = latmax.sel(dayrel=0)
-    plt.plot(days, latmax, 'k', linewidth=2, label='Latitude of Max')
-    plt.legend(loc='lower left')
-    ax = plt.gca()
+    ax.plot(days, latmax, 'k', linewidth=2, label='Latitude of Max')
+    ax.legend(loc='lower left')
     s = atm.latlon_labels(latmax_0, latlon='lat', fmt='%.1f')
     ax.annotate(s, xy=(0, latmax_0), xycoords='data',
                 xytext=(-50, 50), textcoords='offset points',
                 arrowprops=dict(arrowstyle="->"))
 
-def lineplot(sectors, ax1=None, y1_label='', y2_label='',
+def lineplot(sectors, ax1=None, y1_label='', y2_label='', title='',
              legend_opts = {'fontsize' : 8, 'loc' : 'lower center',
                             'handlelength' : 3, 'frameon' : False},
-             ax2_color='r', ax2_alpha=0.5):
+             ax2_color='r', ax2_alpha=0.5, row=1, nrow=1):
     if ax1 is None:
         ax1 = plt.gca()
 
@@ -322,7 +284,11 @@ def lineplot(sectors, ax1=None, y1_label='', y2_label='',
                 {'color' : 'k', 'linewidth' : 1.5}]
     ax2_fmts = [{'linewidth' : 2, 'alpha' : ax2_alpha, 'color' : ax2_color}]
     lat = atm.get_coord(sectors, 'lat')
-    ax1.set_xlabel('Lat')
+    ax1.set_title(title)
+    if row < nrow:
+        ax1.set_xticklabels([])
+    else:
+        ax1.set_xlabel('Lat')
     ax1.set_ylabel(y1_label)
     ax1.grid(True)
     i1, i2 = 0, 0
@@ -345,32 +311,58 @@ def lineplot(sectors, ax1=None, y1_label='', y2_label='',
         ax2.set_ylabel(y2_label, color=ax2_color, alpha=ax2_alpha)
         for t1 in ax2.get_yticklabels():
             t1.set_color(ax2_color)
+
     plt.draw()
     return None
 
 # ----------------------------------------------------------------------
 # Latitude-time contour plot
 
-figsize = (10, 12)
-nrow, ncol = (2, 1)
+def fig_setup(nrow, ncol, isub, axes=None, suptitle='', fig_opts={},
+              subplots_adjust={}, suptitle_sz=12):
+    if isub > nrow * ncol:
+        isub = 1
+    if isub == 1:
+        fig, axes = plt.subplots(nrow, ncol, **fig_opts)
+        fig.subplots_adjust(**subplots_adjust)
+        fig.suptitle(suptitle, fontsize=suptitle_sz)
+    row, col = atm.subplot_index(nrow, ncol, isub)
+    if nrow == 1:
+        ax = axes[col - 1]
+    elif ncol == 1:
+        ax = axes[row - 1]
+    else:
+        ax = axes[row - 1, col - 1]
+    return axes, ax, isub, row, col
+
+
+fig_opts = {'figsize' : (14, 10), 'sharex' : True, 'sharey' : True}
+subplots_adjust = {'left' : 0.05, 'right' : 0.98, 'bottom' : 0.05,
+                   'top' : 0.92, 'wspace' : 0.01, 'hspace' : 0.1}
+suptitle = '%d-%dE ' %(lon1, lon2) + yearstr
+nrow, ncol = (2, 2)
 keys = sectordata.keys()
+axes, isub = None, 1
 for i, varnm in enumerate(keys):
-    if i % nrow == 0:
-        plt.figure(figsize=figsize)
-    plt.subplot(nrow, ncol, 1 + i % nrow)
+    thisplot = fig_setup(nrow, ncol, isub, axes, suptitle, fig_opts=fig_opts,
+                         subplots_adjust=subplots_adjust)
+    axes, ax, isub, row, col = thisplot
     plotdata = sectordata[varnm]
     lat = atm.get_coord(plotdata, 'lat')
     days = atm.get_coord(plotdata, coord_name='dayrel')
     cmap = get_colormap(varnm, anom_plot)
-    title = '%d-%dE ' %(lon1, lon2) + varnm + ' - ' + yearstr
-    utils.contourf_lat_time(lat, days, plotdata, title, cmap, onset_nm)
-    plt.ylim(axlims[0], axlims[1])
-    if i % nrow == 0:
-        plt.xlabel('')
+    utils.contourf_lat_time(lat, days, plotdata, varnm, cmap, onset_nm, ax=ax)
+    ax.set_ylim(axlims[0], axlims[1])
+    if row < nrow:
+        ax.set_xlabel('')
+    if col > 1:
+        ax.set_ylabel('')
     # Add latitudes of maxima
     if varnm in ['THETA_E950'] and not anom_plot:
         latmax = sector_latmax[varnm]
-        annotate_theta_e(days, latmax)
+        annotate_theta_e(days, latmax, ax=ax)
+    isub += 1
+
 
 filestr = 'sector_%d-%dE-onset_%s-%s-%s'
 filestr = filestr % (lon1, lon2, onset_nm, savestr, vargroup)
@@ -400,13 +392,15 @@ climits = {'precip' : (0, 20), 'U200' : (-50, 50), 'V200' : (-10, 10),
            'HFLUX' : (-125, 125), 'EFLUX' : (-200, 200), 'EVAP' : (-8, 8)}
 
 keys = compdays.keys()
-y1_label = ', '.join([key for key in compdays if comp_attrs[key]['axis'] == 1])
+y1_label = ''
 y2_label = ', '.join([key for key in compdays if comp_attrs[key]['axis'] == 2])
+suptitle = 'Composites Relative to %s Onset Day - %s' % (onset_nm, yearstr)
 subset_dict = {'lat' : (axlims[0], axlims[1]), 'lon' : (axlims[2], axlims[3])}
 nrow, ncol = 2, 4
-fig_opts = {'figsize' : (12, 7), 'sharex' : 'col'}
-subplot_opts = {'left' : 0.06, 'right' : 0.95}
-
+gridspec_kw = {'width_ratios' : [1, 1, 1, 1.5], 'left' : 0.03, 'right' : 0.94,
+               'wspace' : 0.3, 'hspace' : 0.2, 'bottom' : 0.06}
+fig_opts = {'figsize' : (12, 7), 'gridspec_kw' : gridspec_kw}
+axes, isub = None, 1
 for varnm in comp:
     dat = {key : atm.subset(comp[varnm][key], subset_dict)
            for key in keys}
@@ -415,20 +409,18 @@ for varnm in comp:
         cmin = -cmax
     else:
         cmin, cmax = climits[varnm][0], climits[varnm][1]
-
-    fig, axes = plt.subplots(nrow, ncol, **fig_opts)
-    plt.subplots_adjust(**subplot_opts)
-    plt.suptitle('%s Composites Relative to %s Onset Day - %s' %
-                 (varnm.upper(), onset_nm, yearstr))
-
     # Lat-lon maps of composites
-    for i, key in enumerate(keys):
+    for j, key in enumerate(keys):
+        thisplot = fig_setup(nrow, ncol, isub, axes, suptitle,
+                             fig_opts=fig_opts)
+        axes, ax, isub, row, col = thisplot
+        plt.sca(ax)
         if comp_attrs[key]['axis'] == 1:
             cmap = get_colormap(varnm, anom_plot)
         else:
             cmap = 'RdBu_r'
-        plt.subplot(nrow, ncol, i + 1)
         atm.pcolor_latlon(dat[key], axlims=axlims, cmap=cmap, fancy=False)
+        ax.set_xticks(range(40, 121, 20))
         if comp_attrs[key]['axis'] == 1:
             plt.clim(cmin, cmax)
         else:
@@ -436,11 +428,18 @@ for varnm in comp:
             if symmetric:
                 cmax = np.nanmax(abs(dat[key]))
                 plt.clim(-cmax, cmax)
-        plt.title(key.upper())
-
+        plt.title(varnm + ' ' + key.upper())
+        if col > 1:
+            ax.set_yticklabels([])
+        if row < nrow:
+            ax.set_xticklabels([])
+        isub += 1
     # Line plots of sector averages
-    ax = axes[0, ncol - 1]
-    lineplot(sectorcomp[varnm], ax, y1_label, y2_label)
+    isub, col = isub + 1, col + 1
+    ax = axes[row - 1, col - 1]
+    title = '%s %d-%dE' % (varnm, lon1, lon2)
+    lineplot(sectorcomp[varnm], ax, y1_label, y2_label, title=title, row=row,
+             nrow=nrow)
 
 filestr = 'comp-onset_%s-%s-%s' % (onset_nm, savestr, vargroup)
 atm.savefigs(savedir + filestr, 'pdf', merge=True)
