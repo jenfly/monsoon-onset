@@ -398,33 +398,39 @@ def load_dailyrel(datafiles, yearnm='year', onset_varnm='D_ONSET',
 
 
 # ----------------------------------------------------------------------
-def plot_colorbar(symmetric, orientation='vertical'):
+def plot_colorbar(symmetric, orientation='vertical', ax=None, **kwargs):
+    if ax is None:
+        ax = plt.gca()
     if symmetric:
-        atm.colorbar_symm(orientation=orientation)
+        atm.colorbar_symm(orientation=orientation, ax=ax, **kwargs)
     else:
-        plt.colorbar(orientation=orientation)
+        plt.colorbar(orientation=orientation, ax=ax, **kwargs)
 
 
 # ----------------------------------------------------------------------
 def contourf_lat_time(lat, days, plotdata, title='', cmap='RdBu_r', onset_nm='',
-                      zero_line=False):
+                      zero_line=False, ax=None):
+    if ax is None:
+        ax = plt.gca()
     vals = plotdata.values.T
     vals = np.ma.array(vals, mask=np.isnan(vals))
     ncont = 40
     symmetric = atm.symm_colors(plotdata)
     cint = atm.cinterval(vals, n_pref=ncont, symmetric=symmetric)
     clev = atm.clevels(vals, cint, symmetric=symmetric)
-    plt.contourf(days, lat, vals, clev, cmap=cmap)
-    plot_colorbar(symmetric)
+    cf = ax.contourf(days, lat, vals, clev, cmap=cmap)
+    plt.colorbar(mappable=cf, ax=ax)
+    #plot_colorbar(symmetric, ax=ax, mappable=cf)
     if symmetric and zero_line:
-        plt.contour(days, lat, vals, [0], colors='k')
-    plt.grid(True)
-    plt.ylabel('Latitude')
-    plt.xlabel('Day Relative to %s Onset' % onset_nm)
-    plt.title(title)
-    xmin, xmax = plt.gca().get_xlim()
+        ax.contour(days, lat, vals, [0], colors='k')
+    ax.grid(True)
+    ax.set_ylabel('Latitude')
+    ax.set_xlabel('Day Relative to %s Onset' % onset_nm)
+    ax.set_title(title)
+    xmin, xmax = ax.get_xlim()
     if xmax > 60:
-        plt.xticks(range(int(xmin), int(xmax) + 1, 30))
+        ax.set_xticks(range(int(xmin), int(xmax) + 1, 30))
+    plt.draw()
 
 
 # ----------------------------------------------------------------------
