@@ -29,11 +29,11 @@ onset_nm = 'CHP_MFC'
 #savestr = 'clim_pre1pre2'
 
 # CHP_MFC Early/Late Years
-# years = [2004, 1999, 1990, 2000, 2001]
-# years2 = [1983, 1992, 1997, 2014, 2012]
-# yearstr, savestr = 'Late Minus Early Anomaly', 'late_minus_early'
-years, yearstr = [2004, 1999, 1990, 2000, 2001], '5 Earliest Years'
-years2, savestr = None, 'early'
+years = [2004, 1999, 1990, 2000, 2001]
+years2 = [1983, 1992, 1997, 2014, 2012]
+yearstr, savestr = 'Late Minus Early Anomaly', 'late_minus_early'
+# years, yearstr = [2004, 1999, 1990, 2000, 2001], '5 Earliest Years'
+# years2, savestr = None, 'early'
 # years, yearstr = [1983, 1992, 1997, 2014, 2012], '5 Latest Years'
 # years2, savestr = None, 'late'
 
@@ -84,10 +84,15 @@ comps_all = {'PRE' : range(-5, 0), 'POST' : range(15, 20),
              'PRE1' : range(-60, -45), 'PRE2' : range(-30, -15),
              'SSN' : range(0, 137), 'DIFF' : None}
 
-compkeys = ['PRE', 'POST', 'DIFF']
+#compkeys = ['PRE', 'POST', 'DIFF']
+compkeys = ['PRE1', 'PRE2', 'SSN']
 
 def plusminus(num):
-    return atm.format_num(num, ndecimals=0, plus_sym=True)
+    if num == 0:
+        s = ''
+    else:
+        s = atm.format_num(num, ndecimals=0, plus_sym=True)
+    return s
 
 compdays = collections.OrderedDict()
 comp_attrs = {key : {} for key in compkeys}
@@ -198,6 +203,13 @@ def get_composites(var, compdays, comp_attrs):
 
     return comp
 
+def subtract_fields(var1, var2):
+    var = var2 - var1
+    var.attrs = var1.attrs
+    if isinstance(var, xray.Dataset):
+        for nm in var.data_vars:
+            var[nm].attrs = var1[nm].attrs
+    return var
 
 def all_data(datafiles, npre, npost, lon1, lon2, compdays, comp_attrs):
     # Read daily data fields aligned relative to onset day
@@ -244,10 +256,10 @@ if years2 is not None:
                            comp_attrs)
     data2, sectordata2, sector_latmax2, comp2, sectorcomp2 = everything2
     for nm in data:
-        data[nm] = data2[nm] - data[nm]
-        sectordata[nm] = sectordata2[nm] - sectordata[nm]
-        comp[nm] = comp2[nm] - comp[nm]
-        sectorcomp[nm] = sectorcomp2[nm] - sectorcomp[nm]
+        data[nm] = subtract_fields(data[nm], data2[nm])
+        sectordata[nm] = subtract_fields(sectordata[nm], sectordata2[nm])
+        comp[nm] = subtract_fields(comp[nm], comp2[nm])
+        sectorcomp[nm] = subtract_fields(sectorcomp[nm], sectorcomp2[nm])
 
 # ----------------------------------------------------------------------
 # Plotting params and utilities
@@ -319,12 +331,12 @@ def lineplot(sectors, ax1=None, y1_label='', y2_label='', title='',
 # Latitude-time contour plot
 
 def fig_setup(nrow, ncol, isub, axes=None, suptitle='', fig_opts={},
-              subplots_adjust={}, suptitle_sz=12):
+              gridspec_kw={}, suptitle_sz=12):
     if isub > nrow * ncol:
         isub = 1
     if isub == 1:
-        fig, axes = plt.subplots(nrow, ncol, **fig_opts)
-        fig.subplots_adjust(**subplots_adjust)
+        fig, axes = plt.subplots(nrow, ncol, gridspec_kw=gridspec_kw,
+                                 **fig_opts)
         fig.suptitle(suptitle, fontsize=suptitle_sz)
     row, col = atm.subplot_index(nrow, ncol, isub)
     if nrow == 1:
@@ -337,15 +349,15 @@ def fig_setup(nrow, ncol, isub, axes=None, suptitle='', fig_opts={},
 
 
 fig_opts = {'figsize' : (14, 10), 'sharex' : True, 'sharey' : True}
-subplots_adjust = {'left' : 0.05, 'right' : 0.98, 'bottom' : 0.05,
-                   'top' : 0.92, 'wspace' : 0.01, 'hspace' : 0.1}
+gridspec_kw = {'left' : 0.05, 'right' : 0.98, 'bottom' : 0.05,
+               'top' : 0.92, 'wspace' : 0.01, 'hspace' : 0.1}
 suptitle = '%d-%dE ' %(lon1, lon2) + yearstr
 nrow, ncol = (2, 2)
 keys = sectordata.keys()
 axes, isub = None, 1
 for i, varnm in enumerate(keys):
     thisplot = fig_setup(nrow, ncol, isub, axes, suptitle, fig_opts=fig_opts,
-                         subplots_adjust=subplots_adjust)
+                         gridspec_kw=gridspec_kw)
     axes, ax, isub, row, col = thisplot
     plotdata = sectordata[varnm]
     lat = atm.get_coord(plotdata, 'lat')
@@ -394,12 +406,14 @@ climits = {'precip' : (0, 20), 'U200' : (-50, 50), 'V200' : (-10, 10),
 keys = compdays.keys()
 y1_label = ''
 y2_label = ', '.join([key for key in compdays if comp_attrs[key]['axis'] == 2])
-suptitle = 'Composites Relative to %s Onset Day - %s' % (onset_nm, yearstr)
+compnms = ['%s (%s)' % (s, comp_attrs[s]['long_name']) for s in compkeys]
+suptitle = 'Composites Relative to %s Onset Day - %s\n' % (onset_nm, yearstr)
+suptitle = suptitle + ', '.join(compnms)
 subset_dict = {'lat' : (axlims[0], axlims[1]), 'lon' : (axlims[2], axlims[3])}
-nrow, ncol = 2, 4
+nrow, ncol, figsize = 4, 4, (12, 14)
 gridspec_kw = {'width_ratios' : [1, 1, 1, 1.5], 'left' : 0.03, 'right' : 0.94,
                'wspace' : 0.3, 'hspace' : 0.2, 'bottom' : 0.06}
-fig_opts = {'figsize' : (12, 7), 'gridspec_kw' : gridspec_kw}
+fig_opts = {'figsize' : figsize}
 axes, isub = None, 1
 for varnm in comp:
     dat = {key : atm.subset(comp[varnm][key], subset_dict)
@@ -412,7 +426,7 @@ for varnm in comp:
     # Lat-lon maps of composites
     for j, key in enumerate(keys):
         thisplot = fig_setup(nrow, ncol, isub, axes, suptitle,
-                             fig_opts=fig_opts)
+                             fig_opts=fig_opts, gridspec_kw=gridspec_kw)
         axes, ax, isub, row, col = thisplot
         plt.sca(ax)
         if comp_attrs[key]['axis'] == 1:
@@ -444,42 +458,10 @@ for varnm in comp:
 filestr = 'comp-onset_%s-%s-%s' % (onset_nm, savestr, vargroup)
 atm.savefigs(savedir + filestr, 'pdf', merge=True)
 plt.close('all')
-# ----------------------------------------------------------------------
-    #
-    # # Lat-lon map of difference between composites
-    # plt.subplot(2, 3, 3)
-    # atm.pcolor_latlon(dat[key2] - dat[key1], axlims=axlims, cmap='RdBu_r')
-    # symmetric = atm.symm_colors(dat[key2] - dat[key1])
-    # if symmetric:
-    #     cmax = np.nanmax(abs(dat[key2] - dat[key1]))
-    #     plt.clim(-cmax, cmax)
-    # plt.title('Difference (%s-%s)' % (key2.upper(), key1.upper()))
-    #
-    # # Line plot of sector mean
-    # sector1 = sectorcomp[varnm][key1].mean(dim='year')
-    # sector2 = sectorcomp[varnm][key2].mean(dim='year')
-    # lat = atm.get_coord(sector1, 'lat')
-    # plt.subplot(2, 2, 3)
-    # plt.plot(lat, sector1, 'b', label=key1.upper())
-    # plt.plot(lat, sector2, 'r', label=key2.upper())
-    # plt.title('%d-%d E Composites' % (lon1, lon2))
-    # if varnm in ['precip', 'Ro_200', 'rel_vort200']:
-    #     legend_loc = 'upper right'
-    # elif varnm in ['V850']:
-    #     legend_loc = 'lower left'
-    # else:
-    #     legend_loc = 'lower right'
-    # plt.legend(loc=legend_loc)
-    # plt.subplot(2, 2, 4)
-    # plt.plot(lat, sector2 - sector1)
-    # plt.title('%d-%d E Difference (%s-%s)' % (lon1, lon2, key2.upper(), key1.upper()))
-    # for i in [3, 4]:
-    #     plt.subplot(2, 2, i)
-    #     plt.xlim(axlims[0], axlims[1])
-    #     plt.xlabel('Latitude')
-    #     plt.ylabel(varnm)
-    #     plt.grid()
 
+# ======================================================================
+# OLD STUFF
+# ======================================================================
 # ----------------------------------------------------------------------
 # Cross-equatorial atmospheric heat fluxes
 
