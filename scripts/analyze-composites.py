@@ -50,7 +50,8 @@ vargroup = 'subset'
 
 varlist = {
     'test' : ['precip', 'U200'],
-    'subset' : ['precip', 'U200', 'V200', 'T200', 'H200', 'U850', 'THETA_E950'],
+    'subset' : ['precip', 'U200', 'V200', 'T200', 'H200', 'U850', 'V850',
+                'THETA_E950'],
     'group1' : ['precip', 'U200', 'V200', 'H200', 'T200'],
     'group2' : ['U850', 'V850', 'H850', 'T850', 'QV850'],
     'group3' : ['THETA950', 'THETA_E950', 'V*THETA_E950',
@@ -330,25 +331,7 @@ def lineplot(sectors, ax1=None, y1_label='', y2_label='', title='',
 # ----------------------------------------------------------------------
 # Latitude-time contour plot
 
-def fig_setup(nrow, ncol, isub, axes=None, suptitle='', fig_opts={},
-              gridspec_kw={}, suptitle_sz=12):
-    if isub > nrow * ncol:
-        isub = 1
-    if isub == 1:
-        fig, axes = plt.subplots(nrow, ncol, gridspec_kw=gridspec_kw,
-                                 **fig_opts)
-        fig.suptitle(suptitle, fontsize=suptitle_sz)
-    row, col = atm.subplot_index(nrow, ncol, isub)
-    if nrow == 1:
-        ax = axes[col - 1]
-    elif ncol == 1:
-        ax = axes[row - 1]
-    else:
-        ax = axes[row - 1, col - 1]
-    return axes, ax, isub, row, col
-
-
-fig_opts = {'figsize' : (14, 10), 'sharex' : True, 'sharey' : True}
+fig_kw = {'figsize' : (14, 10), 'sharex' : True, 'sharey' : True}
 gridspec_kw = {'left' : 0.05, 'right' : 0.98, 'bottom' : 0.05,
                'top' : 0.92, 'wspace' : 0.01, 'hspace' : 0.1}
 suptitle = '%d-%dE ' %(lon1, lon2) + yearstr
@@ -356,8 +339,8 @@ nrow, ncol = (2, 2)
 keys = sectordata.keys()
 axes, isub = None, 1
 for i, varnm in enumerate(keys):
-    thisplot = fig_setup(nrow, ncol, isub, axes, suptitle, fig_opts=fig_opts,
-                         gridspec_kw=gridspec_kw)
+    thisplot = atm.fig_setup(nrow, ncol, isub, axes, suptitle, fig_kw=fig_kw,
+                             gridspec_kw=gridspec_kw)
     axes, ax, isub, row, col = thisplot
     plotdata = sectordata[varnm]
     lat = atm.get_coord(plotdata, 'lat')
@@ -413,7 +396,7 @@ subset_dict = {'lat' : (axlims[0], axlims[1]), 'lon' : (axlims[2], axlims[3])}
 nrow, ncol, figsize = 4, 4, (12, 14)
 gridspec_kw = {'width_ratios' : [1, 1, 1, 1.5], 'left' : 0.03, 'right' : 0.94,
                'wspace' : 0.3, 'hspace' : 0.2, 'bottom' : 0.06}
-fig_opts = {'figsize' : figsize}
+fig_kw = {'figsize' : figsize}
 axes, isub = None, 1
 for varnm in comp:
     dat = {key : atm.subset(comp[varnm][key], subset_dict)
@@ -425,8 +408,8 @@ for varnm in comp:
         cmin, cmax = climits[varnm][0], climits[varnm][1]
     # Lat-lon maps of composites
     for j, key in enumerate(keys):
-        thisplot = fig_setup(nrow, ncol, isub, axes, suptitle,
-                             fig_opts=fig_opts, gridspec_kw=gridspec_kw)
+        thisplot = atm.fig_setup(nrow, ncol, isub, axes, suptitle,
+                                 fig_kw=fig_kw, gridspec_kw=gridspec_kw)
         axes, ax, isub, row, col = thisplot
         plt.sca(ax)
         if comp_attrs[key]['axis'] == 1:
