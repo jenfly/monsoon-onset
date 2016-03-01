@@ -24,44 +24,50 @@ mpl.rcParams['font.size'] = 10
 onset_nm = 'CHP_MFC'
 #onset_nm = 'CHP_PCP'
 
-# years, years2 = np.arange(1979, 2015), None
-# yearstr, savestr = '%d-%d Climatology' % (years.min(), years.max()), 'clim'
+years, years2 = np.arange(1979, 2015), None
+yearstr, savestr = '%d-%d Climatology' % (years.min(), years.max()), 'clim'
 #savestr = 'clim_pre1pre2'
 
 # CHP_MFC Early/Late Years
-years = [2004, 1999, 1990, 2000, 2001]
-years2 = [1983, 1992, 1997, 2014, 2012]
-yearstr, savestr = 'Late Minus Early Anomaly', 'late_minus_early'
+# years = [2004, 1999, 1990, 2000, 2001]
+# years2 = [1983, 1992, 1997, 2014, 2012]
+# yearstr, savestr = 'Late Minus Early Anomaly', 'late_minus_early'
 # years, yearstr = [2004, 1999, 1990, 2000, 2001], '5 Earliest Years'
 # years2, savestr = None, 'early'
 # years, yearstr = [1983, 1992, 1997, 2014, 2012], '5 Latest Years'
 # years2, savestr = None, 'late'
-
-# HOWI Early/Late Years
-# years, yearstr = [2004, 2000, 1999, 2001, 1990], '5 Earliest Years'
-# years, yearstr = [1983, 1979, 1997, 1992, 1995], '5 Latest Years'
 
 datadir = atm.homedir() + 'datastore/merra/analysis/'
 savedir = 'figs/'
 run_anim = False
 run_eht = False
 
-vargroup = 'subset'
+vargroup = 'group3'
 
 varlist = {
     'test' : ['precip', 'U200'],
-    'subset' : ['precip', 'U200', 'V200', 'T200', 'H200', 'U850', 'V850',
-                'THETA_E950'],
-    'group1' : ['precip', 'U200', 'V200', 'H200', 'T200'],
-    'group2' : ['U850', 'V850', 'H850', 'T850', 'QV850'],
-    'group3' : ['THETA950', 'THETA_E950', 'V*THETA_E950',
+    'group1' : ['precip', 'U200', 'V200', 'T200', 'H200', 'U850', 'V850',
+                'H850'],
+    'group2' : ['T850', 'QV850', 'THETA950', 'THETA_E950', 'V*THETA_E950',
                 'HFLUX', 'EFLUX', 'EVAP'],
+    'group3' : ['VFLXCPT', 'VFLXPHI', 'VFLXQV', 'VFLXMSE'],
     'nearsurf' : ['T950', 'H950', 'QV950', 'V950', 'THETA950',
                   'THETA_E950', 'DSE950', 'MSE950', 'V*THETA950',
                   'V*THETA_E950', 'V*DSE950', 'V*MSE950']
 }
 
 varnms = varlist[vargroup]
+
+# Day ranges for lat-lon composites
+comps_all = {'PRE' : range(-5, 0), 'POST' : range(15, 20),
+             'PRE1' : range(-60, -45), 'PRE2' : range(-30, -15),
+             'SSN' : range(0, 137), 'DIFF' : None}
+
+compkeys = ['PRE', 'POST', 'DIFF']
+#compkeys = ['PRE1', 'PRE2', 'SSN']
+
+# Day range for latitude vs. day plots
+npre, npost = 120, 200
 
 remove_tricky = False
 years_tricky = [2002, 2004, 2007, 2009, 2010]
@@ -76,39 +82,6 @@ if years2 is not None:
     anom_plot = True
 else:
     anom_plot = False
-
-# Day range for latitude vs. day plots
-npre, npost = 120, 200
-
-# Day ranges for lat-lon composites
-comps_all = {'PRE' : range(-5, 0), 'POST' : range(15, 20),
-             'PRE1' : range(-60, -45), 'PRE2' : range(-30, -15),
-             'SSN' : range(0, 137), 'DIFF' : None}
-
-#compkeys = ['PRE', 'POST', 'DIFF']
-compkeys = ['PRE1', 'PRE2', 'SSN']
-
-def plusminus(num):
-    if num == 0:
-        s = ''
-    else:
-        s = atm.format_num(num, ndecimals=0, plus_sym=True)
-    return s
-
-compdays = collections.OrderedDict()
-comp_attrs = {key : {} for key in compkeys}
-for key in compkeys:
-    compdays[key] = comps_all[key]
-    comp_attrs[key]['name'] = key
-    if key == 'DIFF':
-        comp_attrs[key]['long_name'] = '%s-%s' % (compkeys[1], compkeys[0])
-        comp_attrs[key]['axis'] = 2
-    else:
-        d1 = plusminus(min(compdays[key]))
-        d2 = plusminus(max(compdays[key]))
-        comp_attrs[key]['long_name'] = 'D0%s:D0%s' % (d1, d2)
-        comp_attrs[key]['axis'] = 1
-
 
 # ----------------------------------------------------------------------
 # List of data files
@@ -137,12 +110,42 @@ else:
     datafiles2 = None
 
 # ----------------------------------------------------------------------
+# Set up parameters and metadata for composites
+
+def init_comp(compkeys, comps_all):
+
+    def plusminus(num):
+        if num == 0:
+            s = ''
+        else:
+            s = atm.format_num(num, ndecimals=0, plus_sym=True)
+        return s
+
+    compdays = collections.OrderedDict()
+    comp_attrs = {key : {} for key in compkeys}
+    for key in compkeys:
+        compdays[key] = comps_all[key]
+        comp_attrs[key]['name'] = key
+        if key == 'DIFF':
+            comp_attrs[key]['long_name'] = '%s-%s' % (compkeys[1], compkeys[0])
+            comp_attrs[key]['axis'] = 2
+        else:
+            d1 = plusminus(min(compdays[key]))
+            d2 = plusminus(max(compdays[key]))
+            comp_attrs[key]['long_name'] = 'D0%s:D0%s' % (d1, d2)
+            comp_attrs[key]['axis'] = 1
+
+    return compdays, comp_attrs
+
+compdays, comp_attrs = init_comp(compkeys, comps_all)
+
+# ----------------------------------------------------------------------
 # Read data and compute averages and composites
 
 def housekeeping(var):
     # Convert units
     unit_dict={'m' : ('km', 1e-3)}
-    units_in = var.attrs['units']
+    units_in = var.attrs.get('units')
     if units_in in unit_dict:
         attrs = var.attrs
         attrs['units'] = unit_dict[units_in][0]
@@ -384,7 +387,10 @@ climits = {'precip' : (0, 20), 'U200' : (-50, 50), 'V200' : (-10, 10),
            'DSE950' : (2.6e5, 3.2e5), 'MSE950' : (2.5e5, 3.5e5),
            'V*DSE950' : (-4.5e6,4.5e6), 'V*MSE950' : (-5e6, 5e6),
            'V*THETA950' : (-4500, 4500), 'V*THETA_E950' : (-4900, 4900),
-           'HFLUX' : (-125, 125), 'EFLUX' : (-200, 200), 'EVAP' : (-8, 8)}
+           'HFLUX' : (-125, 125), 'EFLUX' : (-200, 200), 'EVAP' : (-8, 8),
+           'VFLXCPT' : (-1.3e10, 1.3e10), 'VFLXPHI' : (-5e9, 5e9),
+           'VFLXQV' : (-350, 350), 'VFLXMSE' : (-1.6e10, 1.6e10)
+           }
 
 keys = compdays.keys()
 y1_label = ''

@@ -21,8 +21,9 @@ filestr = datadir + 'merra_ubudget200_ndays5_60E-100E_%d.nc'
 savestr = datadir + 'merra_ubudget200_dailyrel_%s_ndays5_60E-100E_%d.nc'
 datafiles = [filestr % yr for yr in years]
 savefiles = [savestr % (onset_nm, yr) for yr in years]
-indfiles = ['%sdatastore/merra/daily/merra_MFC_ps-300mb_%d.nc' %
-            (atm.homedir(), yr) for yr in years]
+subset1 = '40E-120E_90S-90N'
+indfiles = ['%sdatastore/merra/daily/merra_MFC_%s_%d.nc' %
+            (atm.homedir(), subset1, yr) for yr in years]
 
 # Number of days before and after onset to include
 npre, npost = 120, 200

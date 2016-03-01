@@ -28,15 +28,15 @@ savedir = atm.homedir() + 'datastore/merra/analysis/'
 # Number of days before and after onset to include
 npre, npost = 120, 200
 
-# varnms = ['U200']
-varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200',
-          'abs_vort200', 'H200', 'T200',
-          'U850', 'V850', 'H850', 'T850', 'QV850',
-          'T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950',
-          'V*THETA_E950', 'EFLUX', 'HFLUX', 'EVAP']
+varnms = ['VFLXPHI', 'VFLXCPT', 'VFLXQV', 'VFLXMSE']
+# varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200',
+#           'abs_vort200', 'H200', 'T200',
+#           'U850', 'V850', 'H850', 'T850', 'QV850',
+#           'T950', 'H950', 'QV950', 'V950', 'THETA950', 'THETA_E950',
+#           'V*THETA_E950', 'EFLUX', 'HFLUX', 'EVAP', 'VFLXPHI', 'VFLXCPT',
+#           'VFLXQV', 'VFLXMSE']
 
-keys_remove = ['T950', 'H950', 'QV950', 'V950',  'DSE950',
-                'MSE950', 'V*DSE950', 'V*MSE950']
+keys_remove = ['H950', 'V950',  'DSE950', 'MSE950', 'V*DSE950', 'V*MSE950']
 
 # Lat-lon box for MFC / precip
 lon1, lon2 = 60, 100
@@ -55,7 +55,9 @@ def yrlyfile(var, plev, year, subset1='40E-120E_60S-60N', subset2=''):
 def get_filenames(years, datadir):
     datafiles = {}
     datafiles['HOWI'] = ['merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
-    datafiles['CHP_MFC'] = ['merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
+    #datafiles['CHP_MFC'] = ['merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
+    subset1 = '40E-120E_90S-90N'
+    datafiles['CHP_MFC'] = [yrlyfile('MFC', None, yr, subset1) for yr in years]
     datafiles['CHP_PCP'] = ['merra_precip_%d.nc' % yr for yr in years]
     datafiles['precip'] = datafiles['CHP_PCP']
 
@@ -72,7 +74,7 @@ def get_filenames(years, datadir):
             files = [yrlyfile(key, plev, yr) for yr in years]
             datafiles['%s%d' % (key, plev)] = files
 
-    for key in ['EFLUX', 'HFLUX', 'EVAP']:
+    for key in ['EFLUX', 'HFLUX', 'EVAP', 'VFLXPHI', 'VFLXCPT', 'VFLXQV']:
         subset1 = '40E-120E_90S-90N'
         datafiles[key] = [yrlyfile(key, None, yr, subset1) for yr in years]
 
