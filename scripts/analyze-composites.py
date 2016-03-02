@@ -42,7 +42,7 @@ savedir = 'figs/'
 run_anim = False
 run_eht = False
 
-vargroup = 'group3'
+vargroup = 'group1'
 
 varlist = {
     'test' : ['precip', 'U200'],
@@ -297,9 +297,6 @@ def lineplot(sectors, ax1=None, y1_label='', y2_label='', title='',
     if ax1 is None:
         ax1 = plt.gca()
 
-    if latmin is not None:
-        ax1.set_xlim(latmin, latmax)
-
     ax1_fmts = [{'color' : 'k', 'linestyle' : 'dashed'}, {'color' : 'k'},
                 {'color' : 'k', 'linewidth' : 1.5}]
     ax2_fmts = [{'linewidth' : 2, 'alpha' : ax2_alpha, 'color' : ax2_color}]
@@ -323,6 +320,9 @@ def lineplot(sectors, ax1=None, y1_label='', y2_label='', title='',
             ax, fmts = ax2, ax2_fmts[i2]
             i2 += 1
         ax.plot(lat, var, label=key, **fmts)
+
+    if latmin is not None:
+        ax1.set_xlim(latmin, latmax)
 
     if legend_opts is not None:
         legend_opts['ncol'] = i1
