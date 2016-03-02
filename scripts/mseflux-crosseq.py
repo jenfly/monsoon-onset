@@ -30,7 +30,8 @@ savedir = 'figs/'
 nroll = 7   # Number of days rolling mean for smoothing
 lon1, lon2 = 60, 100
 lat1, lat2 = -20, 20
-eqlat1, eqlat2 = -5, 5
+# eqlat1, eqlat2 = -5, 5
+eqlat1, eqlat2 = -2, 2
 
 filestr = datadir + 'merra_%s_dailyrel_%s_%d.nc'
 files = {}
@@ -63,17 +64,20 @@ daydim = atm.get_coord(data['VMSE'], 'dayrel', 'dim')
 for nm in data.data_vars:
     data[nm] = atm.rolling_mean(data[nm], nroll, axis=daydim, center=True)
 
-# Climatology
-data = atm.dim_mean(data, 'year')
-
 # Average over equatorial region
 data_eq = xray.Dataset()
 for nm in data.data_vars:
     data_eq[nm] = atm.mean_over_geobox(data[nm], eqlat1, eqlat2, lon1, lon2)
 
+
+# Climatology
+databar = atm.dim_mean(data, 'year')
+databar_eq = atm.dim_mean(data_eq, 'year')
+
+
 # Plot latitude-day contours for tropics
-days = atm.get_coord(data, 'dayrel')
-lat = atm.get_coord(data, 'lat')
+days = atm.get_coord(databar, 'dayrel')
+lat = atm.get_coord(databar, 'lat')
 fig_kw = {'figsize' : (14, 10), 'sharex' : True, 'sharey' : True}
 gridspec_kw = {'left' : 0.05, 'right' : 0.98, 'bottom' : 0.05,
                'top' : 0.92, 'wspace' : 0.01, 'hspace' : 0.1}
@@ -83,7 +87,7 @@ nrow, ncol = (2, 2)
 axes, isub = None, 1
 cmap = 'RdBu_r'
 for i, nm in enumerate(['VCPT', 'VPHI', 'VLQV', 'VMSE']):
-    plotdata = atm.dim_mean(data[nm], 'lon')
+    plotdata = atm.dim_mean(databar[nm], 'lon')
     thisplot = atm.fig_setup(nrow, ncol, isub, axes, suptitle, fig_kw=fig_kw,
                              gridspec_kw=gridspec_kw)
     axes, ax, isub, row, col = thisplot
@@ -95,7 +99,7 @@ for i, nm in enumerate(['VCPT', 'VPHI', 'VLQV', 'VMSE']):
     isub += 1
 
 # Daily timeseries plot of equatorial MSE flux
-df = data_eq.to_dataframe()
+df = databar_eq.to_dataframe()
 df.plot(figsize=(12, 8))
 plt.grid()
 plt.xticks(range(-120, 201, 30))
@@ -103,3 +107,23 @@ latstr = atm.latlon_str(eqlat1, eqlat2, 'lat')
 title = 'Cross-Eq <VMSE> (%d-%dE, %s) %s' % (lon1, lon2, latstr, yearstr)
 plt.title(title)
 plt.ylabel('Vertically Integrated MSE (J/m/s)')
+
+# Daily timeseries of equatorial MSE flux in each year
+fig_kw = {'figsize' : (14, 10), 'sharex' : True, 'sharey' : True}
+gridspec_kw = {'left' : 0.05, 'right' : 0.98, 'bottom' : 0.05,
+               'top' : 0.92, 'wspace' : 0.01, 'hspace' : 0.1}
+suptitle = 'Cross-Eq <VMSE> (%d-%dE, %s)' % (lon1, lon2, latstr)
+ylims = (-8e9, 5e9)
+nrow, ncol = (3, 4)
+axes, isub = None, 1
+for y, year in enumerate(years):
+    plotdata = data_eq['VMSE'][y]
+    thisplot = atm.fig_setup(nrow, ncol, isub, axes, suptitle, fig_kw=fig_kw,
+                             gridspec_kw=gridspec_kw)
+    axes, ax, isub, row, col = thisplot
+    ax.plot(days, plotdata, 'k')
+    ax.set_title(year)
+    ax.grid(True)
+    ax.set_xlim(days.min(), days.max())
+    ax.set_ylim(ylims)
+    isub += 1
