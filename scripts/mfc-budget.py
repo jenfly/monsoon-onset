@@ -13,12 +13,15 @@ import indices
 import utils
 
 # ----------------------------------------------------------------------
-years = np.arange(1979, 2015)
-datadir = atm.homedir() + 'datastore/merra/daily/'
+# version, years = 'merra', np.arange(1979, 2015)
+version, years = 'merra2', np.arange(1980, 2016)
+
+datadir = atm.homedir() + 'datastore/%s/daily/' % version
 files = {}
-filestr = 'merra_%s_40E-120E_90S-90N_%d.nc'
+filestr = version + '_%s_40E-120E_90S-90N_%d.nc'
 files['MFC'] = [datadir + filestr % ('MFC', yr) for yr in years]
-files['PCP'] = [datadir + 'merra_precip_%d.nc' % yr for yr in years]
+nm = {'merra' : 'precip', 'merra2' : 'PRECTOT'}[version]
+files['PCP'] = [datadir + '%s_%s_%d.nc' % (version, nm, yr) for yr in years]
 files['EVAP'] = [datadir + filestr % ('EVAP', yr) for yr in years]
 files['ANA'] = [datadir + filestr % ('DQVDT_ANA', yr) for yr in years]
 files['W'] = [datadir + filestr % ('TQV', yr) for yr in years]
