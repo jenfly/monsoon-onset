@@ -290,11 +290,15 @@ def annotate_theta_e(days, latmax, ax=None):
                 arrowprops=dict(arrowstyle="->"))
 
 def lineplot(sectors, ax1=None, y1_label='', y2_label='', title='',
+             latmin=None, latmax=None,
              legend_opts = {'fontsize' : 8, 'loc' : 'lower center',
                             'handlelength' : 3, 'frameon' : False},
              ax2_color='r', ax2_alpha=0.5, row=1, nrow=1):
     if ax1 is None:
         ax1 = plt.gca()
+
+    if latmin is not None:
+        ax1.set_xlim(latmin, latmax)
 
     ax1_fmts = [{'color' : 'k', 'linestyle' : 'dashed'}, {'color' : 'k'},
                 {'color' : 'k', 'linewidth' : 1.5}]
@@ -441,8 +445,8 @@ for varnm in comp:
     isub, col = isub + 1, col + 1
     ax = axes[row - 1, col - 1]
     title = '%s %d-%dE' % (varnm, lon1, lon2)
-    lineplot(sectorcomp[varnm], ax, y1_label, y2_label, title=title, row=row,
-             nrow=nrow)
+    lineplot(sectorcomp[varnm], ax, y1_label, y2_label, title=title,
+             latmin=axlims[0], latmax=axlims[1], row=row, nrow=nrow)
 
 filestr = 'comp-onset_%s-%s-%s' % (onset_nm, savestr, vargroup)
 atm.savefigs(savedir + filestr, 'pdf', merge=True)
