@@ -172,26 +172,6 @@ def theta_e_latmax(var):
     latmax = atm.dim_mean(latmax, 'year')
     return latmax
 
-def sector_mean(var, lon1, lon2, minfrac=0.5):
-    var = atm.subset(var, {'lon' : (lon1, lon2)})
-    londim = atm.get_coord(var, 'lon', 'dim')
-
-    # Create mask for any point where more than minfrac fraction is missing
-    missings = np.isnan(var)
-    missings = missings.sum(axis=londim)
-    min_num = var.shape[londim] * minfrac
-    mask = missings > min_num
-
-    # Compute mean and apply mask
-    var = atm.dim_mean(var, 'lon')
-    name, attrs, coords, dims = atm.meta(var)
-    attrs['minfrac'] = minfrac
-    kwargs = {'name' : name, 'attrs' :  attrs, 'coords' : coords, 'dims' : dims}
-    vals = np.ma.masked_array(var.values, mask).filled(np.nan)
-    var.values = xray.DataArray(vals, **kwargs)
-
-    return var
-
 def get_composites(var, compdays, comp_attrs):
     keys = compdays.keys()
     comp = xray.Dataset()
@@ -230,7 +210,7 @@ def all_data(datafiles, npre, npost, lon1, lon2, compdays, comp_attrs):
         var = housekeeping(var)
 
         # Compute sector mean and composite averages
-        sectorvar = sector_mean(var, lon1, lon2)
+        sectorvar = atm.dim_mean(var, 'lon', lon1, lon2)
         compvar = get_composites(var, compdays, comp_attrs)
         sectorcompvar = get_composites(sectorvar, compdays, comp_attrs)
 
