@@ -6,10 +6,202 @@ import numpy as np
 import xray
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 
 import atmos as atm
 import merra
 
+# ----------------------------------------------------------------------
+# For later, when combining plevel data:
+def func(var, pname='Height', axis=1):
+    pres = var.attrs[pname]
+    var = atm.expand_dims(var, pname, pres, axis=axis)
+    return var
+
+# ----------------------------------------------------------------------
+# Double and single westerly jets for group meeting presentation
+
+yearstr = '1979-2015'
+varnms = ['U', 'V']
+datadir = atm.homedir() + 'datastore/merra/monthly/'
+filestr = datadir + 'merra_%s_%s.nc'
+files = {nm : filestr % (nm, yearstr) for nm in varnms}
+ssns = ['DJF', 'JJA']
+sector_ssn = 'JJA'
+data_str = 'MERRA %s' % yearstr
+
+data = xray.Dataset()
+for nm in varnms:
+    with xray.open_dataset(files[nm]) as ds:
+        data[nm] = ds[nm].load()
+
+data['PSI'] = atm.streamfunction(data['V'])
+v = data['V']
+nt, nlev, nlat, nlon = v.shape
+missing_scale = ((np.isfinite(v)).sum(axis=-1)) / float(nlon)
+data['PSI'] = data['PSI'] * atm.biggify(missing_scale, data['PSI'])
+
+keys = data.data_vars.keys()
+for ssn in ssns:
+    for nm in keys:
+        months = atm.season_months(ssn)
+        data[nm + '_' + ssn] = (data[nm]).sel(month=months).mean(dim='month')
+
+lat = atm.get_coord(data, 'lat')
+lon = atm.get_coord(data, 'lon')
+
+psfile = atm.homedir() + 'dynamics/python/atmos-tools/data/topo/ncep2_ps.nc'
+ps = atm.get_ps_clim(lat, lon, psfile)
+ps = ps / 100
+psbar = atm.dim_mean(ps, 'lon')
+
+# Mean over sectors:
+def calc_sectors(var):
+    sectors = xray.Dataset()
+    name = var.name
+    lon = atm.get_coord(var, 'lon')
+    sector_lons = {'Atlantic' : lon[(lon >= -90) & (lon <= 0)],
+                   'Pacific' : lon[(lon >= 135) | (lon <= -100)],
+                   'Indian' : lon[(lon >= 40) & (lon <= 120)]}
+    sector_lims = {'Atlantic' : (-75, 0), 'Pacific' : (135, -100),
+                   'Indian' : (40, 120)}
+    for nm in sector_lons:
+        lon_sub = sector_lons[nm]
+        var_sub = atm.subset(var, {'lon' : (lon_sub, None)})
+        var_sub.attrs['lon_lims'] = sector_lims[nm]
+        sectors[nm] = atm.dim_mean(var_sub, 'lon')
+    return sectors
+
+usectors = calc_sectors(data['U_' + sector_ssn])
+
+# DJF and JJA zonal mean zonal wind and streamfunction
+def plot_contours(data, varnm, ssn, psbar, row, col, xticks):
+    key = varnm + '_' + ssn
+    var = atm.dim_mean(data[key], 'lon')
+    clev = {'U' : 5, 'PSI' : 30}[varnm]
+    omitzero = {'U' : False, 'PSI' : True}[varnm]
+    atm.contour_latpres(var, clev=clev, topo=psbar, omitzero=omitzero)
+    plt.xticks(xticks, [])
+    plt.xlabel('')
+    name = {'PSI' : '$\psi$', 'U' : 'U'}[varnm]
+    sz = {'PSI' : 16, 'U' : 14}[varnm]
+    wt = {'PSI' : 'bold', 'U' : 'normal'}[varnm]
+    atm.text(name, (0.02, 0.88), fontsize=sz, fontweight=wt)
+    if row == 1:
+        plt.title(ssn, fontsize=12, fontweight='bold')
+    if col > 1:
+        plt.ylabel('')
+        plt.gca().set_yticklabels([])
+
+plot_psi = True
+if plot_psi:
+    nr, nc, figsize = 3, 2, (11, 8)
+    nms = ['PSI', 'U']
+    suptitle = 'Zonal Mean Streamfunction and U (%s)' % data_str
+else:
+    nr, nc, figsize = 2, 2, (11, 7)
+    nms = ['U']
+    suptitle = 'Zonal Mean U (%s)' % data_str
+xticks = range(-90, 91, 30)
+ylims = (-10, 45)
+gridspec_kw = {'left' : 0.07, 'right' : 0.97, 'wspace' : 0.05, 'hspace' :0.08,
+               'top' : 0.92, 'bottom' : 0.08}
+fig, axes = plt.subplots(nr, nc, figsize=figsize, gridspec_kw=gridspec_kw)
+plt.suptitle(suptitle, fontsize=12)
+for i, ssn in enumerate(['DJF', 'JJA']):
+    col = i + 1
+    for j, nm in enumerate(nms):
+        row = j + 1
+        plt.sca(axes[j, col - 1])
+        plot_contours(data, nm, ssn, psbar, row, col, xticks)
+
+    plt.sca(axes[nr - 1, col -1])
+    key = 'U_%s' % ssn
+    u850 = atm.dim_mean(data[key].sel(Height=850), 'lon')
+    u200 = atm.dim_mean(data[key].sel(Height=200), 'lon')
+    plt.plot(lat, u200, 'k', label='200mb')
+    plt.plot(lat, u850, 'k--', label='850mb')
+    plt.legend(fontsize=10)
+    plt.xticks(xticks)
+    plt.grid(True)
+    plt.xlim(-90, 90)
+    plt.ylim(ylims)
+    plt.xlabel('Latitude')
+    atm.text('U', (0.02, 0.88), fontsize=14)
+    if col == 1:
+        plt.ylabel('Zonal Wind (m/s)')
+    else:
+        plt.gca().set_yticklabels([])
+
+# Lat-lon maps and sector line plots
+ssn = sector_ssn
+gridspec_kw = {'left' : 0.02, 'right' : 0.98, 'wspace' : 0.3, 'hspace' : 0.2,
+               'bottom' : 0.08, 'top' : 0.92, 'width_ratios' : [2, 1]}
+nr, nc = 2, 2
+style = {'Indian' : 'm', 'Atlantic' : 'k--', 'Pacific' : 'g'}
+climits = {200 : (-50, 50), 850 : (-16, 16)}
+iplot = 0
+fig, axes = plt.subplots(nr, nc, figsize=(11,8), gridspec_kw=gridspec_kw)
+plt.suptitle('%s Zonal Wind' % ssn, fontsize=14)
+for i, plev in enumerate([200, 850]):
+    iplot += 1
+    row, col = atm.subplot_index(nr, nc, iplot)
+    u = atm.subset(data['U_' + ssn], {'plev' : (plev, plev)}, squeeze=True)
+    usec = atm.subset(usectors, {'plev' : (plev, plev)}, squeeze=True)
+    plt.sca(axes[row - 1, col - 1])
+    atm.pcolor_latlon(u)
+    plt.title('%d hPa' % plev, fontsize=12)
+    plt.xlabel('')
+    plt.gca().set_xticklabels([])
+    plt.gca().set_yticklabels([])
+    plt.clim(climits[plev])
+    for nm in usec.data_vars:
+        for lon0 in usec[nm].attrs['lon_lims']:
+            plt.axvline(lon0, color=style[nm][0], linewidth=2)
+    iplot += 1
+    row, col = atm.subplot_index(nr, nc, iplot)
+    plt.sca(axes[row - 1, col - 1])
+    df = usec.to_dataframe()
+    df.plot(ax=plt.gca(), style=style, legend=False, linewidth=1.5)
+    plt.legend(fontsize=10, handlelength=2.5)
+    plt.xticks(xticks)
+    plt.ylabel('U (m/s)')
+    if row == nr:
+        plt.xlabel('Latitude')
+    else:
+        plt.xlabel('')
+        plt.gca().set_xticklabels([])
+    plt.title('%d hPa' % plev, fontsize=12)
+    plt.grid(True)
+
+
+# ----------------------------------------------------------------------
+# Calculate monthly U, V climatology
+
+years = np.arange(1979, 2016)
+datadir = atm.homedir() + '/datastore/merra/monthly/'
+varnms = ['U', 'V']
+months = range(1, 13)
+filestr = datadir + 'merra_%s_1979-2015_%02d.nc'
+filestr2 = datadir + 'merra_%s_1979-2015.nc'
+
+for nm in varnms:
+    files = [datadir + 'merra_%s_%d.nc' % (nm, yr) for yr in years]
+    for month in months:
+        var = atm.load_concat(files, nm, concat_dim='year',
+                               subset_dict={'month' : (month, month)},
+                               squeeze=False)
+        var = atm.dim_mean(var, 'year')
+        filenm = filestr % (nm, month)
+        print('Saving to ' + filenm)
+        atm.save_nc(filenm, var)
+
+    # Concatenate months together
+    files = [filestr % (nm, month) for month in months]
+    var = atm.load_concat(files, nm, concat_dim='month')
+    filenm = filestr2 % nm
+    print('Saving to ' + filenm)
+    atm.save_nc(filenm, var)
 
 # ----------------------------------------------------------------------
 # EMFD
