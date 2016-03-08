@@ -35,11 +35,7 @@ for nm in varnms:
     with xray.open_dataset(files[nm]) as ds:
         data[nm] = ds[nm].load()
 
-data['PSI'] = atm.streamfunction(data['V'])
-v = data['V']
-nt, nlev, nlat, nlon = v.shape
-missing_scale = ((np.isfinite(v)).sum(axis=-1)) / float(nlon)
-data['PSI'] = data['PSI'] * atm.biggify(missing_scale, data['PSI'])
+data['PSI'] = atm.streamfunction((data['V']).mean(dim='XDim'), pdim=-2)
 
 keys = data.data_vars.keys()
 for ssn in ssns:
@@ -77,8 +73,10 @@ usectors = calc_sectors(data['U_' + sector_ssn])
 # DJF and JJA zonal mean zonal wind and streamfunction
 def plot_contours(data, varnm, ssn, psbar, row, col, xticks):
     key = varnm + '_' + ssn
-    var = atm.dim_mean(data[key], 'lon')
-    clev = {'U' : 5, 'PSI' : 30}[varnm]
+    var = data[key]
+    if 'XDim' in var.dims:
+        var = var.mean(dim='XDim')
+    clev = {'U' : 5, 'PSI' : 10}[varnm]
     omitzero = {'U' : False, 'PSI' : True}[varnm]
     atm.contour_latpres(var, clev=clev, topo=psbar, omitzero=omitzero)
     plt.xticks(xticks, [])
