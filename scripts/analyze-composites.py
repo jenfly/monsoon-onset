@@ -42,7 +42,7 @@ savedir = 'figs/'
 run_anim = False
 run_eht = False
 
-vargroup = 'group1'
+vargroup = 'group3'
 
 varlist = {
     'test' : ['precip', 'U200'],
@@ -72,9 +72,9 @@ npre, npost = 120, 200
 remove_tricky = False
 years_tricky = [2002, 2004, 2007, 2009, 2010]
 
-# Lat-lon box for MFC / precip
-lon1, lon2 = 60, 100
-lat1, lat2 = 10, 30
+# Longitude sector
+# lon1, lon2 = 60, 100
+lon1,lon2 = 40, 100
 
 # Plotting anomalies (strong - weak, or regression coefficients)
 # or climatology
