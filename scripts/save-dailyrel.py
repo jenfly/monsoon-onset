@@ -20,7 +20,8 @@ from utils import get_data_rel, load_dailyrel
 # ----------------------------------------------------------------------
 onset_nm = 'CHP_MFC'
 
-years = np.arange(1979, 2015)
+#years = np.arange(1979, 2015)
+years = np.arange(1979, 1995)
 
 datadir = atm.homedir() + 'datastore/merra/daily/'
 savedir = atm.homedir() + 'datastore/merra/analysis/'
@@ -28,7 +29,10 @@ savedir = atm.homedir() + 'datastore/merra/analysis/'
 # Number of days before and after onset to include
 npre, npost = 120, 200
 
-varnms = ['VFLXPHI', 'VFLXCPT', 'VFLXQV', 'VFLXMSE']
+varnms = ['U_sector_0E-360E', 'U_sector_60E-100E', 'V_sector_0E-360E',
+          'V_sector_60E-100E']
+
+# varnms = ['VFLXPHI', 'VFLXCPT', 'VFLXQV', 'VFLXMSE']
 # varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200',
 #           'abs_vort200', 'H200', 'T200',
 #           'U850', 'V850', 'H850', 'T850', 'QV850',
@@ -38,7 +42,7 @@ varnms = ['VFLXPHI', 'VFLXCPT', 'VFLXQV', 'VFLXMSE']
 
 keys_remove = ['H950', 'V950',  'DSE950', 'MSE950', 'V*DSE950', 'V*MSE950']
 
-# Lat-lon box for MFC / precip
+# Lat-lon box for MFC / precip onset calcs
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 
@@ -51,6 +55,9 @@ def yrlyfile(var, plev, year, subset1='40E-120E_60S-60N', subset2=''):
     else:
         varid = '%s%d' % (var, plev)
     return 'merra_%s_%s_%s%d.nc' % (varid, subset1, subset2, year)
+
+def get_savefile(savedir, varnm, onset_nm, year):
+    return savedir + 'merra_%s_dailyrel_%s_%d.nc' % (varnm, onset_nm, year)
 
 def get_filenames(years, datadir):
     datafiles = {}
@@ -78,6 +85,14 @@ def get_filenames(years, datadir):
         subset1 = '40E-120E_90S-90N'
         datafiles[key] = [yrlyfile(key, None, yr, subset1) for yr in years]
 
+    # Zonal and sector mean data
+    for lonlims in [(0, 360), (60, 100)]:
+        lonstr = atm.latlon_str(lonlims[0], lonlims[1], 'lon')
+        subset1 = 'sector_' + lonstr
+        for nm in ['U', 'V', 'OMEGA', 'T', 'H', 'QV']:
+            key = nm + '_' + subset1
+            datafiles[key] = [yrlyfile(nm, None, yr, subset1) for yr in years]
+
     for varnm in datafiles:
         files = datafiles[varnm]
         datafiles[varnm] = [datadir + filenm for filenm in files]
@@ -95,9 +110,6 @@ retreat = index['retreat']
 
 # ----------------------------------------------------------------------
 # Get daily data
-
-def get_savefile(savedir, varnm, onset_nm, year):
-    return savedir + 'merra_%s_dailyrel_%s_%d.nc' % (varnm, onset_nm, year)
 
 def housekeeping(data, keys_remove):
     # Remove intermediate data that I don't want to keep
@@ -118,6 +130,15 @@ def housekeeping(data, keys_remove):
     return data
 
 
+def get_varid(varnm):
+    if varnm.find('sector') >= 0:
+        varid = varnm.split('_')[0]
+    else:
+        varid = varnm
+    return varid
+
+
+
 # Save daily data for each year to file
 yearnm, daynm = 'year', 'day'
 relfiles = {}
@@ -131,10 +152,11 @@ for y, year in enumerate(years):
     data = {}
     for varnm in varnms:
         print('Reading daily data for ' + varnm)
-        var = get_data_rel(varnm, year, files.get(varnm), data, d_onset,
+        varid = get_varid(varnm)
+        var = get_data_rel(varid, year, files.get(varnm), data, d_onset,
                            npre, npost, yearnm, daynm)
         var.attrs = atm.odict_delete(var.attrs, 'd_onset')
-        var.name = varnm
+        var.name = varid
         data[varnm] = var
     data = housekeeping(data, keys_remove)
     for varnm in data:
