@@ -18,6 +18,79 @@ def func(var, pname='Height', axis=1):
     var = atm.expand_dims(var, pname, pres, axis=axis)
     return var
 
+
+# ----------------------------------------------------------------------
+# Streamfunction and zonal wind from dailyrel climatology
+
+datadir = atm.homedir() + 'datastore/merra/analysis/'
+lon1, lon2 = 60, 100
+lonstr = atm.latlon_str(lon1, lon2, 'lon')
+filestr = datadir + 'merra_%s_sector_' + lonstr + '_dailyrel_CHP_MFC_%d.nc'
+years = np.arange(1979, 1995)
+
+files = {}
+for nm in ['U', 'V']:
+    files[nm] = [filestr % (nm, yr) for yr in years]
+
+data = xray.Dataset()
+for nm in files:
+    data[nm] = atm.combine_daily_years(nm, files[nm], years, yearname='year')
+
+# Climatological mean
+databar = data.mean(dim='year')
+
+# Streamfunction
+if (lon2 - lon1) < 360:
+    sector_scale = (lon2 - lon1) / 360.
+else:
+    sector_scale = None
+databar['PSI'] = atm.streamfunction(databar['V'], sector_scale = sector_scale)
+
+# Topography
+psfile = atm.homedir() + 'dynamics/python/atmos-tools/data/topo/ncep2_ps.nc'
+with xray.open_dataset(psfile) as ds:
+    ps = ds['ps'] / 100
+    if (lon2 - lon1) < 360:
+        ps = atm.dim_mean(ps, 'lon', lon1, lon2)
+    else:
+        ps = atm.dim_mean(ps, 'lon')
+
+
+# Finding latitude of max psi
+# psi = atm.subset(databar['PSI'], {'plev' : (700, 700), 'lat' : (-30, 10)},
+#                   squeeze=True)
+psi = atm.subset(databar['PSI'], {'lat' : (-30, 10), 'plev' : (100, 800)},
+                 squeeze=True)
+psi = psi.max(axis=1)
+
+lat = atm.get_coord(psi, 'lat')
+ilatmax = psi.argmax(axis=1)
+latmax = lat[ilatmax]
+days = atm.get_coord(psi, 'dayrel')
+latmax = xray.DataArray(latmax, coords={'dayrel' : days})
+plt.figure()
+plt.plot(latmax['dayrel'], latmax)
+
+
+# Lat-pres plots on days
+clev_u, clev_psi = 5, 5
+clims = [-50, 50]
+omitzero = True
+days = [-30]
+u = databar['U'].sel(dayrel=days).mean(dim='dayrel')
+psi = databar['PSI'].sel(dayrel=days).mean(dim='dayrel')
+latm = latmax.sel(dayrel=days).mean(dim='dayrel')
+
+plt.figure()
+atm.contourf_latpres(u, clev=clev_u, topo=ps)
+plt.clim(clims)
+atm.contour_latpres(psi, clev=clev_psi, omitzero=omitzero)
+plt.grid()
+plt.axvline(latm, color='m', linewidth=2)
+plt.title('Days ' + str(days))
+
+
+
 # ----------------------------------------------------------------------
 # Double and single westerly jets for group meeting presentation
 
