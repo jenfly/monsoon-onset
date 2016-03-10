@@ -556,19 +556,25 @@ def fluxdiv(u, v, omega, dudp, domegadp):
 
 
 # ----------------------------------------------------------------------
-def calc_ubudget(datafiles, ndays, lon1, lon2):
+def calc_ubudget(datafiles, ndays, lon1, lon2, plev=200):
     """Calculate momentum budget for daily data in one year.
 
-    Keys of datafiles dict must be: U, V, DUDP, H, OMEGA, DOMEGADP
+    Keys of datafiles dict must be: U, V, DUDP, H, OMEGA, DOMEGADP, DUDTANA
     """
 
     # Read data
     data = xray.Dataset()
     for nm in datafiles:
         with xray.open_dataset(datafiles[nm]) as ds:
-            data[nm] = atm.squeeze(ds[nm])
+            if nm in ds.data_vars:
+                var = ds[nm]
+            else:
+                var = ds[nm + '%d' % plev]
+            if 'Day' in var.dims:
+                var = var.rename({'Day' : 'day'})
+            data[nm] = atm.squeeze(var)
     data['PHI'] = atm.constants.g.values * data['H']
-    data = data.rename({'Day' : 'day'})
+
 
     # Eddy decomposition
     taxis = 0
@@ -632,6 +638,9 @@ def calc_ubudget(datafiles, ndays, lon1, lon2):
     lonrad = latlon['LONRAD']
     londim = atm.get_coord(data['PHI_ST'], 'lon', 'dim')
     ubudget['PGF_ST'] = - atm.gradient(data['PHI_ST'], lonrad, londim) / (a*coslat)
+
+    # Analysis increment for dU/dt
+    ubudget['ANA'] = data['DUDTANA']
 
     # Time mean
     print('Computing rolling time mean')
