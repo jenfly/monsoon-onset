@@ -35,6 +35,7 @@ for year in years:
     files['H'] = datadir + 'merra_H200_40E-120E_60S-60N_%d.nc' % year
     files['OMEGA'] = datadir + 'merra_OMEGA200_40E-120E_90S-90N_%d.nc' % year
     files['DOMEGADP'] = datadir + 'merra_DOMEGADP200_40E-120E_90S-90N_%d.nc' % year
+    files['DUDTANA'] = datadir + 'merra_DUDTANA200_40E-120E_90S-90N_%d.nc' % year
 
     # Read data and calculate momentum budget
     ubudget, data = utils.calc_ubudget(files, ndays, lon1, lon2)

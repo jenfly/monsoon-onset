@@ -18,9 +18,9 @@ onset_nm = 'CHP_MFC'
 years = np.arange(1979, 2015)
 datadir = atm.homedir() + 'datastore/merra/analysis/'
 filestr = datadir + 'merra_ubudget200_ndays5_60E-100E_%d.nc'
-savestr = datadir + 'merra_ubudget200_dailyrel_%s_ndays5_60E-100E_%d.nc'
+savestr = datadir + 'merra_ubudget200_dailyrel_%s_ndays5_60E-100E' % onset_nm
 datafiles = [filestr % yr for yr in years]
-savefiles = [savestr % (onset_nm, yr) for yr in years]
+savefiles = [savestr  + '_%d.nc' % yr for yr in years]
 subset1 = '40E-120E_90S-90N'
 indfiles = ['%sdatastore/merra/daily/merra_MFC_%s_%d.nc' %
             (atm.homedir(), subset1, yr) for yr in years]
@@ -55,3 +55,16 @@ for y, year in enumerate(years):
     savefile = savefiles[y]
     print('Saving to ' + savefile)
     ds_rel.to_netcdf(savefile)
+
+
+# ----------------------------------------------------------------------
+# Compute climatologies and save
+
+yearstr = '%d-%d' % (years.min(), years.max())
+relfiles = [savestr + '_%d.nc' % yr for yr in years]
+savefile = savestr + '_' + yearstr + '.nc'
+ds = atm.combine_daily_years(None, relfiles, years, yearname='year')
+ds = ds.mean(dim='year')
+ds.attrs['years'] = years
+print('Saving to ' + savefile)
+ds.to_netcdf(savefile)

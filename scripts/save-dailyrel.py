@@ -29,8 +29,9 @@ savedir = atm.homedir() + 'datastore/merra/analysis/'
 # Number of days before and after onset to include
 npre, npost = 120, 200
 
-varnms = ['U_sector_0E-360E', 'U_sector_60E-100E', 'V_sector_0E-360E',
-          'V_sector_60E-100E']
+varnms = ['DUDTANA200']
+# varnms = ['U_sector_0E-360E', 'U_sector_60E-100E', 'V_sector_0E-360E',
+#           'V_sector_60E-100E']
 
 # varnms = ['VFLXPHI', 'VFLXCPT', 'VFLXQV', 'VFLXMSE']
 # varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200',
@@ -81,7 +82,8 @@ def get_filenames(years, datadir):
             files = [yrlyfile(key, plev, yr) for yr in years]
             datafiles['%s%d' % (key, plev)] = files
 
-    for key in ['EFLUX', 'HFLUX', 'EVAP', 'VFLXPHI', 'VFLXCPT', 'VFLXQV']:
+    for key in ['EFLUX', 'HFLUX', 'EVAP', 'VFLXPHI', 'VFLXCPT', 'VFLXQV',
+                'DUDTANA200']:
         subset1 = '40E-120E_90S-90N'
         datafiles[key] = [yrlyfile(key, None, yr, subset1) for yr in years]
 
@@ -173,13 +175,14 @@ for y, year in enumerate(years):
 
 yearstr = '%d-%d' % (years.min(), years.max())
 for varnm in relfiles:
+    varid = get_varid(varnm)
     var, onset, retreat = load_dailyrel(relfiles[varnm])
     ds = xray.Dataset()
-    ds[varnm], ds['D_ONSET'], ds['D_RETREAT'] = var, onset, retreat
+    ds[varid], ds['D_ONSET'], ds['D_RETREAT'] = var, onset, retreat
     print('Computing climatological mean')
     ds = ds.mean(dim=yearnm)
-    ds[varnm].attrs = var.attrs
-    ds[varnm].attrs['years'] = years
+    ds[varid].attrs = var.attrs
+    ds[varid].attrs['years'] = years
     filn = savedir + 'merra_%s_dailyrel_%s_%s.nc' % (varnm, onset_nm, yearstr)
     print('Saving to ' + filn)
     ds.to_netcdf(filn)

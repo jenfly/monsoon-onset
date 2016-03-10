@@ -14,7 +14,7 @@ import indices
 import utils
 
 # ----------------------------------------------------------------------
-years = np.arange(1979, 2015)
+yearstr = '1979-1994'
 onset_nm = 'CHP_MFC'
 ndays = 5
 lon1, lon2 = 60, 100
@@ -22,39 +22,68 @@ plev = 200
 daynm, yearnm, latname, lonname = 'dayrel', 'year', 'YDim', 'XDim'
 datadir = atm.homedir() + 'datastore/merra/analysis/'
 savedir = 'figs/'
-filestr = 'merra_ubudget%d_dailyrel_%s_ndays%d_%dE-%dE'
-filestr = datadir + filestr % (plev, onset_nm, ndays, lon1, lon2)
+filenm = 'merra_ubudget%d_dailyrel_%s_ndays%d_%dE-%dE_%s.nc'
+filenm = datadir + filenm % (plev, onset_nm, ndays, lon1, lon2, yearstr)
 files = {}
-files['ubudget'] = [filestr + '_%d.nc' % yr for yr in years]
+files['ubudget'] = filenm
 varnms = ['U', 'V']
 for nm in varnms:
-    filestr2 = datadir + 'merra_%s%d_dailyrel_%s' % (nm, plev, onset_nm)
-    files[nm] = [filestr2 + '_%d.nc' % yr for yr in years]
+    filenm = datadir + 'merra_%s%d_dailyrel_%s_%s.nc'
+    files[nm] = filenm % (nm, plev, onset_nm, yearstr)
+    filenm = datadir + 'merra_%s_sector_%dE-%dE_dailyrel_%s_%s.nc'
+    files[nm + '_latp'] = filenm % (nm, lon1, lon2, onset_nm, yearstr)
 
 # ----------------------------------------------------------------------
 # Read data from each year
 
 # Zonal momentum budget components
-ubudget = atm.combine_daily_years(None, files['ubudget'], years,
-                                  yearname=yearnm)
+with xray.open_dataset(files['ubudget']) as ubudget:
+    ubudget.load()
+
 
 # Scaling factor for all terms in momentum budget
 scale = 1e-4
 ubudget.attrs['comp_units'] = '%.0e m/s2' % scale
 ubudget = ubudget / scale
 
-# Read other variables and smooth with rolling mean
+# Read other lat-lon variables and smooth with rolling mean
 for nm in varnms:
     varnm = '%s%d' % (nm, plev)
-    var = atm.combine_daily_years(varnm, files[nm], years, yearname=yearnm)
+    with xray.open_dataset(files[nm]) as ds:
+        var = ds[varnm].load()
     daydim = atm.get_coord(var, coord_name=daynm, return_type='dim')
     ubudget[nm] = atm.rolling_mean(var, ndays, axis=daydim, center=True)
+
+# Read other lat-pres variables and smooth with rolling mean
+data_latp = xray.Dataset()
+for nm in varnms:
+    varnm = nm + '_latp'
+    with xray.open_dataset(files[varnm]) as ds:
+        var = ds[nm].load()
+    daydim = atm.get_coord(var, coord_name=daynm, return_type='dim')
+    data_latp[nm] = atm.rolling_mean(var, ndays, axis=daydim, center=True)
+
+# Compute streamfunction
+if (lon2 - lon1) < 360:
+    sector_scale = (lon2 - lon1) / 360.
+else:
+    sector_scale = None
+data_latp['PSI'] = atm.streamfunction(data_latp['V'], sector_scale=sector_scale)
 
 # Additional metadata
 ubudget.attrs['plev'] = plev
 ubudget.attrs['ndays'] = ndays
 ubudget.attrs['lon1'] = lon1
 ubudget.attrs['lon2'] = lon2
+
+# Topography for lat-pres contour plots
+psfile = atm.homedir() + 'dynamics/python/atmos-tools/data/topo/ncep2_ps.nc'
+with xray.open_dataset(psfile) as ds:
+    ps = ds['ps'] / 100
+    if (lon2 - lon1) < 360:
+        ps = atm.dim_mean(ps, 'lon', lon1, lon2)
+    else:
+        ps = atm.dim_mean(ps, 'lon')
 
 # ----------------------------------------------------------------------
 # Consolidate terms together
@@ -68,18 +97,13 @@ groups['EMFC_ST'] = ['EMFC_ST_X', 'EMFC_ST_Y', 'EMFC_ST_P']
 groups['EMFC'] = ['EMFC_TR', 'EMFC_ST']
 groups['COR'] = ['COR_AVG', 'COR_ST']
 groups['ADV+COR_AVG'] = ['ADV_AVG', 'COR_AVG']
-groups['SUM'] = ['ADV_AVG', 'ADV_CRS', 'EMFC', 'COR', 'PGF_ST']
+groups['SUM'] = ['ADV_AVG', 'ADV_CRS', 'EMFC', 'COR', 'PGF_ST', 'ANA']
 
 for key in groups:
     nms = groups[key]
     ubudget[key] = ubudget[nms[0]]
     for nm in nms[1:]:
         ubudget[key] = ubudget[key] + ubudget[nm]
-
-# Long-term climatology
-attrs = ubudget.attrs
-ubudget = ubudget.mean(dim=yearnm)
-ubudget.attrs = attrs
 
 # Tile the zonal mean values
 varbig = ubudget['SUM']
@@ -89,9 +113,7 @@ for nm in ubudget.data_vars:
         ubudget[nm] = xray.DataArray(vals, coords=varbig.coords)
 
 # Sector mean budget
-ubudget_sector = atm.subset(ubudget, {lonname : (lon1, lon2)})
-ubudget_sector = ubudget_sector.mean(dim=lonname)
-ubudget_sector.attrs = attrs
+ubudget_sector = atm.dim_mean(ubudget, 'lon', lon1, lon2)
 
 # ----------------------------------------------------------------------
 # Utility functions and plot formatting options
@@ -134,35 +156,24 @@ def zerocrossings(var, latmin, latmax, smoothing=30, interp_res=0.1, nkeep=3):
 
     return crossings
 
+def psimax_lat(psi, latmin=-30, latmax=10, pmin=300, pmax=700, nsmooth=5):
+    days_in = psi['dayrel']
+    psi = atm.subset(psi, {'lat' : (latmin, latmax), 'plev' : (pmin, pmax)},
+                     squeeze=True)
+    psi = psi[nsmooth:-nsmooth]
+    pdim = atm.get_coord(psi, 'plev', 'dim')
+    psi = psi.max(axis=pdim)
 
-# def get_zerolat(var, latmin, latmax, smoothing=30):
-#     var = atm.subset(var, {'lat' : (latmin, latmax)})
-#     var = atm.rolling_mean(var, smoothing, axis=0, center=True)
-#     lat = atm.get_coord(var, 'lat')
-#     daynm = var.dims[0]
-#     days = var[daynm]
-#
-#     if var.name == 'V':
-#         # Mask out latitudes that I want to exclude
-#         xday, ylat = np.meshgrid(var[var.dims[0]], var[var.dims[1]])
-#         xday, ylat = xday.T, ylat.T
-#         mask = ((xday < 50) & (ylat > 30)) | ((xday > 150) & (ylat > 30)
-#                 | ((xday < 0) & (ylat > 10)))
-#         var = np.ma.masked_array(var.values, mask=mask)
-#     else:
-#         var = var.values
-#
-#     var = abs(var)
-#     ilat = np.argmin(var, axis=1)
-#     ndays = len(ilat)
-#     zerolat = np.nan * np.ones(ndays)
-#     for i in range(ndays):
-#         zerolat[i] = lat[ilat[i]]
-#     zerolat[:smoothing] = np.nan
-#     zerolat[-smoothing:] = np.nan
-#     zerolat = xray.DataArray(zerolat, coords={daynm : days})
-#
-#     return zerolat
+    lat = atm.get_coord(psi, 'lat')
+    latdim = atm.get_coord(psi, 'lat', 'dim')
+    ilatmax = psi.argmax(axis=latdim)
+    latmax = lat[ilatmax]
+    days = atm.get_coord(psi, 'dayrel')
+    latmax = xray.DataArray(latmax, coords={'dayrel' : days})
+    latmax = latmax.reindex_like(days_in)
+    return latmax
+
+
 
 # ----------------------------------------------------------------------
 # Plot groups together
@@ -272,6 +283,7 @@ for tropics in [True, False]:
     plot_groups(ubudget_sector, keys_list, daynm, None, latlims)
     saveclose(savestr + 'sector_latday')
 
+
 # ----------------------------------------------------------------------
 # Line plots on individual days
 
@@ -297,14 +309,16 @@ if check_zerolats:
 
 
 style = {'ADV_AVG' : 'b', 'COR_AVG' : 'b--', 'ADV+COR_AVG' : 'r',
-         'PGF_ST' : 'k', 'ADV_CRS' : 'g', 'EMFC' : 'm',
-         'SUM' : 'k--', 'ACCEL' : 'c', 'U' : 'k', 'V' : 'k--'}
+         'PGF_ST' : 'k', 'ADV_CRS' : 'g',  'ADV_AVST' : 'g--',
+         'ADV_STAV' : 'g-.', 'EMFC' : 'm', 'EMFC_TR' : 'm--', 'EMFC_ST' : 'm-.',
+         'SUM' : 'k--', 'ACCEL' : 'c', 'ANA' : 'y', 'U' : 'k', 'V' : 'k--'}
 
 keys_dict = collections.OrderedDict()
 keys_dict['ubudget'] = ['ADV_AVG', 'COR_AVG', 'ADV+COR_AVG', 'PGF_ST',
-                        'ADV_CRS', 'EMFC', 'SUM', 'ACCEL']
+                        'ADV_CRS', 'EMFC', 'ANA', 'SUM', 'ACCEL']
 keys_dict['winds'] = ['U', 'V']
-keys_dict['eddies'] = ['EMFC', 'ADV_CRS']
+keys_dict['eddies'] = ['EMFC_TR', 'EMFC_ST', 'EMFC', 'ADV_AVST', 'ADV_STAV',
+                       'ADV_CRS']
 suptitle = '%d-%d E %s at %d hPa'
 suptitles = {}
 suptitles['ubudget'] = suptitle % (lon1, lon2, 'Zonal Momentum Budget', plev)
@@ -340,8 +354,9 @@ for nm in keys_dict:
             row, col = atm.subplot_index(nrow, ncol, i + 1)
             ax = axes[row - 1, col - 1]
             subset_dict = {daynm : (day, day), latname: latlims}
-            data = atm.squeeze(atm.subset(ubudget_sector[keys], subset_dict))
-            data = data.drop(daynm).to_dataframe()
+            data = atm.subset(ubudget_sector[keys], subset_dict, squeeze=True)
+            #data = data.drop(daynm).to_dataframe()
+            data = data.to_dataframe()
             data.plot(ax=ax, style=style, legend=False)
             # Plot vertical lines for U=0 and V=0
             zlats = zerolats.sel(**{daynm : day})
@@ -358,3 +373,59 @@ for nm in keys_dict:
                 ax.set_ylabel(ylabel)
 
 saveclose(savedir + 'ubudget_sector_lineplots')
+
+# ----------------------------------------------------------------------
+# Lat-pres contours and line plots on individual days
+
+latmax = psimax_lat(data_latp['PSI'], nsmooth=ndays, pmin=600, pmax=700)
+
+clev_u, clev_psi = 5, 10
+clims = [-50, 50]
+omitzero = True
+
+day = 0
+latp_data = atm.subset(data_latp, {'dayrel' : (day, day)}, squeeze=True)
+u = latp_data['U']
+psi = latp_data['PSI']
+lat0 = latmax.sel(dayrel=day).values
+
+plt.figure()
+atm.contourf_latpres(u, clev=clev_u, topo=ps)
+plt.clim(clims)
+atm.contour_latpres(psi, clev=clev_psi, omitzero=omitzero)
+plt.grid()
+plt.axvline(lat0, color='g', linewidth=2)
+plt.title('Day %d' % day)
+
+
+# Ubudget terms at latitude of psimax
+print('Computing ubudget terms at latitude of psimax for each day')
+days = latmax['dayrel']
+days = days[np.isfinite(latmax)]
+ubudget_psimax = xray.Dataset()
+for d, day in enumerate(days):
+    lat0 = latmax.sel(dayrel=day).values
+    ds = atm.subset(ubudget_sector, {'lat' : (lat0, lat0)}, squeeze=True)
+    ds = atm.subset(ds, {'dayrel' : (day, day)}, squeeze=False)
+    if d == 0:
+        ubudget_psimax = ds
+    else:
+        ubudget_psimax = xray.concat([ubudget_psimax, ds], dim='dayrel')
+
+keys = ['ADV_AVG', 'COR_AVG', 'ADV+COR_AVG', 'PGF_ST',
+        'ADV_CRS', 'EMFC', 'ANA', 'SUM', 'ACCEL']
+
+xticks = range(-120, 201, 30)
+xlims = [-120, 200]
+plt.figure(figsize=(8, 12))
+plt.subplot(2, 1, 1)
+plt.plot(latmax['dayrel'], latmax)
+plt.xticks(xticks)
+plt.xlim(xlims)
+plt.grid(True)
+plt.subplot(2, 1, 2)
+ubudget_psimax[keys].to_dataframe().plot(ax=plt.gca(), style=style, legend=False)
+plt.legend(fontsize=8, ncol=3)
+plt.xticks(xticks)
+plt.xlim(xlims)
+plt.grid(True)
