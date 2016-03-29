@@ -20,8 +20,10 @@ datadir = atm.homedir() + 'datastore/%s/daily/' % version
 files = {}
 filestr = version + '_%s_40E-120E_90S-90N_%d.nc'
 files['MFC'] = [datadir + filestr % ('MFC', yr) for yr in years]
-nm = {'merra' : 'precip', 'merra2' : 'PRECTOT'}[version]
-files['PCP'] = [datadir + '%s_%s_%d.nc' % (version, nm, yr) for yr in years]
+if version == 'merra':
+    files['PCP'] = [datadir + 'merra_precip_%d.nc' % yr for yr in years]
+else:
+    files['PCP'] = [datadir + filestr % ('PRECTOT', yr) for yr in years]
 files['EVAP'] = [datadir + filestr % ('EVAP', yr) for yr in years]
 files['ANA'] = [datadir + filestr % ('DQVDT_ANA', yr) for yr in years]
 files['W'] = [datadir + filestr % ('TQV', yr) for yr in years]
@@ -47,8 +49,9 @@ for nm in files:
     var = atm.combine_daily_years(varnms[nm], files[nm], years, yearname='year',
                                   subset_dict=subset_dict)
     var = atm.mean_over_geobox(var, lat1, lat2, lon1, lon2)
-    if var.attrs['units'] == 'kg/m2/s':
-        var = atm.precip_convert(var, var.attrs['units'], 'mm/day')
+    units = var.attrs.get('units')
+    if units in ['kg/m2/s', 'kg m-2 s-1']:
+        var = atm.precip_convert(var, units, 'mm/day')
     var_sm = atm.rolling_mean(var, nroll, axis=-1, center=True)
     ts[nm] = var_sm
     if nm == 'W':
@@ -94,7 +97,7 @@ def plot_tseries(ts, year=None, ax=None):
 # Plot climatology and a few individual years
 plotyears = [None, years[0], years[1], years[2]]
 plt.figure(figsize=(12, 9))
-suptitle = 'MFC Budget (%s) - Daily Tseries' % latlonstr
+suptitle = version.upper() + ' MFC Budget (%s) - Daily Tseries' % latlonstr
 plt.suptitle(suptitle)
 nrow, ncol = 2, 2
 for y, year in enumerate(plotyears):

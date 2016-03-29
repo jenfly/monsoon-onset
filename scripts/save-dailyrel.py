@@ -20,8 +20,7 @@ from utils import get_data_rel, load_dailyrel
 # ----------------------------------------------------------------------
 onset_nm = 'CHP_MFC'
 
-#years = np.arange(1979, 2015)
-years = np.arange(1979, 1995)
+years = np.arange(1979, 2015)
 
 datadir = atm.homedir() + 'datastore/merra/daily/'
 savedir = atm.homedir() + 'datastore/merra/analysis/'
@@ -29,9 +28,9 @@ savedir = atm.homedir() + 'datastore/merra/analysis/'
 # Number of days before and after onset to include
 npre, npost = 120, 200
 
-varnms = ['DUDTANA200']
-# varnms = ['U_sector_0E-360E', 'U_sector_60E-100E', 'V_sector_0E-360E',
-#           'V_sector_60E-100E']
+#varnms = ['DUDTANA200']
+varnms = ['U_sector_0E-360E', 'U_sector_60E-100E', 'V_sector_0E-360E',
+          'V_sector_60E-100E']
 
 # varnms = ['VFLXPHI', 'VFLXCPT', 'VFLXQV', 'VFLXMSE']
 # varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200',

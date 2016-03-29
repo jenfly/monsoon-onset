@@ -14,7 +14,7 @@ import indices
 import utils
 
 # ----------------------------------------------------------------------
-yearstr = '1979-1994'
+yearstr = '1979-2014'
 onset_nm = 'CHP_MFC'
 ndays = 5
 lon1, lon2 = 60, 100
@@ -374,14 +374,19 @@ for nm in keys_dict:
 
 saveclose(savedir + 'ubudget_sector_lineplots')
 
+
 # ----------------------------------------------------------------------
+######## Consolidated figs
 # Lat-pres contours and line plots on individual days
 
-latmax = psimax_lat(data_latp['PSI'], nsmooth=ndays, pmin=600, pmax=700)
-
-clev_u, clev_psi = 5, 10
-clims = [-50, 50]
+# Lat-pres contours
+# def latpres(data, **opts)
+#clev_u = range(-50, 51, 5)
+clev_u = 5
+clev_psi = 5
+#clims = [-40, 40]
 omitzero = True
+u_kw = {'alpha' : 0.25}
 
 day = 0
 latp_data = atm.subset(data_latp, {'dayrel' : (day, day)}, squeeze=True)
@@ -390,13 +395,38 @@ psi = latp_data['PSI']
 lat0 = latmax.sel(dayrel=day).values
 
 plt.figure()
-atm.contourf_latpres(u, clev=clev_u, topo=ps)
-plt.clim(clims)
+atm.contour_latpres(u, clev=clev_u, topo=ps, colors='m', contour_kw=u_kw)
+#atm.contourf_latpres(u, clev=clev_u, topo=ps)
+#plt.clim(clims)
 atm.contour_latpres(psi, clev=clev_psi, omitzero=omitzero)
 plt.grid()
-plt.axvline(lat0, color='g', linewidth=2)
+#plt.axvline(lat0, color='g', linewidth=2)
 plt.title('Day %d' % day)
 
+
+# Line plots
+# def lineplot(data, keys, styles)
+
+nrow, ncol = 4, 3
+advance_by = 'row'
+fig_kw = {'figsize' : (11, 8), 'sharex' : 'col', 'sharey' : 'row'}
+gridspec_kw = {'left' : 0.05, 'right' : 0.95, 'wspace' : 0.1, 'hspace' : 0.1,
+               'height_ratios' : [2, 1, 1, 1]}
+plotdays = [-30, -15, 0, 15, 30]
+
+grp = atm.FigGroup(nrow, ncol, advance_by, fig_kw=fig_kw,
+                   gridspec_kw=gridspec_kw, suptitle='kittens')
+for day in plotdays:
+    grp.next()
+    plt.title('Lat-p %d' % day)
+    for nm in ['winds', 'ubudget', 'eddies']:
+        grp.next()
+        plt.title('%s %d' % (nm, day))
+
+
+
+# ----------------------------------------------------------------------
+latmax = psimax_lat(data_latp['PSI'], nsmooth=ndays, pmin=600, pmax=700)
 
 # Ubudget terms at latitude of psimax
 print('Computing ubudget terms at latitude of psimax for each day')
