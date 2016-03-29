@@ -96,7 +96,7 @@ groups['EMFC_TR'] = ['EMFC_TR_X', 'EMFC_TR_Y', 'EMFC_TR_P']
 groups['EMFC_ST'] = ['EMFC_ST_X', 'EMFC_ST_Y', 'EMFC_ST_P']
 groups['EMFC'] = ['EMFC_TR', 'EMFC_ST']
 groups['COR'] = ['COR_AVG', 'COR_ST']
-groups['ADV+COR_AVG'] = ['ADV_AVG', 'COR_AVG']
+groups['ADV+COR'] = ['ADV_AVG', 'COR_AVG']
 groups['SUM'] = ['ADV_AVG', 'ADV_CRS', 'EMFC', 'COR', 'PGF_ST', 'ANA']
 
 for key in groups:
@@ -308,13 +308,13 @@ if check_zerolats:
     plt.legend()
 
 
-style = {'ADV_AVG' : 'b', 'COR_AVG' : 'b--', 'ADV+COR_AVG' : 'r',
+style = {'ADV_AVG' : 'b', 'COR_AVG' : 'b--', 'ADV+COR' : 'r',
          'PGF_ST' : 'k', 'ADV_CRS' : 'g',  'ADV_AVST' : 'g--',
          'ADV_STAV' : 'g-.', 'EMFC' : 'm', 'EMFC_TR' : 'm--', 'EMFC_ST' : 'm-.',
          'SUM' : 'k--', 'ACCEL' : 'c', 'ANA' : 'y', 'U' : 'k', 'V' : 'k--'}
 
 keys_dict = collections.OrderedDict()
-keys_dict['ubudget'] = ['ADV_AVG', 'COR_AVG', 'ADV+COR_AVG', 'PGF_ST',
+keys_dict['ubudget'] = ['ADV_AVG', 'COR_AVG', 'ADV+COR', 'PGF_ST',
                         'ADV_CRS', 'EMFC', 'ANA', 'SUM', 'ACCEL']
 keys_dict['winds'] = ['U', 'V']
 keys_dict['eddies'] = ['EMFC_TR', 'EMFC_ST', 'EMFC', 'ADV_AVST', 'ADV_STAV',
@@ -379,6 +379,107 @@ saveclose(savedir + 'ubudget_sector_lineplots')
 ######## Consolidated figs
 # Lat-pres contours and line plots on individual days
 
+def latpres(data_latp, day, ps, xlims=(-60, 60), xticks=range(-60, 61, 15), 
+            xlabels=True, ylabels=True, title=None, clev_u=5, clev_psi=5, 
+            u_clr='m', u_kw={'alpha' : 0.35}, psi_kw={'alpha' : 0.7}):
+    """Plot lat-pres contours of streamfunction and zonal wind.
+    """
+    xmin, xmax = xlims
+    axlims = (xmin, xmax, 0, 1000)
+    latp_data = atm.subset(data_latp, {'dayrel' : (day, day)}, squeeze=True)
+    u = latp_data['U']
+    psi = latp_data['PSI']
+
+    atm.contour_latpres(u, clev=clev_u, topo=ps, colors=u_clr, 
+                        contour_kw=u_kw, axlims=axlims)
+    atm.contour_latpres(psi, clev=clev_psi, omitzero=True, axlims=axlims,
+                        contour_kw=psi_kw)
+    
+    plt.xticks(xticks, xticks)
+    plt.grid()
+    if not xlabels:
+        plt.gca().set_xticklabels([])
+        plt.xlabel('')
+    if not ylabels:
+        plt.gca().set_yticklabels([])
+        plt.ylabel('')
+    if title is not None:
+        plt.title(title)
+
+def lineplot(ubudget_sector, keys, day, style, xlims=(-60, 60),
+             xticks=range(-60, 61, 15), title=None, xlabels=True, 
+             ylabels=True, legend=True, 
+             legend_kw={'fontsize' : 8, 'loc' : 'lower center', 'ncol' : 2,
+                        'handlelength' : 3}):
+    """Plot ubudget terms and winds vs latitude."""
+    subset_dict = {'dayrel' : (day, day), 'lat': xlims}
+    data = atm.subset(ubudget_sector[keys], subset_dict, squeeze=True)
+    data = data.to_dataframe()
+    data.plot(ax=plt.gca(), style=style, legend=False)
+    plt.xlim(xlims)
+    plt.xticks(xticks, xticks)
+    plt.grid()
+    if legend:
+        plt.legend(**legend_kw)
+    if xlabels:
+        plt.xlabel('Latitude')
+    else:
+        plt.gca().set_xticklabels([])
+    if not ylabels:
+        plt.gca().set_xticklabels([])
+    if title is not None:
+        plt.title(title)
+
+
+style = {'ADV_AVG' : 'b', 'COR_AVG' : 'b--', 'ADV+COR' : 'r',
+         'PGF_ST' : 'k', 'ADV_CRS' : 'g',  'ADV_AVST' : 'g--',
+         'ADV_STAV' : 'g-.', 'EMFC' : 'm', 'EMFC_TR' : 'm--', 'EMFC_ST' : 'm-.',
+         'SUM' : 'k--', 'ACCEL' : 'c', 'ANA' : 'y', 'U' : 'k', 'V' : 'k--'}
+
+keys_dict = collections.OrderedDict()
+keys_dict['ubudget'] = ['ADV_AVG', 'COR_AVG', 'ADV+COR', 'PGF_ST',
+                        'ADV_CRS', 'EMFC', 'ANA', 'SUM', 'ACCEL']
+keys_dict['winds'] = ['U', 'V']
+keys_dict['eddies'] = ['EMFC_TR', 'EMFC_ST', 'EMFC', 'ADV_CRS']
+
+ylabels = {}
+ylabels['ubudget'] = 'ubudget (%s)' % ubudget.attrs['comp_units']
+ylabels['eddies'] = ylabels['ubudget']
+ylabels['winds'] = 'winds (m/s)'
+#yticks = {'ubudget' : 
+
+
+nrow, ncol = 4, 3
+advance_by = 'row'
+fig_kw = {'figsize' : (14, 14), 'sharex' : 'col', 'sharey' : 'row'}
+gridspec_kw = {'left' : 0.05, 'right' : 0.95, 'wspace' : 0.06, 'hspace' : 0.1,
+               'height_ratios' : [1.3, 1, 1, 1]}
+
+suptitle = 'kittens'
+#plotdays = [-30, -15, 0, 15, 30]
+plotdays = [-30, 0, 30]
+xlims, xticks = (-35, 35), range(-30, 31, 10)
+grp = atm.FigGroup(nrow, ncol, advance_by, fig_kw=fig_kw,
+                   gridspec_kw=gridspec_kw, suptitle=suptitle)
+for day in plotdays:
+    grp.next()
+    if grp.row == 0:
+        title = 'Day %d' % day
+    else:
+        title = None
+    latpres(data_latp, day, ps, title=title, xlims=xlims, xticks=xticks)
+    for nm in ['winds', 'ubudget', 'eddies']:
+        grp.next()
+        if grp.col == 0:
+            legend = True
+        else:
+            legend = False
+        keys = keys_dict[nm]
+        lineplot(ubudget_sector, keys, day, style, xlims=xlims, xticks=xticks, 
+                 legend=legend)
+
+
+# ---------------------------------------------------------------------------
 # Lat-pres contours
 # def latpres(data, **opts)
 #clev_u = range(-50, 51, 5)
@@ -392,7 +493,6 @@ day = 0
 latp_data = atm.subset(data_latp, {'dayrel' : (day, day)}, squeeze=True)
 u = latp_data['U']
 psi = latp_data['PSI']
-lat0 = latmax.sel(dayrel=day).values
 
 plt.figure()
 atm.contour_latpres(u, clev=clev_u, topo=ps, colors='m', contour_kw=u_kw)
@@ -407,21 +507,7 @@ plt.title('Day %d' % day)
 # Line plots
 # def lineplot(data, keys, styles)
 
-nrow, ncol = 4, 3
-advance_by = 'row'
-fig_kw = {'figsize' : (11, 8), 'sharex' : 'col', 'sharey' : 'row'}
-gridspec_kw = {'left' : 0.05, 'right' : 0.95, 'wspace' : 0.1, 'hspace' : 0.1,
-               'height_ratios' : [2, 1, 1, 1]}
-plotdays = [-30, -15, 0, 15, 30]
 
-grp = atm.FigGroup(nrow, ncol, advance_by, fig_kw=fig_kw,
-                   gridspec_kw=gridspec_kw, suptitle='kittens')
-for day in plotdays:
-    grp.next()
-    plt.title('Lat-p %d' % day)
-    for nm in ['winds', 'ubudget', 'eddies']:
-        grp.next()
-        plt.title('%s %d' % (nm, day))
 
 
 
