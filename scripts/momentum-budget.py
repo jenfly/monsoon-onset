@@ -131,48 +131,107 @@ def get_daystr(plotdays):
         savestr = 'relday%d' % plotdays
     return daystr, savestr
 
-def zerocrossings(var, latmin, latmax, smoothing=30, interp_res=0.1, nkeep=3):
-    var = atm.subset(var, {'lat' : (latmin, latmax)})
-    if smoothing is not None:
-        var = atm.rolling_mean(var, smoothing, axis=0, center=True)
-    lat = atm.get_coord(var, 'lat')
-    lat_i = np.arange(latmin, latmax + interp_res, interp_res)
-    daynm = var.dims[0]
-    days = var[daynm]
-    crossings = np.nan * np.ones((nkeep, len(days)), dtype=float)
+# ----------------------------------------------------------------------
+# Lat-pres contours and line plots on individual days
 
-    for d, day in enumerate(days):
-        vals = var.sel(**{daynm : day})
-        if not np.isnan(vals).all():
-            vals = np.interp(lat_i, lat, vals)
-            icross = np.where(np.diff(np.sign(vals)))[0]
-            latcross = lat_i[icross]
-            n = min(nkeep, len(latcross))
-            crossings[:n, d] = latcross[:n]
+def latpres(data_latp, day, ps, xlims=(-60, 60), xticks=range(-60, 61, 15),
+            xlabels=True, ylabels=True, title=None, clev_u=5, clev_psi=5,
+            u_clr='m', u_kw={'alpha' : 0.35}, psi_kw={'alpha' : 0.7}):
+    """Plot lat-pres contours of streamfunction and zonal wind.
+    """
+    xmin, xmax = xlims
+    axlims = (xmin, xmax, 0, 1000)
+    latp_data = atm.subset(data_latp, {'dayrel' : (day, day)}, squeeze=True)
+    u = latp_data['U']
+    psi = latp_data['PSI']
 
-    coords = {'n' : np.arange(nkeep) + 1, daynm : var[daynm]}
-    crossings = xray.DataArray(crossings, name='zerolat', dims=['n', daynm],
-                               coords=coords)
+    atm.contour_latpres(u, clev=clev_u, topo=ps, colors=u_clr,
+                        contour_kw=u_kw, axlims=axlims)
+    atm.contour_latpres(psi, clev=clev_psi, omitzero=True, axlims=axlims,
+                        contour_kw=psi_kw)
 
-    return crossings
+    plt.xticks(xticks, xticks)
+    plt.grid()
+    if not xlabels:
+        plt.gca().set_xticklabels([])
+        plt.xlabel('')
+    if not ylabels:
+        plt.gca().set_yticklabels([])
+        plt.ylabel('')
+    if title is not None:
+        plt.title(title)
 
-def psimax_lat(psi, latmin=-30, latmax=10, pmin=300, pmax=700, nsmooth=5):
-    days_in = psi['dayrel']
-    psi = atm.subset(psi, {'lat' : (latmin, latmax), 'plev' : (pmin, pmax)},
-                     squeeze=True)
-    psi = psi[nsmooth:-nsmooth]
-    pdim = atm.get_coord(psi, 'plev', 'dim')
-    psi = psi.max(axis=pdim)
+def lineplot(ubudget_sector, keys, day, style, xlims=(-60, 60),
+             xticks=range(-60, 61, 15), title=None, xlabels=True,
+             ylabels=True, legend=True,
+             legend_kw={'fontsize' : 8, 'loc' : 'lower center', 'ncol' : 2,
+                        'handlelength' : 3}):
+    """Plot ubudget terms and winds vs latitude."""
+    subset_dict = {'dayrel' : (day, day), 'lat': xlims}
+    data = atm.subset(ubudget_sector[keys], subset_dict, squeeze=True)
+    data = data.to_dataframe()
+    data.plot(ax=plt.gca(), style=style, legend=False)
+    plt.xlim(xlims)
+    plt.xticks(xticks, xticks)
+    plt.grid()
+    if legend:
+        plt.legend(**legend_kw)
+    if xlabels:
+        plt.xlabel('Latitude')
+    else:
+        plt.gca().set_xticklabels([])
+    if not ylabels:
+        plt.gca().set_xticklabels([])
+    if title is not None:
+        plt.title(title)
 
-    lat = atm.get_coord(psi, 'lat')
-    latdim = atm.get_coord(psi, 'lat', 'dim')
-    ilatmax = psi.argmax(axis=latdim)
-    latmax = lat[ilatmax]
-    days = atm.get_coord(psi, 'dayrel')
-    latmax = xray.DataArray(latmax, coords={'dayrel' : days})
-    latmax = latmax.reindex_like(days_in)
-    return latmax
 
+style = {'ADV_AVG' : 'b', 'COR_AVG' : 'b--', 'ADV+COR' : 'r',
+         'PGF_ST' : 'k', 'ADV_CRS' : 'g',  'ADV_AVST' : 'g--',
+         'ADV_STAV' : 'g-.', 'EMFC' : 'm', 'EMFC_TR' : 'm--', 'EMFC_ST' : 'm-.',
+         'SUM' : 'k--', 'ACCEL' : 'c', 'ANA' : 'y', 'U' : 'k', 'V' : 'k--'}
+
+keys_dict = collections.OrderedDict()
+keys_dict['ubudget'] = ['ADV_AVG', 'COR_AVG', 'ADV+COR', 'PGF_ST',
+                        'ADV_CRS', 'EMFC', 'ANA', 'SUM', 'ACCEL']
+keys_dict['winds'] = ['U', 'V']
+keys_dict['eddies'] = ['EMFC_TR', 'EMFC_ST', 'EMFC', 'ADV_CRS']
+
+ylabels = {}
+ylabels['ubudget'] = 'ubudget (%s)' % ubudget.attrs['comp_units']
+ylabels['eddies'] = ylabels['ubudget']
+ylabels['winds'] = 'winds (m/s)'
+#yticks = {'ubudget' :
+
+
+nrow, ncol = 4, 3
+advance_by = 'row'
+fig_kw = {'figsize' : (14, 14), 'sharex' : 'col', 'sharey' : 'row'}
+gridspec_kw = {'left' : 0.05, 'right' : 0.95, 'wspace' : 0.06, 'hspace' : 0.1,
+               'height_ratios' : [1.3, 1, 1, 1]}
+
+suptitle = 'kittens'
+#plotdays = [-30, -15, 0, 15, 30]
+plotdays = [-30, 0, 30]
+xlims, xticks = (-35, 35), range(-30, 31, 10)
+grp = atm.FigGroup(nrow, ncol, advance_by, fig_kw=fig_kw,
+                   gridspec_kw=gridspec_kw, suptitle=suptitle)
+for day in plotdays:
+    grp.next()
+    if grp.row == 0:
+        title = 'Day %d' % day
+    else:
+        title = None
+    latpres(data_latp, day, ps, title=title, xlims=xlims, xticks=xticks)
+    for nm in ['winds', 'ubudget', 'eddies']:
+        grp.next()
+        if grp.col == 0:
+            legend = True
+        else:
+            legend = False
+        keys = keys_dict[nm]
+        lineplot(ubudget_sector, keys, day, style, xlims=xlims, xticks=xticks,
+                 legend=legend)
 
 
 # ----------------------------------------------------------------------
@@ -285,263 +344,168 @@ for tropics in [True, False]:
 
 
 # ----------------------------------------------------------------------
-# Line plots on individual days
-
-
-latmin, latmax = -40, 50
-smoothing = None
-nkeep = {'U' : 2, 'V' : 3}
-zerolats = xray.Dataset()
-for nm in nkeep:
-    n = nkeep[nm]
-    crossings = zerocrossings(ubudget_sector[nm], latmin, latmax, nkeep=n,
-                              smoothing=smoothing)
-    for i in crossings['n'].values:
-        key = nm + '%d' % i
-        zerolats[key] = crossings.sel(n=i).drop('n')
-
-check_zerolats = False
-if check_zerolats:
-    plt.figure()
-    for nm in zerolats.data_vars:
-        plt.plot(zerolats[daynm], zerolats[nm], label=nm)
-    plt.legend()
-
-
-style = {'ADV_AVG' : 'b', 'COR_AVG' : 'b--', 'ADV+COR' : 'r',
-         'PGF_ST' : 'k', 'ADV_CRS' : 'g',  'ADV_AVST' : 'g--',
-         'ADV_STAV' : 'g-.', 'EMFC' : 'm', 'EMFC_TR' : 'm--', 'EMFC_ST' : 'm-.',
-         'SUM' : 'k--', 'ACCEL' : 'c', 'ANA' : 'y', 'U' : 'k', 'V' : 'k--'}
-
-keys_dict = collections.OrderedDict()
-keys_dict['ubudget'] = ['ADV_AVG', 'COR_AVG', 'ADV+COR', 'PGF_ST',
-                        'ADV_CRS', 'EMFC', 'ANA', 'SUM', 'ACCEL']
-keys_dict['winds'] = ['U', 'V']
-keys_dict['eddies'] = ['EMFC_TR', 'EMFC_ST', 'EMFC', 'ADV_AVST', 'ADV_STAV',
-                       'ADV_CRS']
-suptitle = '%d-%d E %s at %d hPa'
-suptitles = {}
-suptitles['ubudget'] = suptitle % (lon1, lon2, 'Zonal Momentum Budget', plev)
-suptitles['eddies'] = suptitles['ubudget']
-suptitles['winds'] = suptitle % (lon1, lon2, 'Winds', plev)
-ylabels = {}
-ylabels['ubudget'] = 'ubudget (%s)' % ubudget.attrs['comp_units']
-ylabels['eddies'] = ylabels['ubudget']
-ylabels['winds'] = 'winds (m/s)'
-
-plotdays = [-90, -30, -15, 0, 15, 30, 60, 90]
-nrow, ncol = 2, 4
-figsize = (14, 10)
-lat = atm.get_coord(ubudget, 'lat')
-latname = atm.get_coord(ubudget, 'lat', 'name')
-opts = {'left' : 0.05, 'right' : 0.95, 'bottom' : 0.06, 'top' : 0.94,
-        'wspace' : 0.1, 'hspace' : 0.1}
-lg_row, lg_col, lg_loc, lg_ncol = 2, 1, 'upper center', 2
-zlat_opts = {'U1' : {'label' : 'U=0'}, 'U2' : {},
-             'V1' : {'linestyle' : 'dashed', 'label' : 'V=0'},
-             'V2' : {'linestyle' : 'dashed'}, 'V3' : {'linestyle' : 'dashed'}}
-
-for nm in keys_dict:
-    keys = keys_dict[nm]
-    suptitle, ylabel = suptitles[nm], ylabels[nm]
-    for latlims in [(-60, 60), (-35, 35)]:
-        fig, axes = plt.subplots(nrow, ncol, figsize=figsize, sharex=True,
-                                 sharey=True)
-        plt.subplots_adjust(**opts)
-        plt.autoscale(tight=True)
-        plt.suptitle(suptitle)
-        for i, day in enumerate(plotdays):
-            row, col = atm.subplot_index(nrow, ncol, i + 1)
-            ax = axes[row - 1, col - 1]
-            subset_dict = {daynm : (day, day), latname: latlims}
-            data = atm.subset(ubudget_sector[keys], subset_dict, squeeze=True)
-            #data = data.drop(daynm).to_dataframe()
-            data = data.to_dataframe()
-            data.plot(ax=ax, style=style, legend=False)
-            # Plot vertical lines for U=0 and V=0
-            zlats = zerolats.sel(**{daynm : day})
-            for nm in zlats.data_vars:
-                ax.axvline(zlats[nm], color='k', alpha=0.5, linewidth=1.5,
-                           **zlat_opts[nm])
-            ax.set_title('Day %d' % day, fontsize=10)
-            ax.grid(True)
-            if row == lg_row and col == lg_col:
-                ax.legend(fontsize=9, loc=lg_loc, ncol=lg_ncol, handlelength=3)
-            if row == nrow:
-                ax.set_xlabel('Lat')
-            if col == 1:
-                ax.set_ylabel(ylabel)
-
-saveclose(savedir + 'ubudget_sector_lineplots')
-
+# def zerocrossings(var, latmin, latmax, smoothing=30, interp_res=0.1, nkeep=3):
+#     var = atm.subset(var, {'lat' : (latmin, latmax)})
+#     if smoothing is not None:
+#         var = atm.rolling_mean(var, smoothing, axis=0, center=True)
+#     lat = atm.get_coord(var, 'lat')
+#     lat_i = np.arange(latmin, latmax + interp_res, interp_res)
+#     daynm = var.dims[0]
+#     days = var[daynm]
+#     crossings = np.nan * np.ones((nkeep, len(days)), dtype=float)
+#
+#     for d, day in enumerate(days):
+#         vals = var.sel(**{daynm : day})
+#         if not np.isnan(vals).all():
+#             vals = np.interp(lat_i, lat, vals)
+#             icross = np.where(np.diff(np.sign(vals)))[0]
+#             latcross = lat_i[icross]
+#             n = min(nkeep, len(latcross))
+#             crossings[:n, d] = latcross[:n]
+#
+#     coords = {'n' : np.arange(nkeep) + 1, daynm : var[daynm]}
+#     crossings = xray.DataArray(crossings, name='zerolat', dims=['n', daynm],
+#                                coords=coords)
+#
+#     return crossings
+#
+# def psimax_lat(psi, latmin=-30, latmax=10, pmin=300, pmax=700, nsmooth=5):
+#     days_in = psi['dayrel']
+#     psi = atm.subset(psi, {'lat' : (latmin, latmax), 'plev' : (pmin, pmax)},
+#                      squeeze=True)
+#     psi = psi[nsmooth:-nsmooth]
+#     pdim = atm.get_coord(psi, 'plev', 'dim')
+#     psi = psi.max(axis=pdim)
+#
+#     lat = atm.get_coord(psi, 'lat')
+#     latdim = atm.get_coord(psi, 'lat', 'dim')
+#     ilatmax = psi.argmax(axis=latdim)
+#     latmax = lat[ilatmax]
+#     days = atm.get_coord(psi, 'dayrel')
+#     latmax = xray.DataArray(latmax, coords={'dayrel' : days})
+#     latmax = latmax.reindex_like(days_in)
+#     return latmax
 
 # ----------------------------------------------------------------------
-######## Consolidated figs
-# Lat-pres contours and line plots on individual days
-
-def latpres(data_latp, day, ps, xlims=(-60, 60), xticks=range(-60, 61, 15), 
-            xlabels=True, ylabels=True, title=None, clev_u=5, clev_psi=5, 
-            u_clr='m', u_kw={'alpha' : 0.35}, psi_kw={'alpha' : 0.7}):
-    """Plot lat-pres contours of streamfunction and zonal wind.
-    """
-    xmin, xmax = xlims
-    axlims = (xmin, xmax, 0, 1000)
-    latp_data = atm.subset(data_latp, {'dayrel' : (day, day)}, squeeze=True)
-    u = latp_data['U']
-    psi = latp_data['PSI']
-
-    atm.contour_latpres(u, clev=clev_u, topo=ps, colors=u_clr, 
-                        contour_kw=u_kw, axlims=axlims)
-    atm.contour_latpres(psi, clev=clev_psi, omitzero=True, axlims=axlims,
-                        contour_kw=psi_kw)
-    
-    plt.xticks(xticks, xticks)
-    plt.grid()
-    if not xlabels:
-        plt.gca().set_xticklabels([])
-        plt.xlabel('')
-    if not ylabels:
-        plt.gca().set_yticklabels([])
-        plt.ylabel('')
-    if title is not None:
-        plt.title(title)
-
-def lineplot(ubudget_sector, keys, day, style, xlims=(-60, 60),
-             xticks=range(-60, 61, 15), title=None, xlabels=True, 
-             ylabels=True, legend=True, 
-             legend_kw={'fontsize' : 8, 'loc' : 'lower center', 'ncol' : 2,
-                        'handlelength' : 3}):
-    """Plot ubudget terms and winds vs latitude."""
-    subset_dict = {'dayrel' : (day, day), 'lat': xlims}
-    data = atm.subset(ubudget_sector[keys], subset_dict, squeeze=True)
-    data = data.to_dataframe()
-    data.plot(ax=plt.gca(), style=style, legend=False)
-    plt.xlim(xlims)
-    plt.xticks(xticks, xticks)
-    plt.grid()
-    if legend:
-        plt.legend(**legend_kw)
-    if xlabels:
-        plt.xlabel('Latitude')
-    else:
-        plt.gca().set_xticklabels([])
-    if not ylabels:
-        plt.gca().set_xticklabels([])
-    if title is not None:
-        plt.title(title)
-
-
-style = {'ADV_AVG' : 'b', 'COR_AVG' : 'b--', 'ADV+COR' : 'r',
-         'PGF_ST' : 'k', 'ADV_CRS' : 'g',  'ADV_AVST' : 'g--',
-         'ADV_STAV' : 'g-.', 'EMFC' : 'm', 'EMFC_TR' : 'm--', 'EMFC_ST' : 'm-.',
-         'SUM' : 'k--', 'ACCEL' : 'c', 'ANA' : 'y', 'U' : 'k', 'V' : 'k--'}
-
-keys_dict = collections.OrderedDict()
-keys_dict['ubudget'] = ['ADV_AVG', 'COR_AVG', 'ADV+COR', 'PGF_ST',
-                        'ADV_CRS', 'EMFC', 'ANA', 'SUM', 'ACCEL']
-keys_dict['winds'] = ['U', 'V']
-keys_dict['eddies'] = ['EMFC_TR', 'EMFC_ST', 'EMFC', 'ADV_CRS']
-
-ylabels = {}
-ylabels['ubudget'] = 'ubudget (%s)' % ubudget.attrs['comp_units']
-ylabels['eddies'] = ylabels['ubudget']
-ylabels['winds'] = 'winds (m/s)'
-#yticks = {'ubudget' : 
-
-
-nrow, ncol = 4, 3
-advance_by = 'row'
-fig_kw = {'figsize' : (14, 14), 'sharex' : 'col', 'sharey' : 'row'}
-gridspec_kw = {'left' : 0.05, 'right' : 0.95, 'wspace' : 0.06, 'hspace' : 0.1,
-               'height_ratios' : [1.3, 1, 1, 1]}
-
-suptitle = 'kittens'
-#plotdays = [-30, -15, 0, 15, 30]
-plotdays = [-30, 0, 30]
-xlims, xticks = (-35, 35), range(-30, 31, 10)
-grp = atm.FigGroup(nrow, ncol, advance_by, fig_kw=fig_kw,
-                   gridspec_kw=gridspec_kw, suptitle=suptitle)
-for day in plotdays:
-    grp.next()
-    if grp.row == 0:
-        title = 'Day %d' % day
-    else:
-        title = None
-    latpres(data_latp, day, ps, title=title, xlims=xlims, xticks=xticks)
-    for nm in ['winds', 'ubudget', 'eddies']:
-        grp.next()
-        if grp.col == 0:
-            legend = True
-        else:
-            legend = False
-        keys = keys_dict[nm]
-        lineplot(ubudget_sector, keys, day, style, xlims=xlims, xticks=xticks, 
-                 legend=legend)
-
-
-# ---------------------------------------------------------------------------
-# Lat-pres contours
-# def latpres(data, **opts)
-#clev_u = range(-50, 51, 5)
-clev_u = 5
-clev_psi = 5
-#clims = [-40, 40]
-omitzero = True
-u_kw = {'alpha' : 0.25}
-
-day = 0
-latp_data = atm.subset(data_latp, {'dayrel' : (day, day)}, squeeze=True)
-u = latp_data['U']
-psi = latp_data['PSI']
-
-plt.figure()
-atm.contour_latpres(u, clev=clev_u, topo=ps, colors='m', contour_kw=u_kw)
-#atm.contourf_latpres(u, clev=clev_u, topo=ps)
-#plt.clim(clims)
-atm.contour_latpres(psi, clev=clev_psi, omitzero=omitzero)
-plt.grid()
-#plt.axvline(lat0, color='g', linewidth=2)
-plt.title('Day %d' % day)
-
-
-# Line plots
-# def lineplot(data, keys, styles)
-
-
-
-
+# # Line plots on individual days
+#
+# latmin, latmax = -40, 50
+# smoothing = None
+# nkeep = {'U' : 2, 'V' : 3}
+# zerolats = xray.Dataset()
+# for nm in nkeep:
+#     n = nkeep[nm]
+#     crossings = zerocrossings(ubudget_sector[nm], latmin, latmax, nkeep=n,
+#                               smoothing=smoothing)
+#     for i in crossings['n'].values:
+#         key = nm + '%d' % i
+#         zerolats[key] = crossings.sel(n=i).drop('n')
+#
+# check_zerolats = False
+# if check_zerolats:
+#     plt.figure()
+#     for nm in zerolats.data_vars:
+#         plt.plot(zerolats[daynm], zerolats[nm], label=nm)
+#     plt.legend()
+#
+#
+# style = {'ADV_AVG' : 'b', 'COR_AVG' : 'b--', 'ADV+COR' : 'r',
+#          'PGF_ST' : 'k', 'ADV_CRS' : 'g',  'ADV_AVST' : 'g--',
+#          'ADV_STAV' : 'g-.', 'EMFC' : 'm', 'EMFC_TR' : 'm--', 'EMFC_ST' : 'm-.',
+#          'SUM' : 'k--', 'ACCEL' : 'c', 'ANA' : 'y', 'U' : 'k', 'V' : 'k--'}
+#
+# keys_dict = collections.OrderedDict()
+# keys_dict['ubudget'] = ['ADV_AVG', 'COR_AVG', 'ADV+COR', 'PGF_ST',
+#                         'ADV_CRS', 'EMFC', 'ANA', 'SUM', 'ACCEL']
+# keys_dict['winds'] = ['U', 'V']
+# keys_dict['eddies'] = ['EMFC_TR', 'EMFC_ST', 'EMFC', 'ADV_AVST', 'ADV_STAV',
+#                        'ADV_CRS']
+# suptitle = '%d-%d E %s at %d hPa'
+# suptitles = {}
+# suptitles['ubudget'] = suptitle % (lon1, lon2, 'Zonal Momentum Budget', plev)
+# suptitles['eddies'] = suptitles['ubudget']
+# suptitles['winds'] = suptitle % (lon1, lon2, 'Winds', plev)
+# ylabels = {}
+# ylabels['ubudget'] = 'ubudget (%s)' % ubudget.attrs['comp_units']
+# ylabels['eddies'] = ylabels['ubudget']
+# ylabels['winds'] = 'winds (m/s)'
+#
+# plotdays = [-90, -30, -15, 0, 15, 30, 60, 90]
+# nrow, ncol = 2, 4
+# figsize = (14, 10)
+# lat = atm.get_coord(ubudget, 'lat')
+# latname = atm.get_coord(ubudget, 'lat', 'name')
+# opts = {'left' : 0.05, 'right' : 0.95, 'bottom' : 0.06, 'top' : 0.94,
+#         'wspace' : 0.1, 'hspace' : 0.1}
+# lg_row, lg_col, lg_loc, lg_ncol = 2, 1, 'upper center', 2
+# zlat_opts = {'U1' : {'label' : 'U=0'}, 'U2' : {},
+#              'V1' : {'linestyle' : 'dashed', 'label' : 'V=0'},
+#              'V2' : {'linestyle' : 'dashed'}, 'V3' : {'linestyle' : 'dashed'}}
+#
+# for nm in keys_dict:
+#     keys = keys_dict[nm]
+#     suptitle, ylabel = suptitles[nm], ylabels[nm]
+#     for latlims in [(-60, 60), (-35, 35)]:
+#         fig, axes = plt.subplots(nrow, ncol, figsize=figsize, sharex=True,
+#                                  sharey=True)
+#         plt.subplots_adjust(**opts)
+#         plt.autoscale(tight=True)
+#         plt.suptitle(suptitle)
+#         for i, day in enumerate(plotdays):
+#             row, col = atm.subplot_index(nrow, ncol, i + 1)
+#             ax = axes[row - 1, col - 1]
+#             subset_dict = {daynm : (day, day), latname: latlims}
+#             data = atm.subset(ubudget_sector[keys], subset_dict, squeeze=True)
+#             #data = data.drop(daynm).to_dataframe()
+#             data = data.to_dataframe()
+#             data.plot(ax=ax, style=style, legend=False)
+#             # Plot vertical lines for U=0 and V=0
+#             zlats = zerolats.sel(**{daynm : day})
+#             for nm in zlats.data_vars:
+#                 ax.axvline(zlats[nm], color='k', alpha=0.5, linewidth=1.5,
+#                            **zlat_opts[nm])
+#             ax.set_title('Day %d' % day, fontsize=10)
+#             ax.grid(True)
+#             if row == lg_row and col == lg_col:
+#                 ax.legend(fontsize=9, loc=lg_loc, ncol=lg_ncol, handlelength=3)
+#             if row == nrow:
+#                 ax.set_xlabel('Lat')
+#             if col == 1:
+#                 ax.set_ylabel(ylabel)
+#
+# saveclose(savedir + 'ubudget_sector_lineplots')
 
 # ----------------------------------------------------------------------
-latmax = psimax_lat(data_latp['PSI'], nsmooth=ndays, pmin=600, pmax=700)
-
-# Ubudget terms at latitude of psimax
-print('Computing ubudget terms at latitude of psimax for each day')
-days = latmax['dayrel']
-days = days[np.isfinite(latmax)]
-ubudget_psimax = xray.Dataset()
-for d, day in enumerate(days):
-    lat0 = latmax.sel(dayrel=day).values
-    ds = atm.subset(ubudget_sector, {'lat' : (lat0, lat0)}, squeeze=True)
-    ds = atm.subset(ds, {'dayrel' : (day, day)}, squeeze=False)
-    if d == 0:
-        ubudget_psimax = ds
-    else:
-        ubudget_psimax = xray.concat([ubudget_psimax, ds], dim='dayrel')
-
-keys = ['ADV_AVG', 'COR_AVG', 'ADV+COR_AVG', 'PGF_ST',
-        'ADV_CRS', 'EMFC', 'ANA', 'SUM', 'ACCEL']
-
-xticks = range(-120, 201, 30)
-xlims = [-120, 200]
-plt.figure(figsize=(8, 12))
-plt.subplot(2, 1, 1)
-plt.plot(latmax['dayrel'], latmax)
-plt.xticks(xticks)
-plt.xlim(xlims)
-plt.grid(True)
-plt.subplot(2, 1, 2)
-ubudget_psimax[keys].to_dataframe().plot(ax=plt.gca(), style=style, legend=False)
-plt.legend(fontsize=8, ncol=3)
-plt.xticks(xticks)
-plt.xlim(xlims)
-plt.grid(True)
+# latmax = psimax_lat(data_latp['PSI'], nsmooth=ndays, pmin=600, pmax=700)
+#
+# # Ubudget terms at latitude of psimax
+# print('Computing ubudget terms at latitude of psimax for each day')
+# days = latmax['dayrel']
+# days = days[np.isfinite(latmax)]
+# ubudget_psimax = xray.Dataset()
+# for d, day in enumerate(days):
+#     lat0 = latmax.sel(dayrel=day).values
+#     ds = atm.subset(ubudget_sector, {'lat' : (lat0, lat0)}, squeeze=True)
+#     ds = atm.subset(ds, {'dayrel' : (day, day)}, squeeze=False)
+#     if d == 0:
+#         ubudget_psimax = ds
+#     else:
+#         ubudget_psimax = xray.concat([ubudget_psimax, ds], dim='dayrel')
+#
+# keys = ['ADV_AVG', 'COR_AVG', 'ADV+COR_AVG', 'PGF_ST',
+#         'ADV_CRS', 'EMFC', 'ANA', 'SUM', 'ACCEL']
+#
+# xticks = range(-120, 201, 30)
+# xlims = [-120, 200]
+# plt.figure(figsize=(8, 12))
+# plt.subplot(2, 1, 1)
+# plt.plot(latmax['dayrel'], latmax)
+# plt.xticks(xticks)
+# plt.xlim(xlims)
+# plt.grid(True)
+# plt.subplot(2, 1, 2)
+# ubudget_psimax[keys].to_dataframe().plot(ax=plt.gca(), style=style, legend=False)
+# plt.legend(fontsize=8, ncol=3)
+# plt.xticks(xticks)
+# plt.xlim(xlims)
+# plt.grid(True)
