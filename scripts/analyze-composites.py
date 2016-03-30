@@ -42,7 +42,7 @@ savedir = 'figs/'
 run_anim = False
 run_eht = False
 
-vargroup = 'group3'
+vargroup = 'group1'
 
 varlist = {
     'test' : ['precip', 'U200'],
@@ -73,8 +73,7 @@ remove_tricky = False
 years_tricky = [2002, 2004, 2007, 2009, 2010]
 
 # Longitude sector
-# lon1, lon2 = 60, 100
-lon1,lon2 = 40, 100
+lon1, lon2 = 60, 100
 
 # Plotting anomalies (strong - weak, or regression coefficients)
 # or climatology
@@ -324,26 +323,24 @@ gridspec_kw = {'left' : 0.05, 'right' : 0.98, 'bottom' : 0.05,
 suptitle = '%d-%dE ' %(lon1, lon2) + yearstr
 nrow, ncol = (2, 2)
 keys = sectordata.keys()
-axes, isub = None, 1
-for i, varnm in enumerate(keys):
-    thisplot = atm.fig_setup(nrow, ncol, isub, axes, suptitle, fig_kw=fig_kw,
-                             gridspec_kw=gridspec_kw)
-    axes, ax, isub, row, col = thisplot
+grp = atm.FigGroup(nrow, ncol, advance_by='col', fig_kw=fig_kw,
+                   gridspec_kw=gridspec_kw, suptitle=suptitle)
+for varnm in keys:
+    grp.next()
     plotdata = sectordata[varnm]
     lat = atm.get_coord(plotdata, 'lat')
     days = atm.get_coord(plotdata, coord_name='dayrel')
     cmap = get_colormap(varnm, anom_plot)
-    utils.contourf_lat_time(lat, days, plotdata, varnm, cmap, onset_nm, ax=ax)
-    ax.set_ylim(axlims[0], axlims[1])
-    if row < nrow:
-        ax.set_xlabel('')
-    if col > 1:
-        ax.set_ylabel('')
+    utils.contourf_lat_time(lat, days, plotdata, varnm, cmap, onset_nm)
+    plt.ylim(axlims[0], axlims[1])
+    if grp.row < nrow:
+        plt.xlabel('')
+    if grp.col > 1:
+        plt.ylabel('')
     # Add latitudes of maxima
     if varnm in ['THETA_E950'] and not anom_plot:
         latmax = sector_latmax[varnm]
-        annotate_theta_e(days, latmax, ax=ax)
-    isub += 1
+        annotate_theta_e(days, latmax)
 
 
 filestr = 'sector_%d-%dE-onset_%s-%s-%s'
@@ -387,7 +384,8 @@ nrow, ncol, figsize = 4, 4, (12, 14)
 gridspec_kw = {'width_ratios' : [1, 1, 1, 1.5], 'left' : 0.03, 'right' : 0.94,
                'wspace' : 0.3, 'hspace' : 0.2, 'bottom' : 0.06}
 fig_kw = {'figsize' : figsize}
-axes, isub = None, 1
+grp = atm.FigGroup(nrow, ncol, advance_by='col', fig_kw=fig_kw,
+                   gridspec_kw=gridspec_kw, suptitle=suptitle)
 for varnm in comp:
     dat = {key : atm.subset(comp[varnm][key], subset_dict)
            for key in keys}
@@ -398,16 +396,13 @@ for varnm in comp:
         cmin, cmax = climits[varnm][0], climits[varnm][1]
     # Lat-lon maps of composites
     for j, key in enumerate(keys):
-        thisplot = atm.fig_setup(nrow, ncol, isub, axes, suptitle,
-                                 fig_kw=fig_kw, gridspec_kw=gridspec_kw)
-        axes, ax, isub, row, col = thisplot
-        plt.sca(ax)
+        grp.next()
         if comp_attrs[key]['axis'] == 1:
             cmap = get_colormap(varnm, anom_plot)
         else:
             cmap = 'RdBu_r'
         atm.pcolor_latlon(dat[key], axlims=axlims, cmap=cmap, fancy=False)
-        ax.set_xticks(range(40, 121, 20))
+        plt.xticks(range(40, 121, 20))
         if comp_attrs[key]['axis'] == 1:
             plt.clim(cmin, cmax)
         else:
@@ -416,17 +411,15 @@ for varnm in comp:
                 cmax = np.nanmax(abs(dat[key]))
                 plt.clim(-cmax, cmax)
         plt.title(varnm + ' ' + key.upper())
-        if col > 1:
-            ax.set_yticklabels([])
-        if row < nrow:
-            ax.set_xticklabels([])
-        isub += 1
+        if grp.col > 1:
+            plt.gca().set_yticklabels([])
+        if grp.row < nrow:
+            plt.gca().set_xticklabels([])
     # Line plots of sector averages
-    isub, col = isub + 1, col + 1
-    ax = axes[row - 1, col - 1]
+    grp.next()
     title = '%s %d-%dE' % (varnm, lon1, lon2)
-    lineplot(sectorcomp[varnm], ax, y1_label, y2_label, title=title,
-             latmin=axlims[0], latmax=axlims[1], row=row, nrow=nrow)
+    lineplot(sectorcomp[varnm], plt.gca(), y1_label, y2_label, title=title,
+             latmin=axlims[0], latmax=axlims[1], row=grp.row, nrow=nrow)
 
 filestr = 'comp-onset_%s-%s-%s' % (onset_nm, savestr, vargroup)
 atm.savefigs(savedir + filestr, 'pdf', merge=True)
