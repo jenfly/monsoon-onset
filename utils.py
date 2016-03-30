@@ -51,7 +51,7 @@ def daily_rel2onset(data, d_onset, npre, npost, daynm='Day', yearnm='Year'):
         subset_dict = {yearnm : (year, None), daynm : (dmin, dmax)}
         sub = atm.subset(data, subset_dict)
         sub = sub.rename({daynm : relnm})
-        sub[relnm] = dayrel
+        sub[relnm] = sub[relnm] - d_onset[y]
         sub[relnm].attrs['long_name'] = 'Day of year relative to onset day'
         if y == 0:
             data_out = sub
