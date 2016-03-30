@@ -190,11 +190,13 @@ def get_onset_indices(onset_nm, datafiles, years, data=None):
             tseries = get_mfc_box(datafiles, None, None, years, *chp_opts)
             data = tseries['MFC_ACC']
         index = indices.onset_changepoint(data)
+        index['ts_daily'] = tseries['MFC']
     elif onset_nm == 'CHP_PCP':
         if data is None:
             tseries = get_mfc_box(None, datafiles, None, years, *chp_opts)
             data = tseries['PCP_ACC']
         index = indices.onset_changepoint(data)
+        index['ts_daily'] = tseries['PCP']
 
     # Monsoon retreat and length indices
     if 'retreat' in index:
