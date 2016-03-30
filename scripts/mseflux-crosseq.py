@@ -74,7 +74,7 @@ for nm in data.data_vars:
 databar = atm.dim_mean(data, 'year')
 databar_eq = atm.dim_mean(data_eq, 'year')
 
-
+# ----------------------------------------------------------------------
 # Plot latitude-day contours for tropics
 days = atm.get_coord(databar, 'dayrel')
 lat = atm.get_coord(databar, 'lat')
@@ -84,19 +84,18 @@ gridspec_kw = {'left' : 0.05, 'right' : 0.98, 'bottom' : 0.05,
 suptitle = '%d-%dE Vert. Int. Meridional MSE Fluxes (J/m/s) - ' % (lon1, lon2)
 suptitle = suptitle + yearstr
 nrow, ncol = (2, 2)
-axes, isub = None, 1
 cmap = 'RdBu_r'
-for i, nm in enumerate(['VCPT', 'VPHI', 'VLQV', 'VMSE']):
+grp = atm.FigGroup(nrow, ncol, advance_by='col', fig_kw=fig_kw,
+                   gridspec_kw=gridspec_kw, suptitle=suptitle)
+for nm in ['VCPT', 'VPHI', 'VLQV', 'VMSE']:
+    grp.next()
     plotdata = atm.dim_mean(databar[nm], 'lon')
-    thisplot = atm.fig_setup(nrow, ncol, isub, axes, suptitle, fig_kw=fig_kw,
-                             gridspec_kw=gridspec_kw)
-    axes, ax, isub, row, col = thisplot
-    utils.contourf_lat_time(lat, days, plotdata, nm, cmap, onset_nm, ax=ax)
-    if row < nrow:
-        ax.set_xlabel('')
-    if col > 1:
-        ax.set_ylabel('')
-    isub += 1
+    utils.contourf_lat_time(lat, days, plotdata, nm, cmap, onset_nm)
+    #plt.contour(days, lat, plotdata.T, [0], colors='k')
+    if grp.row < nrow - 1:
+        plt.xlabel('')
+    if grp.col > 0:
+        plt.ylabel('')
 
 # Daily timeseries plot of equatorial MSE flux
 df = databar_eq.to_dataframe()
@@ -115,15 +114,13 @@ gridspec_kw = {'left' : 0.05, 'right' : 0.98, 'bottom' : 0.05,
 suptitle = 'Cross-Eq <VMSE> (%d-%dE, %s)' % (lon1, lon2, latstr)
 ylims = (-8e9, 5e9)
 nrow, ncol = (3, 4)
-axes, isub = None, 1
+grp = atm.FigGroup(nrow, ncol, advance_by='col', fig_kw=fig_kw,
+                   gridspec_kw=gridspec_kw, suptitle=suptitle)
 for y, year in enumerate(years):
+    grp.next()
     plotdata = data_eq['VMSE'][y]
-    thisplot = atm.fig_setup(nrow, ncol, isub, axes, suptitle, fig_kw=fig_kw,
-                             gridspec_kw=gridspec_kw)
-    axes, ax, isub, row, col = thisplot
-    ax.plot(days, plotdata, 'k')
-    ax.set_title(year)
-    ax.grid(True)
-    ax.set_xlim(days.min(), days.max())
-    ax.set_ylim(ylims)
-    isub += 1
+    plt.plot(days, plotdata, 'k')
+    plt.title(year)
+    plt.grid(True)
+    plt.xlim(days.min(), days.max())
+    plt.ylim(ylims)

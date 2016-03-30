@@ -333,9 +333,9 @@ for varnm in keys:
     cmap = get_colormap(varnm, anom_plot)
     utils.contourf_lat_time(lat, days, plotdata, varnm, cmap, onset_nm)
     plt.ylim(axlims[0], axlims[1])
-    if grp.row < nrow:
+    if grp.row < nrow - 1:
         plt.xlabel('')
-    if grp.col > 1:
+    if grp.col > 0:
         plt.ylabel('')
     # Add latitudes of maxima
     if varnm in ['THETA_E950'] and not anom_plot:
@@ -411,9 +411,9 @@ for varnm in comp:
                 cmax = np.nanmax(abs(dat[key]))
                 plt.clim(-cmax, cmax)
         plt.title(varnm + ' ' + key.upper())
-        if grp.col > 1:
+        if grp.col > 0:
             plt.gca().set_yticklabels([])
-        if grp.row < nrow:
+        if grp.row < nrow - 1:
             plt.gca().set_xticklabels([])
     # Line plots of sector averages
     grp.next()
