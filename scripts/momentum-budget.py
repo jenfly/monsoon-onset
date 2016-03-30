@@ -135,8 +135,8 @@ def get_daystr(plotdays):
 # Lat-pres contours and line plots on individual days
 
 def latpres(data_latp, day, ps, xlims=(-60, 60), xticks=range(-60, 61, 15),
-            xlabels=True, ylabels=True, title=None, clev_u=5, clev_psi=5,
-            u_clr='m', u_kw={'alpha' : 0.35}, psi_kw={'alpha' : 0.7}):
+            title=None, clev_u=5, clev_psi=5, u_clr='m', u_kw={'alpha' : 0.35},
+            psi_kw={'alpha' : 0.7}):
     """Plot lat-pres contours of streamfunction and zonal wind.
     """
     xmin, xmax = xlims
@@ -152,20 +152,13 @@ def latpres(data_latp, day, ps, xlims=(-60, 60), xticks=range(-60, 61, 15),
 
     plt.xticks(xticks, xticks)
     plt.grid()
-    if not xlabels:
-        plt.gca().set_xticklabels([])
-        plt.xlabel('')
-    if not ylabels:
-        plt.gca().set_yticklabels([])
-        plt.ylabel('')
     if title is not None:
         plt.title(title)
 
 def lineplot(ubudget_sector, keys, day, style, xlims=(-60, 60),
-             xticks=range(-60, 61, 15), title=None, xlabels=True,
-             ylabels=True, legend=True,
+             xticks=range(-60, 61, 15), title=None, ylabel=None, legend=True,
              legend_kw={'fontsize' : 8, 'loc' : 'lower center', 'ncol' : 2,
-                        'handlelength' : 3}):
+                        'handlelength' : 2.5}):
     """Plot ubudget terms and winds vs latitude."""
     subset_dict = {'dayrel' : (day, day), 'lat': xlims}
     data = atm.subset(ubudget_sector[keys], subset_dict, squeeze=True)
@@ -173,15 +166,12 @@ def lineplot(ubudget_sector, keys, day, style, xlims=(-60, 60),
     data.plot(ax=plt.gca(), style=style, legend=False)
     plt.xlim(xlims)
     plt.xticks(xticks, xticks)
+    plt.xlabel('Latitude')
     plt.grid()
     if legend:
         plt.legend(**legend_kw)
-    if xlabels:
-        plt.xlabel('Latitude')
-    else:
-        plt.gca().set_xticklabels([])
-    if not ylabels:
-        plt.gca().set_xticklabels([])
+    if ylabel is not None:
+        plt.ylabel(ylabel)
     if title is not None:
         plt.title(title)
 
@@ -198,41 +188,51 @@ keys_dict['winds'] = ['U', 'V']
 keys_dict['eddies'] = ['EMFC_TR', 'EMFC_ST', 'EMFC', 'ADV_CRS']
 
 ylabels = {}
-ylabels['ubudget'] = 'ubudget (%s)' % ubudget.attrs['comp_units']
+units = '$10^{-4} m s^{-2}$'
+ylabels['ubudget'] = '%d hPa ubudget (%s)' % (plev, units)
 ylabels['eddies'] = ylabels['ubudget']
-ylabels['winds'] = 'winds (m/s)'
-#yticks = {'ubudget' :
+ylabels['winds'] = '%d hPa winds (m/s)' % plev
 
 
-nrow, ncol = 4, 3
+nrow, ncol = 4, 5
 advance_by = 'row'
-fig_kw = {'figsize' : (14, 14), 'sharex' : 'col', 'sharey' : 'row'}
-gridspec_kw = {'left' : 0.05, 'right' : 0.95, 'wspace' : 0.06, 'hspace' : 0.1,
-               'height_ratios' : [1.3, 1, 1, 1]}
-
-suptitle = 'kittens'
-#plotdays = [-30, -15, 0, 15, 30]
-plotdays = [-30, 0, 30]
-xlims, xticks = (-35, 35), range(-30, 31, 10)
-grp = atm.FigGroup(nrow, ncol, advance_by, fig_kw=fig_kw,
-                   gridspec_kw=gridspec_kw, suptitle=suptitle)
-for day in plotdays:
-    grp.next()
-    if grp.row == 0:
-        title = 'Day %d' % day
+fig_kw = {'figsize' : (18, 12), 'sharex' : 'col', 'sharey' : 'row'}
+gridspec_kw = {'left' : 0.05, 'right' : 0.99, 'wspace' : 0.06, 'hspace' : 0.08,
+               'bottom' : 0.04, 'top' : 0.92, 'height_ratios' : [1, 0.6, 1, 1]}
+legend_kw={'fontsize' : 8, 'loc' : 'lower center', 'ncol' : 2,
+           'handlelength' : 2.5}
+suptitle = '%d-%d E U and $\psi$ contours, ubudget at 200 hPa' % (lon1, lon2)
+plotdays = [-30, -15, 0, 15, 30] + [-90, -45, 0, 45, 90]
+for tropics in [False, True]:
+    if tropics:
+        xlims, xticks = (-35, 35), range(-30, 31, 10)
     else:
-        title = None
-    latpres(data_latp, day, ps, title=title, xlims=xlims, xticks=xticks)
-    for nm in ['winds', 'ubudget', 'eddies']:
+        xlims, xticks = (-60, 60), range(-60, 61, 15)
+    grp = atm.FigGroup(nrow, ncol, advance_by, fig_kw=fig_kw,
+                       gridspec_kw=gridspec_kw, suptitle=suptitle)
+    for day in plotdays:
         grp.next()
-        if grp.col == 0:
-            legend = True
+        if grp.row == 0:
+            title = 'Day %d' % day
         else:
-            legend = False
-        keys = keys_dict[nm]
-        lineplot(ubudget_sector, keys, day, style, xlims=xlims, xticks=xticks,
-                 legend=legend)
+            title = None
+        latpres(data_latp, day, ps, title=title, xlims=xlims, xticks=xticks)
+        for nm in ['winds', 'ubudget', 'eddies']:
+            grp.next()
+            if grp.col == 0:
+                legend = True
+                if nm == 'ubudget' :
+                    legend_kw['loc'] = 'lower center'
+                else:
+                    legend_kw['loc'] = 'upper center'
+            else:
+                legend = False
+            keys = keys_dict[nm]
+            lineplot(ubudget_sector, keys, day, style, xlims=xlims,
+                     xticks=xticks, legend=legend, legend_kw=legend_kw,
+                     ylabel=ylabels[nm])
 
+saveclose(savedir + 'ubudget_sector_latpres_lineplots')
 
 # ----------------------------------------------------------------------
 # Plot groups together
