@@ -10,6 +10,139 @@ import numpy as np
 
 import atmos as atm
 import merra
+import precipdat
+import utils
+
+# ----------------------------------------------------------------------
+years = np.arange(1979, 2015)
+onset_nm = 'CHP_MFC'
+pcp_nm = 'CMAP'
+datadir = atm.homedir() + 'datastore/merra/daily/'
+filestr = datadir + 'merra_MFC_40E-120E_90S-90N_%d.nc'
+datafiles = [filestr % yr for yr in years]
+filenm = atm.homedir() + '/datastore/cmap/cmap.enhanced.precip.pentad.mean.nc'
+lon1, lon2 = 60, 100
+lat1, lat2 = 10, 30
+npre, npost = 90, 200
+nroll = 7
+
+precip = precipdat.read_cmap(filenm, yearmin=years.min(), yearmax=years.max())
+pcp_box = atm.mean_over_geobox(precip, lat1, lat2, lon1, lon2)
+# Interpolate to daily resolution
+days = np.arange(1, 367)
+pcp_i = np.nan * np.ones((len(years), len(days)))
+for y, year in enumerate(years):
+    pcp_i[y] = np.interp(days, pcp_box['day'], pcp_box[y])
+coords = {'day' : days, 'year' : years}
+pcp = xray.DataArray(pcp_i, dims=['year', 'day'], coords=coords)
+
+
+index = utils.get_onset_indices(onset_nm, datafiles, years)
+mfc = atm.rolling_mean(index['ts_daily'], nroll, center=True)
+onset = index['onset']
+
+datarel = xray.Dataset()
+datarel['MFC'] = utils.daily_rel2onset(mfc, onset, npre, npost)
+datarel[pcp_nm] = utils.daily_rel2onset(pcp, onset, npre, npost)
+datarel['MFC_ACC'] = utils.daily_rel2onset(index['tseries'], onset, npre, npost)
+
+def fmt_axes(xlims, xticks, ylims, yticks):
+    if xticks is not None:
+        plt.xticks(xticks)
+    if xlims is not None:
+        plt.xlim(xlims)
+    if yticks is not None:
+        plt.yticks(yticks)
+    if ylims is not None:
+        plt.ylim(ylims)
+
+def clear_labels(axtype, ax=None):
+    if ax is None:
+        ax = plt.gca()
+    if axtype.lower() == 'x':
+        ax.set_xlabel('')
+        ax.set_xticklabels([])
+    else:
+        ax.set_ylabel('')
+        ax.set_yticklabels([])
+
+
+def lineplots(mfc, pcp, mfc_acc=None, xlims=None, xticks=None, ylims=None,
+              yticks=None, length=None, mfc_nm='MFC', pcp_nm='CMAP',
+              legend=False, legend_kw={'fontsize' : 9, 'handlelength' : 2.5},
+              y2_lims=None, y2_opts={'color' : 'r', 'alpha' : 0.6}):
+
+    plt.plot(mfc['dayrel'], mfc, 'k', label=mfc_nm)
+    plt.plot(pcp['dayrel'], pcp, 'k--', label=pcp_nm)
+    fmt_axes(xlims, xticks, ylims, yticks)
+    plt.grid(True)
+    plt.axvline(0, color='k')
+    if length is not None:
+        plt.axvline(length, color='k')
+    if legend:
+        plt.legend(**legend_kw)
+    plt.xlabel('Rel Day')
+    plt.ylabel('mm/day')
+    axes = [plt.gca()]
+
+    if mfc_acc is not None:
+        plt.sca(plt.gca().twinx())
+        plt.plot(mfc_acc['dayrel'], mfc_acc, linewidth=2, **y2_opts)
+        if y2_lims is not None:
+            plt.ylim(y2_lims)
+        atm.fmt_axlabels('y', 'MFC_ACC mm', **y2_opts)
+    axes = axes + [plt.gca()]
+
+    return axes
+
+
+xlims = (-npre, npost)
+xticks = range(-npre, npost + 1, 30)
+ylims = (-5, 15)
+yticks = range(-5, 16, 5)
+y2_lims = (-350, 350)
+
+
+# Climatology - add plots of U200, U850, cross-eq V*MSE
+mfc_bar = datarel['MFC'].mean(dim='year')
+pcp_bar = datarel[pcp_nm].mean(dim='year')
+mfc_acc_bar = datarel['MFC_ACC'].mean(dim='year')
+plt.figure(figsize=(11, 8))
+lineplots(mfc_bar, pcp_bar, mfc_acc_bar, xlims, xticks, pcp_nm=pcp_nm,
+          legend=True, length=index['length'].mean(dim='year'))
+
+
+# Individual years
+fig_kw = {'figsize' : (14, 10)}
+gridspec_kw = {'left' : 0.04, 'right' : 0.94, 'bottom' : 0.06, 'top' : 0.95,
+               'hspace' : 0.07, 'wspace' : 0.07}
+suptitle = 'Daily and Cumulative Precip/MFC for %s Onset' % onset_nm
+nrow, ncol = 3, 4
+grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw,
+                   suptitle=suptitle)
+for y, year in enumerate(years):
+    grp.next()
+    if grp.row == 0 and grp.col == ncol - 1:
+        legend = True
+    else:
+        legend = False
+    axes = lineplots(datarel['MFC'][y], datarel[pcp_nm][y],
+                     datarel['MFC_ACC'][y], xlims, xticks, ylims, yticks,
+                     y2_lims=y2_lims, legend=legend, pcp_nm=pcp_nm,
+                     length=index['length'][y])
+    title = '%d\n%d, %d' % (year, onset[y], index['retreat'][y])
+    atm.text(title, (0.03, 0.85), fontsize=10)
+    if grp.row < nrow - 1:
+        for ax in axes:
+            clear_labels('x', ax)
+
+    for i, ax in enumerate(axes):
+        if i == 0 and grp.col > 0:
+            clear_labels('y', ax)
+        if i > 0 and grp.col < ncol - 1:
+            clear_labels('y', ax)
+
+
 
 # ----------------------------------------------------------------------
 # For later, when combining plevel data:
