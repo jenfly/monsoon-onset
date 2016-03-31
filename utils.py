@@ -13,7 +13,7 @@ import merra
 import indices
 
 # ----------------------------------------------------------------------
-def daily_rel2onset(data, d_onset, npre, npost, daynm='Day', yearnm='Year'):
+def daily_rel2onset(data, d_onset, npre, npost):
     """Return subset of daily data aligned relative to onset day.
 
     Parameters
@@ -24,8 +24,6 @@ def daily_rel2onset(data, d_onset, npre, npost, daynm='Day', yearnm='Year'):
         Array of onset date (day of year) for each year.
     npre, npost : int
         Number of days before and after onset to extract.
-    daynm, yearnm : str, optional
-        Name of day and year dimensions in data.
 
     Returns
     -------
@@ -36,14 +34,15 @@ def daily_rel2onset(data, d_onset, npre, npost, daynm='Day', yearnm='Year'):
     """
 
     name, attrs, coords, dimnames = atm.meta(data)
-    years = atm.makelist(atm.get_coord(data, coord_name=yearnm))
+    yearnm = atm.get_coord(data, 'year', 'name')
+    daynm = atm.get_coord(data, 'day', 'name')
+    years = atm.makelist(atm.get_coord(data, 'year'))
 
     if isinstance(d_onset, xray.DataArray):
         d_onset = d_onset.values
     else:
         d_onset = atm.makelist(d_onset)
 
-    dayrel = np.arange(-npre, npost + 1)
     relnm = daynm + 'rel'
 
     for y, year in enumerate(years):
