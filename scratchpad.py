@@ -14,6 +14,41 @@ import precipdat
 import utils
 
 # ----------------------------------------------------------------------
+
+datadir = atm.homedir() + 'datastore/merra/analysis/'
+filenm = datadir + 'merra_U200_reg_60E-100E_onset_CHP_MFC_1979-2014.nc'
+with xray.open_dataset(filenm) as ds:
+    ds.load()
+
+xsample, ysample = 4, 2
+pts_mask = (ds['p'] >= 0.05)
+xname, yname = 'dayrel', 'YDim'
+
+
+
+# x-y data
+regdays = [-60, -30, 0, 30, 60]
+plotdays = [-60, -30]
+clev_r = np.arange(-1.0, 1.01, 0.05)
+for nm in varnms:
+    print(nm)
+    var = data[nm].sel(dayrel=regdays)
+    reg_daily = atm.regress_field(var, onset, axis=0)
+    for day in plotdays:
+        reg = reg_daily.sel(dayrel=day)
+        title = '%s day %d vs. Onset ' % (var.name, day)
+        cint_m = atm.cinterval(reg.m)
+        clev_m = atm.clevels(reg.m, cint_m, symmetric=True)
+        plt.figure(figsize=(11, 8))
+        plt.subplot(1, 2, 1)
+        atm.contourf_latlon(reg['r'], clev=clev_r, cmap='RdBu_r')
+        plt.title(title + ' - Corr Coeff')
+        plt.subplot(1, 2, 2)
+        atm.contourf_latlon(reg['m'], clev=clev_m, cmap='RdBu_r')
+        plt.title(title + ' - Reg Coeff')
+
+
+# ----------------------------------------------------------------------
 # For later, when combining plevel data:
 def func(var, pname='Height', axis=1):
     pres = var.attrs[pname]
