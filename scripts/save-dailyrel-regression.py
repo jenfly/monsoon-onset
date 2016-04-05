@@ -26,7 +26,7 @@ varnms = ['U200', 'V200', 'T200', 'H200', 'U850', 'V850', 'T850', 'H850',
 regdays = [-60, -30, 0, 30, 60]
 seasons = ['JJAS', 'SSN']
 lon1, lon2 = 60, 100
-nroll = 7
+nroll = 5
 
 datafiles = collections.OrderedDict()
 filestr = datadir + 'merra_%s_dailyrel_%s_%d.nc'
@@ -70,7 +70,7 @@ def get_data(varnm, datafiles, regdays, seasons, lon1, lon2, nroll=None):
     var, onset, retreat = utils.load_dailyrel(datafiles[varnm])
     if nroll is not None:
         var = atm.rolling_mean(var, nroll, axis=1, center=True)
-    
+
     # Seasonal averages and daily lat-lon data
     data = xray.Dataset()
     for season in seasons:
@@ -78,13 +78,13 @@ def get_data(varnm, datafiles, regdays, seasons, lon1, lon2, nroll=None):
         data[key] = ssn_average(var, onset, retreat, season)
     # Daily data on regdays
     data[varnm + '_DAILY'] = var.sel(dayrel=regdays)
-    
+
     # Sector mean data
     var_sector = atm.dim_mean(var, 'lon', lon1, lon2)
-    
-    alldata = {'data_latlon' : data, 'var_sector' : var_sector, 
+
+    alldata = {'data_latlon' : data, 'var_sector' : var_sector,
               'onset' : onset, 'retreat' : retreat}
-    
+
     return alldata
 
 def regress_data(alldata, indname='onset', axis=0):
@@ -98,7 +98,7 @@ def regress_data(alldata, indname='onset', axis=0):
         reg = atm.regress_field(data[nm], index, axis)
         for nm2 in reg.data_vars:
             reg_data[nm + '_' + nm2] = reg[nm2]
-    
+
     reg_sector = atm.regress_field(var_sector, index, axis)
     reg_out = {'latlon' : reg_data, 'sector' : reg_sector}
     return reg_out
@@ -108,7 +108,7 @@ def process_one(varnm, datafiles, years, regdays, seasons, lon1, lon2,
     print('Processing ' + varnm)
     alldata = get_data(varnm, datafiles, regdays, seasons, lon1, lon2)
     reg_data = regress_data(alldata, indname=indname, axis=reg_axis)
-    savefiles = get_filenames(datadir, varnm, onset_nm, years, lon1, lon2, 
+    savefiles = get_filenames(datadir, varnm, onset_nm, years, lon1, lon2,
                               nroll)
     for nm in reg_data:
         filenm = savefiles[nm]
@@ -120,7 +120,5 @@ def process_one(varnm, datafiles, years, regdays, seasons, lon1, lon2,
 # Iterate over each variable
 for varnm in varnms:
     data, reg_data = process_one(varnm, datafiles, years, regdays, seasons,
-                                 lon1, lon2, datadir, indname='onset', 
+                                 lon1, lon2, datadir, indname='onset',
                                  reg_axis=0, nroll=nroll)
-
-

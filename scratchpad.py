@@ -15,17 +15,6 @@ import utils
 
 # ----------------------------------------------------------------------
 
-datadir = atm.homedir() + 'datastore/merra/analysis/'
-filenm = datadir + 'merra_U200_reg_60E-100E_onset_CHP_MFC_1979-2014.nc'
-with xray.open_dataset(filenm) as ds:
-    ds.load()
-
-xsample, ysample = 4, 2
-pts_mask = (ds['p'] >= 0.05)
-xname, yname = 'dayrel', 'YDim'
-
-
-
 # x-y data
 regdays = [-60, -30, 0, 30, 60]
 plotdays = [-60, -30]
