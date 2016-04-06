@@ -418,7 +418,7 @@ def onset_OCI(u, latlon = (5, 15, 40, 80), mmdd_thresh=(6,1),
 
 # ----------------------------------------------------------------------
 def onset_SJKE(u, v, latlon = (-5, 20, 50, 70), ndays=3, yearnm='Year',
-             daynm='Day'):
+             daynm='Day', thresh_std=1.0, nroll=None):
     """Return monsoon onset based on Somali Jet kinetic energy.
 
     Parameters
@@ -433,6 +433,8 @@ def onset_SJKE(u, v, latlon = (-5, 20, 50, 70), ndays=3, yearnm='Year',
         define onset.
     yearnm, daynm : str, optional
         Name of year and day dimensions in DataArray
+    thresh_std : float, optional
+        Number of standard deviations excursion to use as onset threshold.
 
     Returns
     -------
@@ -465,7 +467,7 @@ def onset_SJKE(u, v, latlon = (-5, 20, 50, 70), ndays=3, yearnm='Year',
     vals = ke.values.flatten()
     keclim = np.nanmean(vals)
     kestd = np.nanstd(vals)
-    threshold = keclim + kestd
+    threshold = keclim + thresh_std * kestd
 
     # Find first day when KE exceeds threshold and stays above the
     # threshold for consecutive ndays
