@@ -27,7 +27,8 @@ varnms = ['U200', 'V200', 'T200', 'H200', 'U850', 'V850', 'T850', 'H850',
 regdays = [-60, -30, 0]
 seasons = ['JJAS']
 lon1, lon2 = 60, 100
-nroll = None
+nstd = 2.0 # Number of stdev for strong/weak composites
+nroll = 5
 savestr = savedir + 'reg_'
 if nroll is not None:
     savestr = savestr + 'nroll%d_' % nroll
@@ -41,31 +42,43 @@ def get_filenames(datadir, varnms, onset_nm, years, lon1, lon2, nroll):
     if nroll is not None:
         filestr = filestr + '_nroll%d' % nroll
     filestr = filestr + '_reg_%s_onset_' + onset_nm + yearstr
+    filestr2 = datadir + 'merra_%s_dailyrel_' + onset_nm + yearstr
     filenames = {}
     for varnm in varnms:
-        filenames[varnm] = {'latlon' : filestr % (varnm, 'latlon'),
-                            'sector' : filestr % (varnm, lonstr)}
+        filenames[varnm] = {'latlon_reg' : filestr % (varnm, 'latlon'),
+                            'sector_reg' : filestr % (varnm, lonstr),
+                            'latlon_clim' : filestr2 % varnm,
+                            'sector_clim' : filestr2 % varnm}
     return filenames
 
 datafiles = get_filenames(datadir, varnms, onset_nm, years, lon1, lon2, nroll)
-reg = {}
+data = {'reg' : {}, 'clim' : {}, 'early' : {}, 'late' : {}}
 
+# Load regression coefficients and climatology
 for varnm in varnms:
     for key in ['latlon', 'sector']:
-        filenm = datafiles[varnm][key]
-        print('Loading ' + filenm)
-        with xray.open_dataset(filenm) as ds:
-            reg[varnm + '_' + key] = ds.load()
+        for key2 in ['reg', 'clim']:
+            filenm = datafiles[varnm][key + '_' + key2]
+            print('Loading ' + filenm)
+            with xray.open_dataset(filenm) as ds:
+                data[key2][varnm + '_' + key] = ds.load()
+
+# ----------------------------------------------------------------------
+# Calculate strong/ weak composites for sector data
+for varnm in varnms:
+    key = varnm + '_sector'
+    varbar = atm.dim_mean(data['clim'][key][varnm], 'lon', lon1, lon2)
+    m = data['reg'][key]['m']
+    data['late'][key] = varbar + m * nstd
+    data['early'][key] = varbar - m * nstd
 
 # ----------------------------------------------------------------------
 def stipple_mask(p):
     return ((p >= 0.05) | np.isnan(p))
 
-def sector_plot(varnm, reg, coeff='m', stipple_kw={}, grp=None, ylim=None,
+def sector_plot(var, p, stipple_kw={}, grp=None, ylim=None,
                 yticks=None, clim=None):
     xname, yname = 'dayrel', 'lat'
-    var = reg[varnm + '_sector'][coeff]
-    p = reg[varnm + '_sector']['p']
     pts_mask = stipple_mask(p)
     lat = atm.get_coord(var, 'lat')
     days = atm.get_coord(var, 'dayrel')
@@ -146,7 +159,9 @@ grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw,
                    suptitle=suptitle)
 for varnm in varnms:
     grp.next()
-    sector_plot(varnm, reg, coeff, stipple_kw, grp, ylim, yticks)
+    var = data['reg'][varnm + '_sector'][coeff]
+    p = data['reg'][varnm + '_sector']['p']
+    sector_plot(var, p, stipple_kw, grp, ylim, yticks)
 atm.savefigs(savestr + 'sector_onset_' + onset_nm, 'pdf', merge=True)
 plt.close('all')
 
@@ -165,6 +180,6 @@ grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw,
 for varnm in varnms:
     for day_or_season in plt_list:
         grp.next()
-        latlon_plot(varnm, reg, day_or_season, coeff, stipple_kw)
+        latlon_plot(varnm, data['reg'], day_or_season, coeff, stipple_kw)
 atm.savefigs(savestr + 'latlon_onset_' + onset_nm, 'pdf', merge=True)
 plt.close('all')
