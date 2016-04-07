@@ -28,9 +28,10 @@ savedir = atm.homedir() + 'datastore/merra/analysis/'
 # Number of days before and after onset to include
 npre, npost = 120, 200
 
+varnms = ['TLML', 'QLML']
 #varnms = ['DUDTANA200']
-varnms = ['U_sector_0E-360E', 'U_sector_60E-100E', 'V_sector_0E-360E',
-          'V_sector_60E-100E']
+# varnms = ['U_sector_0E-360E', 'U_sector_60E-100E', 'V_sector_0E-360E',
+#           'V_sector_60E-100E']
 
 # varnms = ['VFLXPHI', 'VFLXCPT', 'VFLXQV', 'VFLXMSE']
 # varnms = ['precip', 'U200', 'V200', 'rel_vort200', 'Ro200',
@@ -82,7 +83,7 @@ def get_filenames(years, datadir):
             datafiles['%s%d' % (key, plev)] = files
 
     for key in ['EFLUX', 'HFLUX', 'EVAP', 'VFLXPHI', 'VFLXCPT', 'VFLXQV',
-                'DUDTANA200']:
+                'DUDTANA200', 'TLML', 'QLML']:
         subset1 = '40E-120E_90S-90N'
         datafiles[key] = [yrlyfile(key, None, yr, subset1) for yr in years]
 

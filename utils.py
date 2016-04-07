@@ -374,8 +374,7 @@ def get_data_rel(varnm, years, datafiles, data, onset, npre, npost,
             var = var.rename({daynm_in : daynm})
         if len(years) == 1:
             var = atm.expand_dims(var, yearnm, years[0], axis=0)
-        var = daily_rel2onset(var, onset, npre, npost, yearnm=yearnm,
-                              daynm=daynm)
+        var = daily_rel2onset(var, onset, npre, npost)
 
     return var
 
