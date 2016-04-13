@@ -481,7 +481,7 @@ def latlon_data(var, latmax=89):
     latname = atm.get_coord(var, 'lat', 'name')
     latdim = atm.get_coord(var, 'lat', 'dim')
     lat = atm.get_coord(var, 'lat')
-    latcoords = {latname: lat}
+    latcoords = {latname: lat.copy()}
     lat[abs(lat) > latmax] = np.nan
     data['LAT'] = xray.DataArray(lat, coords=latcoords)
     latrad = np.radians(lat)
@@ -495,9 +495,10 @@ def latlon_data(var, latmax=89):
         lonname = atm.get_coord(var, 'lon', 'name')
         londim = atm.get_coord(var, 'lon', 'dim')
         lon = atm.get_coord(var, 'lon')
-        data['LON'] = xray.DataArray(lon, coords={lonname : lon})
+        loncoords = {lonname : lon.copy()}
+        data['LON'] = xray.DataArray(lon, coords=loncoords)
         lonrad = np.radians(lon)
-        data['LONRAD'] = xray.DataArray(lonrad, coords={lonname : lon})
+        data['LONRAD'] = xray.DataArray(lonrad, coords=loncoords)
         data.attrs['lonname'] = lonname
         data.attrs['londim'] = londim
     except ValueError:
@@ -519,13 +520,13 @@ def advection(uflow, vflow, omegaflow, u, dudp):
     if londim is not None:
         lonrad = latlon['LONRAD']
 
-    data = xray.Dataset()
+    ds = xray.Dataset()
     if londim is not None:
-        data['X'] = atm.gradient(u, lonrad, londim) * uflow / (a*coslat)
+        ds['X'] = atm.gradient(u, lonrad, londim) * uflow / (a*coslat)
     else:
-        data['X'] = 0.0 * u
-    data['Y'] = atm.gradient(u*coslat, latrad, latdim) * vflow / (a*coslat)
-    data['P'] = omegaflow * dudp
+        ds['X'] = 0.0 * u
+    ds['Y'] = atm.gradient(u*coslat, latrad, latdim) * vflow / (a*coslat)
+    ds['P'] = omegaflow * dudp
 
     return data
 
@@ -544,15 +545,15 @@ def fluxdiv(u, v, omega, dudp, domegadp):
     if londim is not None:
         lonrad = latlon['LONRAD']
 
-    data = xray.Dataset()
+    ds = xray.Dataset()
     if londim is not None:
-        data['X'] = atm.gradient(u * u, lonrad, londim) / (a*coslat)
+        ds['X'] = atm.gradient(u * u, lonrad, londim) / (a*coslat)
     else:
-        data['X'] = 0.0 * u
-    data['Y'] = atm.gradient(u * v * coslat_sq, latrad, latdim) / (a*coslat_sq)
-    data['P'] = omega * dudp + u * domegadp
+        ds['X'] = 0.0 * u
+    ds['Y'] = atm.gradient(u * v * coslat_sq, latrad, latdim) / (a*coslat_sq)
+    ds['P'] = omega * dudp + u * domegadp
 
-    return data
+    return ds
 
 
 # ----------------------------------------------------------------------
@@ -575,6 +576,10 @@ def calc_ubudget(datafiles, ndays, lon1, lon2, plev=200):
             data[nm] = atm.squeeze(var)
     data['PHI'] = atm.constants.g.values * data['H']
 
+    # Put zeros in for any missing variables (e.g. du/dp)
+    for nm in ['OMEGA', 'DUDP', 'DOMEGADP', 'DUDTANA']:
+        if nm not in data.data_vars:
+            data[nm] = 0.0 * data['U']
 
     # Eddy decomposition
     taxis = 0
@@ -655,3 +660,28 @@ def calc_ubudget(datafiles, ndays, lon1, lon2, plev=200):
     ubudget['ACCEL'] = delta_u
 
     return ubudget, data
+
+
+# ----------------------------------------------------------------------
+def v_components(ubudget, scale=None, eqbuf=5.0):
+    """Return mean, eddy-driven, etc components of v for streamfunction.
+    """
+
+    comp_dict = {'MMC' : 'ADV_AVG', 'PGF' : 'PGF_ST', 'EDDY_ST' : 'EMFC_ST',
+                 'EDDY_TR' : 'EMFC_TR', 'EDDY_CRS' : 'ADV_CRS'}
+
+    if scale is not None:
+        ubudget = ubudget * scale
+    latname = atm.get_coord(ubudget, 'lat', 'name')
+    lat = ubudget[latname]
+    f = atm.coriolis(lat)
+    f[abs(lat) < eqbuf] = np.nan
+
+    v = xray.Dataset()
+    v['TOT'] = ubudget['COR'] / f
+    for nm in sorted(comp_dict):
+        v[nm] = - ubudget[comp_dict[nm]] / f
+    v['EDDY'] = v['EDDY_CRS'] + v['EDDY_TR'] + v['EDDY_ST']
+    v['RESID'] = v['TOT'] - v['MMC'] - v['PGF'] - v['EDDY']
+
+    return v
