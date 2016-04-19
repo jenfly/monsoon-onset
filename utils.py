@@ -566,6 +566,7 @@ def calc_ubudget(datafiles, ndays, lon1, lon2, plev=200):
     # Read data
     data = xray.Dataset()
     for nm in datafiles:
+        print('Reading ' + datafiles[nm])
         with xray.open_dataset(datafiles[nm]) as ds:
             if nm in ds.data_vars:
                 var = ds[nm]

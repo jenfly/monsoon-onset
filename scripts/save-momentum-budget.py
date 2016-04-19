@@ -17,28 +17,42 @@ import utils
 datadir = atm.homedir() + 'datastore/merra/daily/'
 savedir = atm.homedir() + 'datastore/merra/analysis/'
 years = np.arange(1979, 2015)
+plevs = [1000,925,850,775,700,600,500,400,300,250,150,100,70,50,30,20]
+dp, ana = False, False
+#plevs = [200]
+#dp, ana = True, True
 ndays = 5      # Rolling pentad
 lon1, lon2 = 60, 100
 
-def savefile(savedir, year, ndays, lon1, lon2):
-    lonstr = atm.latlon_labels([lon1, lon2], 'lon', deg_symbol=False)
-    lonstr = '-'.join(lonstr)
-    filenm = 'merra_ubudget200_ndays%d_%s_%d.nc' % (ndays, lonstr, year)
-    return savedir + filenm
+
+def datafiles(datadir, year, plev, dp=True, ana=True):
+    latlonstr = '40E-120E_90S-90N'
+    filestr = datadir + 'merra_%s%d_%s_%d.nc'
+    nms = ['U', 'V', 'H', 'OMEGA']
+    if dp:
+        nms = nms + ['DUDP', 'DOMEGADP']
+    if ana:
+        nms = nms + ['DUDTANA']
+    files = collections.OrderedDict()
+    for nm in nms:
+        files[nm] = filestr % (nm, plev, latlonstr, year)
+    return files
+
+
+def savefile(savedir, year, ndays, lon1, lon2, plev):
+    lonstr =  atm.latlon_str(lon1, lon2, 'lon')
+    filenm = savedir + 'merra_ubudget%d_ndays%d_%s_%d.nc'
+    filenm = filenm % (plev, ndays, lonstr, year)
+    return filenm
 
 for year in years:
     print(year)
-    files = collections.OrderedDict()
-    files['U'] = datadir + 'merra_uv200_40E-120E_60S-60N_%d.nc' % year
-    files['V'] = datadir + 'merra_uv200_40E-120E_60S-60N_%d.nc' % year
-    files['DUDP'] = datadir + 'merra_DUDP200_40E-120E_90S-90N_%d.nc' % year
-    files['H'] = datadir + 'merra_H200_40E-120E_60S-60N_%d.nc' % year
-    files['OMEGA'] = datadir + 'merra_OMEGA200_40E-120E_90S-90N_%d.nc' % year
-    files['DOMEGADP'] = datadir + 'merra_DOMEGADP200_40E-120E_90S-90N_%d.nc' % year
-    files['DUDTANA'] = datadir + 'merra_DUDTANA200_40E-120E_90S-90N_%d.nc' % year
+    for plev in plevs:
+        print(plev)
+        files = datafiles(datadir, year, plev, dp, ana)
 
-    # Read data and calculate momentum budget
-    ubudget, data = utils.calc_ubudget(files, ndays, lon1, lon2)
-    filenm = savefile(savedir, year, ndays, lon1, lon2)
-    print('Saving to ' + filenm)
-    ubudget.to_netcdf(filenm)
+        # Read data and calculate momentum budget
+        ubudget, data = utils.calc_ubudget(files, ndays, lon1, lon2)
+        filenm = savefile(savedir, year, ndays, lon1, lon2, plev)
+        print('Saving to ' + filenm)
+        ubudget.to_netcdf(filenm)
