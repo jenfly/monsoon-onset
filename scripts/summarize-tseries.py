@@ -147,7 +147,8 @@ def to_dataset(data):
 def lineplots(data1, data2=None, data1_style=None, xlims=None, xticks=None,
               ylims=None,yticks=None, length=None, legend=False,
               legend_kw={'fontsize' : 9, 'handlelength' : 2.5},
-              y2_lims=None, y2_opts={'color' : 'r', 'alpha' : 0.6}):
+              y2_lims=None, y2_opts={'color' : 'r', 'alpha' : 0.6},
+              y1_label='', y2_label=''):
 
     data1, data2 = to_dataset(data1), to_dataset(data2)
 
@@ -161,10 +162,8 @@ def lineplots(data1, data2=None, data1_style=None, xlims=None, xticks=None,
     plt.axvline(0, color='k')
     if length is not None:
         plt.axvline(length, color='k')
-    if legend:
-        plt.legend(**legend_kw)
     plt.xlabel('Rel Day')
-    #plt.ylabel('mm/day')
+    plt.ylabel(y1_label)
     axes = [plt.gca()]
 
     if data2 is not None:
@@ -174,8 +173,14 @@ def lineplots(data1, data2=None, data1_style=None, xlims=None, xticks=None,
                      **y2_opts)
         if y2_lims is not None:
             plt.ylim(y2_lims)
-        atm.fmt_axlabels('y', nm, **y2_opts)
+        atm.fmt_axlabels('y', y2_label, **y2_opts)
     axes = axes + [plt.gca()]
+
+    if legend:
+        if data2 is None:
+            plt.legend(**legend_kw)
+        else:
+            atm.legend_2ax(axes[0], axes[1], **legend_kw)
 
     return axes
 
@@ -185,11 +190,39 @@ def stdize_df(df):
     return df
 
 # ----------------------------------------------------------------------
+# Climatology summary
+
 xlims = (-npre, npost)
 xticks = range(-npre, npost + 1, 30)
-ylims = (-5, 15)
-yticks = range(-5, 16, 5)
 ssn_length=index['length'].mean(dim='year')
+
+keypairs = [(['MFC', pcp_nm], ['MFC_ACC']),
+            (['U850_15N'], ['V850_15N']),
+            (['U200_0N'],['V200_15N']),
+            (['VFLXCPT_0N', 'VFLXPHI_0N', 'VFLXLQV_0N', 'VFLXMSE_0N'], None),
+            (['T200_30N'], ['T200_30S']),
+            (['THETA_E950_15N'], ['HFLUX_30N'])]
+nrow, ncol = 3, 2
+fig_kw = {'figsize' : (12, 10), 'sharex' : True}
+gridspec_kw = {'left' : 0.08, 'right' : 0.9, 'bottom' : 0.06, 'top' : 0.95,
+               'wspace' : 0.3}
+styles = ['k', 'k--', 'g', 'm']
+grp = atm.FigGroup(nrow, ncol, advance_by='row', fig_kw=fig_kw,
+                   gridspec_kw=gridspec_kw)
+for pair in keypairs:
+    grp.next()
+    keys1, keys2 = pair
+    data1 = tseries[keys1]
+    if keys2 is not None:
+        data2 = tseries[keys2]
+    else:
+        data2 = None
+    data1_style = {nm : style for (nm, style) in zip(keys1, styles)}
+    lineplots(data1, data2, data1_style, xlims, xticks, legend=True,
+              length=ssn_length)
+
+# ----------------------------------------------------------------------
+# Explore different timeseries
 
 nrow, ncol = 2, 3
 fig_kw = {'figsize' : (14, 10)}
@@ -209,41 +242,14 @@ for stdize in [False, True]:
         plt.xlim(xlims)
         plt.xticks(xticks)
 
-
-# Climatology - add plots of U200, U850, cross-eq V*MSE
-keypairs = [(['MFC', pcp_nm], ['MFC_ACC']),
-            (['U850_15N'], ['V850_15N']),
-            (['U200_0N'],['V200_15N']),
-            (['VFLXCPT_0N', 'VFLXPHI_0N', 'VFLXLQV_0N', 'VFLXMSE_0N'], None),
-            (['T200_30N'], ['T200_30S']),
-            (['THETA_E950_15N'], ['HFLUX_30N'])]
-nrow, ncol = 3, 2
-fig_kw = {'figsize' : (12, 10)}
-gridspec_kw = {'left' : 0.08, 'right' : 0.9, 'bottom' : 0.06, 'top' : 0.95,
-               'wspace' : 0.3}
-styles = ['k', 'k--', 'g', 'm']
-grp = atm.FigGroup(nrow, ncol, advance_by='row', fig_kw=fig_kw,
-                   gridspec_kw=gridspec_kw)
-for pair in keypairs:
-    grp.next()
-    keys1, keys2 = pair
-    data1 = tseries[keys1]
-    if keys2 is not None:
-        data2 = tseries[keys2]
-    else:
-        data2 = None
-    data1_style = {nm : style for (nm, style) in zip(keys1, styles)}
-    lineplots(data1, data2, data1_style, xlims, xticks, legend=True,
-              length=ssn_length)
-
-
-
 # ----------------------------------------------------------------------
 # MFC and precip timeseries in individual years
 
 if plot_yearly:
-    style = {'MFC' : 'k', pcp_nm : 'k--'}
+    ylims = (-5, 15)
+    yticks = range(-5, 16, 5)
     y2_lims = (-350, 350)
+    style = {'MFC' : 'k', pcp_nm : 'k--'}
     fig_kw = {'figsize' : (14, 10)}
     gridspec_kw = {'left' : 0.04, 'right' : 0.94, 'bottom' : 0.06, 'top' : 0.95,
                    'hspace' : 0.07, 'wspace' : 0.07}
