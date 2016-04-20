@@ -19,6 +19,8 @@ mpl.rcParams['font.size'] = 10
 # ----------------------------------------------------------------------
 onset_nm = 'CHP_MFC'
 pcp_nm = 'CMAP'
+theta_nm = 'THETA_E950'
+dtheta_nm = theta_eb_nm + '_DY'
 years = np.arange(1979, 2015)
 
 reldir = atm.homedir() + 'datastore/merra/analysis/'
@@ -33,8 +35,9 @@ npre, npost = 90, 200
 nroll = 7
 plot_yearly = False
 
-varnms = ['U200', 'U850', 'V200', 'V850', 'PSI', 'T200', 'THETA_E950', 'HFLUX',
-          'VFLXMSE', 'VFLXCPT', 'VFLXPHI', 'VFLXLQV']
+varnms = ['U200', 'U850', 'V200', 'V850', 'PSI', 'T200', theta_nm,
+          dtheta_nm, 'HFLUX', 'VFLXMSE', 'VFLXCPT', 'VFLXPHI',
+          'VFLXLQV']
 lat_extract = [-30, -15, 0, 15, 30]
 
 relfiles = {}
@@ -45,6 +48,8 @@ for nm in varnms:
         nm0 = 'V_sector_%dE-%dE' % (lon1, lon2)
     elif nm == 'VFLXLQV':
         nm0 = 'VFLXQV'
+    elif nm == dtheta_nm:
+        nm0 = theta_nm
     else:
         nm0 = nm
     relfiles[nm] = filestr % (nm0, onset_nm, yearstr)
@@ -81,6 +86,13 @@ for nm in varnms:
         elif nm == 'VFLXLQV':
             var = atm.dim_mean(ds['VFLXQV'], 'lon', lon1, lon2)
             data[nm] = var * atm.constants.Lv.values
+        elif nm == theta_nm:
+            theta = ds[nm]
+            _, _, dtheta = atm.divergence_spherical_2d(theta, theta)
+            data[nm] = atm.dim_mean(ds[nm], 'lon', lon1, lon2)
+            data[dtheta_nm] = atm.dim_mean(dtheta, 'lon', lon1, lon2)
+        elif nm == dtheta_nm:
+            continue
         else:
             data[nm] = atm.dim_mean(ds[nm], 'lon', lon1, lon2)
 
@@ -201,7 +213,7 @@ keypairs = [(['MFC', pcp_nm], ['MFC_ACC']),
             (['U200_0N'],['V200_15N']),
             (['VFLXCPT_0N', 'VFLXPHI_0N', 'VFLXLQV_0N', 'VFLXMSE_0N'], None),
             (['T200_30N'], ['T200_30S']),
-            (['THETA_E950_15N'], ['HFLUX_30N'])]
+            ([dtheta_nm + '_15N'], ['HFLUX_30N'])]
 nrow, ncol = 3, 2
 fig_kw = {'figsize' : (12, 10), 'sharex' : True}
 gridspec_kw = {'left' : 0.08, 'right' : 0.9, 'bottom' : 0.06, 'top' : 0.95,
