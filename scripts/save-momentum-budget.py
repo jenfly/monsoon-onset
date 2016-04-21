@@ -16,7 +16,7 @@ import utils
 # ----------------------------------------------------------------------
 datadir = atm.homedir() + 'datastore/merra/daily/'
 savedir = atm.homedir() + 'datastore/merra/analysis/'
-years = np.arange(2006, 2015)
+years = np.arange(1979, 2016)
 plevs = [1000,925,850,775,700,600,500,400,300,250,150,100,70,50,30,20]
 dp, ana = True, False
 #plevs = [200]
