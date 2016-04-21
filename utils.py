@@ -528,7 +528,7 @@ def advection(uflow, vflow, omegaflow, u, dudp):
     ds['Y'] = atm.gradient(u*coslat, latrad, latdim) * vflow / (a*coslat)
     ds['P'] = omegaflow * dudp
 
-    return data
+    return ds
 
 
 # ----------------------------------------------------------------------
