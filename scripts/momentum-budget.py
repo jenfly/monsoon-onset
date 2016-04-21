@@ -18,14 +18,15 @@ yearstr = '1979-2014'
 onset_nm = 'CHP_MFC'
 ndays = 5
 lon1, lon2 = 60, 100
-plev = 200
+plevs = [1000,925,850,775,700,600,500,400,300,250,200,150,100,70,50,30,20]
 daynm, yearnm, latname, lonname = 'dayrel', 'year', 'YDim', 'XDim'
 datadir = atm.homedir() + 'datastore/merra/analysis/'
 savedir = 'figs/'
-filenm = 'merra_ubudget%d_dailyrel_%s_ndays%d_%dE-%dE_%s.nc'
+filenm = datadir + 'merra_ubudget%d_dailyrel_%s_ndays%d_%dE-%dE_%s.nc'
 filenm = datadir + filenm % (plev, onset_nm, ndays, lon1, lon2, yearstr)
 files = {}
-files['ubudget'] = filenm
+files['ubudget'] = [filenm % (plev, onset_nm, ndays, lon1, lon2, yearstr)
+                    for plev in plevs]
 varnms = ['U', 'V']
 for nm in varnms:
     filenm = datadir + 'merra_%s%d_dailyrel_%s_%s.nc'
@@ -37,8 +38,18 @@ for nm in varnms:
 # Read data from each year
 
 # Zonal momentum budget components
-with xray.open_dataset(files['ubudget']) as ubudget:
-    ubudget.load()
+ubudget = xray.Dataset()
+pname, pdim = 'Height', 1
+for i, plev in enumerate(plevs):
+    filenm = files['ubudget'][i]
+    with xray.open_dataset(filenm) as ds:
+        ds.load()
+    for nm in ds.data_vars:
+        ds[nm] = atm.expand_dims(ds[nm], pname, plev, axis=pdim)
+    if i == 0:
+        ubudget = ds
+    else:
+        ubudget = xray.concat([ubudget, ds], dim=pname)
 
 
 # Scaling factor for all terms in momentum budget
