@@ -16,7 +16,7 @@ import utils
 # ----------------------------------------------------------------------
 onset_nm = 'CHP_MFC'
 years = np.arange(1979, 2015)
-plevs = [1000,925,850,775,700,600,500,400,300,250,150,100,70,50,30,20]
+plevs = [1000,925,850,775,700,600,500,400,300,250,200,150,100,70,50,30,20]
 datadir = atm.homedir() + 'datastore/merra/analysis/'
 filestr = datadir + 'merra_ubudget%d_ndays5_60E-100E_%d.nc'
 savestr = datadir + 'merra_ubudget%d_dailyrel_' + onset_nm + '_ndays5_60E-100E'
@@ -71,3 +71,28 @@ for plev in plevs:
     ds.attrs['years'] = years
     print('Saving to ' + savefile)
     ds.to_netcdf(savefile)
+
+# ----------------------------------------------------------------------
+# Concatenate plevels in climatology and save
+
+files = [savestr % plev + '_' + yearstr + '.nc' for plev in plevs]
+ubudget = xray.Dataset()
+pname, pdim = 'Height', 1
+subset_dict = {'lat' : (-60, 60), 'lon' : (40, 120)}
+for i, plev in enumerate(plevs):
+    filenm = files[i]
+    print('Loading ' + filenm)
+    with xray.open_dataset(filenm) as ds:
+        ds = atm.subset(ds, subset_dict)
+        ds.load()
+    for nm in ds.data_vars:
+        ds[nm] = atm.expand_dims(ds[nm], pname, plev, axis=pdim)
+    if i == 0:
+        ubudget = ds
+    else:
+        ubudget = xray.concat([ubudget, ds], dim=pname)
+ubudget.coords[pname].attrs['units'] = 'hPa'
+savefile = files[0]
+savefile = savefile.replace('%d' % plevs[0], '')
+print('Saving to ' + savefile)
+ubudget.to_netcdf(savefile)
