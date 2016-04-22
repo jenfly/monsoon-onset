@@ -6,6 +6,7 @@ import numpy as np
 import xray
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import collections
 
 import atmos as atm
@@ -18,19 +19,19 @@ yearstr = '1979-2014'
 onset_nm = 'CHP_MFC'
 ndays = 5
 lon1, lon2 = 60, 100
-plevs = [1000,925,850,775,700,600,500,400,300,250,200,150,100,70,50,30,20]
-daynm, yearnm, latname, lonname = 'dayrel', 'year', 'YDim', 'XDim'
+daynm, yearnm = 'dayrel', 'year'
+latname, lonname, pname = 'YDim', 'XDim', 'Height'
 datadir = atm.homedir() + 'datastore/merra/analysis/'
 savedir = 'figs/'
-filenm = datadir + 'merra_ubudget%d_dailyrel_%s_ndays%d_%dE-%dE_%s.nc'
-filenm = datadir + filenm % (plev, onset_nm, ndays, lon1, lon2, yearstr)
+filenm = datadir + 'merra_ubudget_dailyrel_%s_ndays%d_%dE-%dE_%s.nc'
 files = {}
-files['ubudget'] = [filenm % (plev, onset_nm, ndays, lon1, lon2, yearstr)
-                    for plev in plevs]
+files['ubudget'] = filenm % (onset_nm, ndays, lon1, lon2, yearstr)
 varnms = ['U', 'V']
+plev_plot = 200
+pmid = 500  # Pressure level to plot psi latitude-day contours
 for nm in varnms:
     filenm = datadir + 'merra_%s%d_dailyrel_%s_%s.nc'
-    files[nm] = filenm % (nm, plev, onset_nm, yearstr)
+    files[nm] = filenm % (nm, plev_plot, onset_nm, yearstr)
     filenm = datadir + 'merra_%s_sector_%dE-%dE_dailyrel_%s_%s.nc'
     files[nm + '_latp'] = filenm % (nm, lon1, lon2, onset_nm, yearstr)
 
@@ -38,19 +39,10 @@ for nm in varnms:
 # Read data from each year
 
 # Zonal momentum budget components
-ubudget = xray.Dataset()
-pname, pdim = 'Height', 1
-for i, plev in enumerate(plevs):
-    filenm = files['ubudget'][i]
-    with xray.open_dataset(filenm) as ds:
-        ds.load()
-    for nm in ds.data_vars:
-        ds[nm] = atm.expand_dims(ds[nm], pname, plev, axis=pdim)
-    if i == 0:
-        ubudget = ds
-    else:
-        ubudget = xray.concat([ubudget, ds], dim=pname)
-
+filenm = files['ubudget']
+print('Loading ' + filenm)
+with xray.open_dataset(filenm) as ubudget:
+    ubudget.load()
 
 # Scaling factor for all terms in momentum budget
 scale = 1e-4
@@ -59,9 +51,10 @@ ubudget = ubudget / scale
 
 # Read other lat-lon variables and smooth with rolling mean
 for nm in varnms:
-    varnm = '%s%d' % (nm, plev)
-    with xray.open_dataset(files[nm]) as ds:
-        var = ds[varnm].load()
+    filenm = files[nm]
+    print('Loading ' + filenm)
+    with xray.open_dataset(filenm) as ds:
+        var = ds['%s%d' % (nm, plev_plot)].load()
     daydim = atm.get_coord(var, coord_name=daynm, return_type='dim')
     ubudget[nm] = atm.rolling_mean(var, ndays, axis=daydim, center=True)
 
@@ -69,12 +62,15 @@ for nm in varnms:
 data_latp = xray.Dataset()
 for nm in varnms:
     varnm = nm + '_latp'
-    with xray.open_dataset(files[varnm]) as ds:
+    filenm = files[varnm]
+    print('Loading ' + filenm)
+    with xray.open_dataset(filenm) as ds:
         var = ds[nm].load()
     daydim = atm.get_coord(var, coord_name=daynm, return_type='dim')
     data_latp[nm] = atm.rolling_mean(var, ndays, axis=daydim, center=True)
 
 # Compute streamfunction
+print('Computing streamfunction')
 if (lon2 - lon1) < 360:
     sector_scale = (lon2 - lon1) / 360.
 else:
@@ -82,12 +78,12 @@ else:
 data_latp['PSI'] = atm.streamfunction(data_latp['V'], sector_scale=sector_scale)
 
 # Additional metadata
-ubudget.attrs['plev'] = plev
 ubudget.attrs['ndays'] = ndays
 ubudget.attrs['lon1'] = lon1
 ubudget.attrs['lon2'] = lon2
 
 # Topography for lat-pres contour plots
+print('Loading topography')
 psfile = atm.homedir() + 'dynamics/python/atmos-tools/data/topo/ncep2_ps.nc'
 with xray.open_dataset(psfile) as ds:
     ps = ds['ps'] / 100
@@ -110,6 +106,7 @@ groups['COR'] = ['COR_AVG', 'COR_ST']
 groups['ADV+COR'] = ['ADV_AVG', 'COR_AVG']
 groups['SUM'] = ['ADV_AVG', 'ADV_CRS', 'EMFC', 'COR', 'PGF_ST', 'ANA']
 
+print('Consolidating ubudget terms')
 for key in groups:
     nms = groups[key]
     ubudget[key] = ubudget[nms[0]]
@@ -124,7 +121,26 @@ for nm in ubudget.data_vars:
         ubudget[nm] = xray.DataArray(vals, coords=varbig.coords)
 
 # Sector mean budget
+print('Computing sector mean ubudget')
 ubudget_sector = atm.dim_mean(ubudget, 'lon', lon1, lon2)
+
+# Streamfunction mean and eddy-driven decomposition
+print('Computing streamfunction components')
+eqbuf = 5.0
+sector_scale = (lon2 - lon1) / 360.0
+v = utils.v_components(ubudget_sector, scale=scale, eqbuf=eqbuf)
+psi_comp = xray.Dataset()
+for nm in v.data_vars:
+    psi_comp[nm] = atm.streamfunction(v[nm], sector_scale=sector_scale)
+
+# Extract single pressure level for line plots
+print('Extracting single pressure level for plots')
+ubudget = atm.subset(ubudget, {pname: (plev_plot, plev_plot)}, squeeze=True)
+ubudget_sector_plevs = ubudget_sector.copy()
+ubudget_sector = atm.subset(ubudget_sector, {pname: (plev_plot, plev_plot)},
+                            squeeze=True)
+
+print('Finished loading/calculating data')
 
 # ----------------------------------------------------------------------
 # Utility functions and plot formatting options
@@ -141,6 +157,78 @@ def get_daystr(plotdays):
         daystr = 'Rel Day %d' % plotdays
         savestr = 'relday%d' % plotdays
     return daystr, savestr
+
+# ----------------------------------------------------------------------
+# Streamfunction latitude-day contours
+psimid = atm.subset(data_latp['PSI'], {pname : (pmid, pmid)}, squeeze=True)
+lat = atm.get_coord(data_latp, 'lat')
+days = atm.get_coord(data_latp, 'dayrel')
+clev = np.arange(-70, 71, 5)
+ticks = np.arange(-70, 71, 10)
+title='PSI%d' % pmid
+plt.figure(figsize=(10, 7))
+plt.contourf(days, lat, psimid.T, clev, cmap='RdBu_r', extend='both')
+cb = plt.colorbar(ticks=ticks)
+plt.ylim(-60, 60)
+plt.xticks(np.arange(-120, 201, 30))
+plt.grid()
+plt.title(title)
+plt.xlabel('Day Rel')
+plt.ylabel('Latitude')
+
+# ----------------------------------------------------------------------
+# Streamfunction decomposition
+
+def psi_latpres(psi, ps, cint=10, xlims=(-60, 60), xticks=range(-60, 61, 15),
+                title=''):
+    xmin, xmax = xlims
+    axlims = (xmin, xmax, 0, 1000)
+    atm.contour_latpres(psi, clev=cint, topo=ps, omitzero=True, axlims=axlims)
+
+    plt.xticks(xticks, xticks)
+    plt.grid()
+    plt.title(title, fontsize=10)
+
+plotdays = [-30, -15, 0, 15, 30]
+keys = ['TOT', 'MMC', 'EDDY', 'PGF', 'RESID']
+xlims, xticks = (-35, 35), range(-30, 31, 10)
+cint = 5
+nrow, ncol = len(keys), len(plotdays)
+advance_by = 'col'
+fig_kw = {'figsize' : (14, 8), 'sharex' : True, 'sharey' : True}
+gridspec_kw = {'left' : 0.06, 'right' : 0.99, 'wspace' : 0.06, 'hspace' : 0.08,
+               'bottom' : 0.06, 'top' : 0.92}
+suptitle = '%d-%d E $\psi$ components' % (lon1, lon2)
+grp = atm.FigGroup(nrow, ncol, advance_by, fig_kw=fig_kw,
+                   gridspec_kw=gridspec_kw, suptitle=suptitle)
+for key in keys:
+    for day in plotdays:
+        grp.next()
+        if grp.row == 0:
+            title = 'Day %d' % day
+        else:
+            title = ''
+        if key == 'TOT':
+            psi = data_latp['PSI'].sel(dayrel=day)
+        else:
+            psi = psi_comp[key].sel(dayrel=day)
+        psi_latpres(psi, ps, cint, xlims, xticks, title=title)
+        if grp.col > 0:
+            plt.ylabel('')
+        if grp.row < grp.nrow - 1:
+            plt.xlabel('')
+        atm.text(key, (0.05, 0.88))
+
+# ----------------------------------------------------------------------
+# Lat-pres contours of ubudget components
+
+day = 0
+nm = 'COR_AVG'
+var = ubudget_sector_plevs[nm].sel(dayrel=day)
+plt.figure()
+atm.pcolor_latpres(var)
+plt.xlim(-60,60)
+
 
 # ----------------------------------------------------------------------
 # Lat-pres contours and line plots on individual days
