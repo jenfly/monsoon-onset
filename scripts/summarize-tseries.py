@@ -20,7 +20,7 @@ mpl.rcParams['font.size'] = 10
 onset_nm = 'CHP_MFC'
 pcp_nm = 'CMAP'
 theta_nm = 'THETA_E950'
-dtheta_nm = theta_eb_nm + '_DY'
+dtheta_nm = theta_nm + '_DY'
 years = np.arange(1979, 2015)
 
 reldir = atm.homedir() + 'datastore/merra/analysis/'
@@ -31,11 +31,13 @@ pcpfile = atm.homedir() + '/datastore/cmap/cmap.enhanced.precip.pentad.mean.nc'
 
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
-npre, npost = 90, 200
+#npre, npost = 90, 200
+npre, npost, 120, 200
+pmid = 500
 nroll = 7
 plot_yearly = False
 
-varnms = ['U200', 'U850', 'V200', 'V850', 'PSI', 'T200', theta_nm,
+varnms = ['precip', 'U200', 'U850', 'V200', 'V850', 'PSI', 'T200', theta_nm,
           dtheta_nm, 'HFLUX', 'VFLXMSE', 'VFLXCPT', 'VFLXPHI',
           'VFLXLQV']
 lat_extract = [-30, -15, 0, 15, 30]
@@ -72,6 +74,7 @@ pcp = xray.DataArray(pcp_i, dims=['year', 'day'], coords=coords)
 index = utils.get_onset_indices(onset_nm, indfiles, years)
 mfc = atm.rolling_mean(index['ts_daily'], nroll, center=True)
 onset = index['onset']
+ssn_length=index['length'].mean(dim='year')
 
 data = {}
 data['MFC'] = utils.daily_rel2onset(mfc, onset, npre, npost)
@@ -83,6 +86,9 @@ for nm in varnms:
     with xray.open_dataset(relfiles[nm]) as ds:
         if nm == 'PSI':
             data[nm] = atm.streamfunction(ds['V'])
+            psimid = atm.subset(data[nm], {'plev' : (pmid, pmid)},
+                                squeeze=True)
+            data['PSI%d' % pmid] = psimid
         elif nm == 'VFLXLQV':
             var = atm.dim_mean(ds['VFLXQV'], 'lon', lon1, lon2)
             data[nm] = var * atm.constants.Lv.values
@@ -156,8 +162,44 @@ def to_dataset(data):
         data = data.to_dataset()
     return data
 
+def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
+                    xlims=(-120, 200), xticks=np.arange(-120, 201, 30), 
+                    ylims=(-60, 60), yticks=np.arange(-60, 61, 20),
+                    ssn_length=None):                    
+    vals = var.values.T
+    lat = atm.get_coord(var, 'lat')
+    days = atm.get_coord(var, 'dayrel')    
+    if var.name.lower() == 'precip':
+        cmap = 'hot_r'
+        extend = 'max'        
+    else:
+        cmap = 'RdBu_r'
+        extend = 'both'
+    if clev == None:
+        symmetric = atm.symm_colors(vals)        
+        cint = atm.cinterval(vals, n_pref=nc_pref, symmetric=symmetric)
+        clev = atm.clevels(vals, cint, symmetric=symmetric)
+    if var.name == 'T200':
+        cticks = np.arange(-208, 227, 2)
+    else:
+        cticks = None
+    plt.contourf(days, lat, vals, clev, cmap=cmap, extend=extend)
+    plt.colorbar(ticks=cticks)
+    fmt_axes(xlims, xticks, ylims, yticks)
+    plt.grid()
+    plt.title(title)
+    plt.axvline(0, color='k')
+    if ssn_length is not None:
+        plt.axvline(ssn_length, color='k')
+    if grp is not None and grp.row == grp.ncol - 1:
+        plt.xlabel('Rel Day')
+    if grp is not None and grp.col == 0:
+        plt.ylabel('Latitude')
+    
+    
+
 def lineplots(data1, data2=None, data1_style=None, xlims=None, xticks=None,
-              ylims=None,yticks=None, length=None, legend=False,
+              ylims=None, yticks=None, length=None, legend=False,
               legend_kw={'fontsize' : 9, 'handlelength' : 2.5},
               y2_lims=None, y2_opts={'color' : 'r', 'alpha' : 0.6},
               y1_label='', y2_label=''):
@@ -202,28 +244,54 @@ def stdize_df(df):
     return df
 
 # ----------------------------------------------------------------------
-# Climatology summary
+# Lat-day contour plots
+keys = ['precip', 'U200', 'PSI500', 'T200']
+nrow, ncol = 2, 2
+fig_kw = {'figsize' : (11, 7), 'sharex' : True, 'sharey' : True}
+gridspec_kw = {'left' : 0.05, 'right' : 0.95, 'bottom' : 0.06, 'top' : 0.95,
+               'wspace' : 0.05}
+grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
+for key in keys:
+    grp.next()
+    contourf_latday(data[key], title=key.upper(), grp=grp, ssn_length=ssn_length)
+                       
+
+
+# ----------------------------------------------------------------------
+# Timeseries summary plot
 
 xlims = (-npre, npost)
 xticks = range(-npre, npost + 1, 30)
-ssn_length=index['length'].mean(dim='year')
 
+# keypairs = [(['MFC', pcp_nm], ['MFC_ACC']),
+#             (['U850_15N'], ['V850_15N']),
+#             (['U200_0N'],['V200_15N']),            
+#             (['VFLXCPT_0N', 'VFLXPHI_0N', 'VFLXLQV_0N', 'VFLXMSE_0N'], None),
+#             (['T200_30N'], ['T200_30S']),
+#             ([dtheta_nm + '_15N'], ['HFLUX_30N'])]
+# nrow, ncol = 3, 2
 keypairs = [(['MFC', pcp_nm], ['MFC_ACC']),
             (['U850_15N'], ['V850_15N']),
-            (['U200_0N'],['V200_15N']),
-            (['VFLXCPT_0N', 'VFLXPHI_0N', 'VFLXLQV_0N', 'VFLXMSE_0N'], None),
-            (['T200_30N'], ['T200_30S']),
-            ([dtheta_nm + '_15N'], ['HFLUX_30N'])]
-nrow, ncol = 3, 2
-fig_kw = {'figsize' : (12, 10), 'sharex' : True}
+            (['U200_0N'],['V200_15N']),            
+            (['T200_30N'], ['T200_30S'])]
+opts = [('upper left', 'mm/day', 'mm'),
+        ('upper left', 'm/s', 'm/s'),
+        ('lower left', 'm/s', 'm/s'),
+        ('upper left', 'K', 'K')]
+nrow, ncol = 2, 2
+fig_kw = {'figsize' : (11, 7), 'sharex' : True}
 gridspec_kw = {'left' : 0.08, 'right' : 0.9, 'bottom' : 0.06, 'top' : 0.95,
                'wspace' : 0.3}
 styles = ['k', 'k--', 'g', 'm']
-grp = atm.FigGroup(nrow, ncol, advance_by='row', fig_kw=fig_kw,
+legend_kw={'fontsize' : 9, 'handlelength' : 2.5}
+grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw,
                    gridspec_kw=gridspec_kw)
-for pair in keypairs:
+for pair, opt in zip(keypairs, opts):
     grp.next()
     keys1, keys2 = pair
+    legend_kw['loc'] = opt[0]
+    y1_label = opt[1]
+    y2_label = opt[2]
     data1 = tseries[keys1]
     if keys2 is not None:
         data2 = tseries[keys2]
@@ -231,7 +299,8 @@ for pair in keypairs:
         data2 = None
     data1_style = {nm : style for (nm, style) in zip(keys1, styles)}
     lineplots(data1, data2, data1_style, xlims, xticks, legend=True,
-              length=ssn_length)
+              length=ssn_length, legend_kw=legend_kw, y1_label=y1_label,
+              y2_label=y2_label)
 
 # ----------------------------------------------------------------------
 # Explore different timeseries
