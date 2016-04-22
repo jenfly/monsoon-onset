@@ -418,16 +418,17 @@ def plot_colorbar(symmetric, orientation='vertical', ax=None, **kwargs):
 
 
 # ----------------------------------------------------------------------
-def contourf_lat_time(lat, days, plotdata, title='', cmap='RdBu_r', onset_nm='',
-                      zero_line=False, ax=None):
+def contourf_lat_time(lat, days, plotdata, clev=None, title='', cmap='RdBu_r',
+                      onset_nm='', zero_line=False, ax=None):
     if ax is None:
         ax = plt.gca()
     vals = plotdata.values.T
     vals = np.ma.array(vals, mask=np.isnan(vals))
     ncont = 40
     symmetric = atm.symm_colors(plotdata)
-    cint = atm.cinterval(vals, n_pref=ncont, symmetric=symmetric)
-    clev = atm.clevels(vals, cint, symmetric=symmetric)
+    if clev == None:
+        cint = atm.cinterval(vals, n_pref=ncont, symmetric=symmetric)
+        clev = atm.clevels(vals, cint, symmetric=symmetric)
     cf = ax.contourf(days, lat, vals, clev, cmap=cmap)
     plt.colorbar(mappable=cf, ax=ax)
     #plot_colorbar(symmetric, ax=ax, mappable=cf)
