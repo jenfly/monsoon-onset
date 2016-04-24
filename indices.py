@@ -726,7 +726,8 @@ def onset_changepoint_merged(precip_acc, order=1, yearnm='year',
 
 
 # ----------------------------------------------------------------------
-def plot_hist(ind, binwidth=5, incl_daystr=True, ax=None):
+def plot_hist(ind, binwidth=5, incl_daystr=True, ax=None, pos=(0.05, 0.7),
+              kw={'alpha' : 0.3, 'color' : 'k'}):
     """Plot histogram of onset days.
     """
     if ax is None:
@@ -738,10 +739,13 @@ def plot_hist(ind, binwidth=5, incl_daystr=True, ax=None):
         mon = atm.month_str(mm)
         return '%.0f (%s-%.0f)' % (day, mon, dd)
 
+    if isinstance(ind, pd.Series) or isinstance(ind, xray.DataArray):
+        ind = ind.values
+
     b1 = np.floor(np.nanmin(ind) / binwidth) * binwidth
     b2 = np.ceil(np.nanmax(ind) / binwidth) * binwidth
     bin_edges = np.arange(b1, b2 + 1, binwidth)
-    n, bins, _ = ax.hist(ind, bin_edges, alpha=0.2)
+    n, bins, _ = ax.hist(ind, bin_edges, **kw)
     ax.set_xlabel('Day of Year')
     ax.set_ylabel('Num of Occurrences')
     if incl_daystr:
@@ -752,13 +756,10 @@ def plot_hist(ind, binwidth=5, incl_daystr=True, ax=None):
         dmean = '%.0f' % np.nanmean(ind)
         dmin = '%.0f' % np.nanmin(ind)
         dmax = '%.0f' % np.nanmax(ind)
-    x0 = 0.05
-    y = [0.9, 0.8, 0.7, 0.6]
-    kwargs = {'horizontalalignment' : 'left'}
-    atm.text('Mean %s' % dmean, (x0, y[0]), ax=ax, **kwargs)
-    atm.text('Std %.0f' % np.nanstd(ind), (x0, y[1]), ax=ax, **kwargs)
-    atm.text('Min %s' % dmin, (x0, y[2]), ax=ax, **kwargs)
-    atm.text('Max %s' % dmax, (x0, y[3]), ax=ax, **kwargs)
+    s = 'Mean %s\n' % dmean + 'Std %.0f\n' % np.nanstd(ind)
+    s = s + 'Min %s\n' % dmin + 'Max %s' % dmax
+    x0, y0 = pos
+    atm.text(s, (x0, y0), ax=ax, horizontalalignment='left')
 
 
 # ----------------------------------------------------------------------

@@ -14,7 +14,7 @@ import merra
 import precipdat
 import utils
 
-mpl.rcParams['font.size'] = 10
+mpl.rcParams['font.size'] = 11
 
 # ----------------------------------------------------------------------
 onset_nm = 'CHP_MFC'
@@ -31,8 +31,7 @@ pcpfile = atm.homedir() + '/datastore/cmap/cmap.enhanced.precip.pentad.mean.nc'
 
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
-#npre, npost = 90, 200
-npre, npost, 120, 200
+npre, npost = 120, 200
 pmid = 500
 nroll = 7
 plot_yearly = False
@@ -88,6 +87,7 @@ for nm in varnms:
             data[nm] = atm.streamfunction(ds['V'])
             psimid = atm.subset(data[nm], {'plev' : (pmid, pmid)},
                                 squeeze=True)
+            psimid.name = 'PSI%d' % pmid
             data['PSI%d' % pmid] = psimid
         elif nm == 'VFLXLQV':
             var = atm.dim_mean(ds['VFLXQV'], 'lon', lon1, lon2)
@@ -163,26 +163,27 @@ def to_dataset(data):
     return data
 
 def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
-                    xlims=(-120, 200), xticks=np.arange(-120, 201, 30), 
+                    xlims=(-120, 200), xticks=np.arange(-120, 201, 30),
                     ylims=(-60, 60), yticks=np.arange(-60, 61, 20),
-                    ssn_length=None):                    
+                    ssn_length=None):
     vals = var.values.T
     lat = atm.get_coord(var, 'lat')
-    days = atm.get_coord(var, 'dayrel')    
+    days = atm.get_coord(var, 'dayrel')
     if var.name.lower() == 'precip':
         cmap = 'hot_r'
-        extend = 'max'        
+        extend = 'max'
     else:
         cmap = 'RdBu_r'
         extend = 'both'
     if clev == None:
-        symmetric = atm.symm_colors(vals)        
+        symmetric = atm.symm_colors(vals)
         cint = atm.cinterval(vals, n_pref=nc_pref, symmetric=symmetric)
         clev = atm.clevels(vals, cint, symmetric=symmetric)
-    if var.name == 'T200':
-        cticks = np.arange(-208, 227, 2)
-    else:
-        cticks = None
+    cticks_dict = {'precip' : np.arange(0, 13, 2),
+                   'T200' : np.arange(-208, 227, 2),
+                   'U200' : np.arange(-60, 61, 10),
+                   'PSI500' : np.arange(-800, 801, 200)}
+    cticks = cticks_dict.get(var.name)
     plt.contourf(days, lat, vals, clev, cmap=cmap, extend=extend)
     plt.colorbar(ticks=cticks)
     fmt_axes(xlims, xticks, ylims, yticks)
@@ -195,14 +196,14 @@ def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
         plt.xlabel('Rel Day')
     if grp is not None and grp.col == 0:
         plt.ylabel('Latitude')
-    
-    
+
+
 
 def lineplots(data1, data2=None, data1_style=None, xlims=None, xticks=None,
               ylims=None, yticks=None, length=None, legend=False,
               legend_kw={'fontsize' : 9, 'handlelength' : 2.5},
               y2_lims=None, y2_opts={'color' : 'r', 'alpha' : 0.6},
-              y1_label='', y2_label=''):
+              y1_label='', y2_label='', grp=None):
 
     data1, data2 = to_dataset(data1), to_dataset(data2)
 
@@ -216,7 +217,8 @@ def lineplots(data1, data2=None, data1_style=None, xlims=None, xticks=None,
     plt.axvline(0, color='k')
     if length is not None:
         plt.axvline(length, color='k')
-    plt.xlabel('Rel Day')
+    if grp is not None and grp.row == grp.ncol - 1:
+        plt.xlabel('Rel Day')
     plt.ylabel(y1_label)
     axes = [plt.gca()]
 
@@ -248,14 +250,21 @@ def stdize_df(df):
 keys = ['precip', 'U200', 'PSI500', 'T200']
 nrow, ncol = 2, 2
 fig_kw = {'figsize' : (11, 7), 'sharex' : True, 'sharey' : True}
-gridspec_kw = {'left' : 0.05, 'right' : 0.95, 'bottom' : 0.06, 'top' : 0.95,
+gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'bottom' : 0.07, 'top' : 0.95,
                'wspace' : 0.05}
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 for key in keys:
     grp.next()
     contourf_latday(data[key], title=key.upper(), grp=grp, ssn_length=ssn_length)
-                       
 
+# Add vertical lines for pre-monsoon and onset periods
+dlist = [-60, 0, 15]
+grp.subplot(0, 0)
+for key in keys:
+    plt.sca(grp.ax)
+    for d in dlist:
+        plt.axvline(d, color='b', linewidth=2)
+    grp.next()
 
 # ----------------------------------------------------------------------
 # Timeseries summary plot
@@ -265,14 +274,14 @@ xticks = range(-npre, npost + 1, 30)
 
 # keypairs = [(['MFC', pcp_nm], ['MFC_ACC']),
 #             (['U850_15N'], ['V850_15N']),
-#             (['U200_0N'],['V200_15N']),            
+#             (['U200_0N'],['V200_15N']),
 #             (['VFLXCPT_0N', 'VFLXPHI_0N', 'VFLXLQV_0N', 'VFLXMSE_0N'], None),
 #             (['T200_30N'], ['T200_30S']),
 #             ([dtheta_nm + '_15N'], ['HFLUX_30N'])]
 # nrow, ncol = 3, 2
 keypairs = [(['MFC', pcp_nm], ['MFC_ACC']),
             (['U850_15N'], ['V850_15N']),
-            (['U200_0N'],['V200_15N']),            
+            (['U200_0N'],['V200_15N']),
             (['T200_30N'], ['T200_30S'])]
 opts = [('upper left', 'mm/day', 'mm'),
         ('upper left', 'm/s', 'm/s'),
@@ -280,10 +289,10 @@ opts = [('upper left', 'mm/day', 'mm'),
         ('upper left', 'K', 'K')]
 nrow, ncol = 2, 2
 fig_kw = {'figsize' : (11, 7), 'sharex' : True}
-gridspec_kw = {'left' : 0.08, 'right' : 0.9, 'bottom' : 0.06, 'top' : 0.95,
-               'wspace' : 0.3}
+gridspec_kw = {'left' : 0.06, 'right' : 0.93, 'bottom' : 0.06, 'top' : 0.95,
+               'wspace' : 0.35, 'hspace' : 0.2}
 styles = ['k', 'k--', 'g', 'm']
-legend_kw={'fontsize' : 9, 'handlelength' : 2.5}
+legend_kw={'fontsize' : 11, 'handlelength' : 2.5}
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw,
                    gridspec_kw=gridspec_kw)
 for pair, opt in zip(keypairs, opts):
@@ -298,7 +307,7 @@ for pair, opt in zip(keypairs, opts):
     else:
         data2 = None
     data1_style = {nm : style for (nm, style) in zip(keys1, styles)}
-    lineplots(data1, data2, data1_style, xlims, xticks, legend=True,
+    lineplots(data1, data2, data1_style, xlims, xticks, grp=grp, legend=True,
               length=ssn_length, legend_kw=legend_kw, y1_label=y1_label,
               y2_label=y2_label)
 
