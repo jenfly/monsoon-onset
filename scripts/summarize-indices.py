@@ -102,6 +102,9 @@ for nm in onset.columns:
     if nm != onset_nm:
         labels[nm] = labels[nm] + ' %.2f' % corr[onset_nm][nm]
 
+styles = {'CHP_MFC' : {'color' : 'k', 'linewidth' : 2},
+          'OCI' : {'color' : 'r'}, 'HOWI' : {'color' : 'b'},
+          'SJKE' : {'color' : 'g'}}
 xticks = np.arange(1980, 2016, 5)
 xticklabels = [1980, '', 1990, '', 2000, '', 2010, '']
 

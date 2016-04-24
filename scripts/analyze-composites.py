@@ -17,7 +17,7 @@ import merra
 import indices
 import utils
 
-mpl.rcParams['font.size'] = 10
+mpl.rcParams['font.size'] = 11
 
 # ----------------------------------------------------------------------
 #onset_nm = 'HOWI'
@@ -42,10 +42,11 @@ savedir = 'figs/'
 run_anim = False
 run_eht = False
 
-vargroup = 'group1'
+vargroup = 'pres'
 
 varlist = {
     'test' : ['precip', 'U200'],
+    'pres' : ['precip', 'U200', 'T200'],
     'group1' : ['precip', 'U200', 'V200', 'T200', 'H200', 'U850', 'V850',
                 'H850'],
     'group2' : ['T850', 'QV850', 'THETA950', 'THETA_E950', 'V*THETA_E950',
@@ -270,8 +271,8 @@ def annotate_theta_e(days, latmax, ax=None):
 
 def lineplot(sectors, ax1=None, y1_label='', y2_label='', title='',
              latmin=None, latmax=None,
-             legend_opts = {'fontsize' : 8, 'loc' : 'lower center',
-                            'handlelength' : 3, 'frameon' : False},
+             legend_opts = {'fontsize' : 9, 'loc' : 'lower center',
+                            'handlelength' : 2.5, 'frameon' : False},
              ax2_color='r', ax2_alpha=0.5, row=1, nrow=1):
     if ax1 is None:
         ax1 = plt.gca()
@@ -304,10 +305,13 @@ def lineplot(sectors, ax1=None, y1_label='', y2_label='', title='',
         ax1.set_xlim(latmin, latmax)
 
     if legend_opts is not None:
-        legend_opts['ncol'] = i1
-        ax1.legend(**legend_opts)
+        legend_opts['ncol'] = i1 + i2
+        if i2 > 0:
+            atm.legend_2ax(ax1, ax2, **legend_opts)
+        else:
+            ax1.legend(**legend_opts)
     if i2 > 0:
-        ax2.set_ylabel(y2_label, color=ax2_color, alpha=ax2_alpha)
+        # ax2.set_ylabel(y2_label, color=ax2_color, alpha=ax2_alpha)
         for t1 in ax2.get_yticklabels():
             t1.set_color(ax2_color)
 
@@ -380,10 +384,14 @@ compnms = ['%s (%s)' % (s, comp_attrs[s]['long_name']) for s in compkeys]
 suptitle = 'Composites Relative to %s Onset Day - %s\n' % (onset_nm, yearstr)
 suptitle = suptitle + ', '.join(compnms)
 subset_dict = {'lat' : (axlims[0], axlims[1]), 'lon' : (axlims[2], axlims[3])}
-nrow, ncol, figsize = 4, 4, (12, 14)
-gridspec_kw = {'width_ratios' : [1, 1, 1, 1.5], 'left' : 0.03, 'right' : 0.94,
-               'wspace' : 0.3, 'hspace' : 0.2, 'bottom' : 0.06}
+#nrow, ncol, figsize = 4, 4, (12, 14)
+#gridspec_kw = {'width_ratios' : [1, 1, 1, 1.5], 'left' : 0.03, 'right' : 0.94,
+#               'wspace' : 0.3, 'hspace' : 0.2, 'bottom' : 0.06}
+nrow, ncol, figsize = 3, 4, (11, 9)
+gridspec_kw = {'width_ratios' : [1, 1, 1, 1.5], 'left' : 0.03, 'right' : 0.96,
+               'wspace' : 0.35, 'hspace' : 0.2, 'bottom' : 0.06, 'top' : 0.9}
 fig_kw = {'figsize' : figsize}
+legend_opts = {'fontsize' : 9, 'handlelength' : 2.5, 'frameon' : False}
 grp = atm.FigGroup(nrow, ncol, advance_by='col', fig_kw=fig_kw,
                    gridspec_kw=gridspec_kw, suptitle=suptitle)
 for varnm in comp:
@@ -410,16 +418,22 @@ for varnm in comp:
             if symmetric:
                 cmax = np.nanmax(abs(dat[key]))
                 plt.clim(-cmax, cmax)
-        plt.title(varnm + ' ' + key.upper())
+        plt.title(varnm.upper() + ' ' + key.upper(), fontsize=11)
         if grp.col > 0:
             plt.gca().set_yticklabels([])
         if grp.row < nrow - 1:
             plt.gca().set_xticklabels([])
     # Line plots of sector averages
     grp.next()
-    title = '%s %d-%dE' % (varnm, lon1, lon2)
-    lineplot(sectorcomp[varnm], plt.gca(), y1_label, y2_label, title=title,
-             latmin=axlims[0], latmax=axlims[1], row=grp.row, nrow=nrow)
+    if varnm == 'precip':
+        legend_opts['loc'] = 'upper center'
+    else:
+        legend_opts['loc'] = 'lower center'
+    title = '%s %d-%dE' % (varnm.upper(), lon1, lon2)
+    lineplot(sectorcomp[varnm], plt.gca(), y1_label, y2_label,
+             latmin=axlims[0], latmax=axlims[1], row=grp.row, nrow=nrow,
+             legend_opts=legend_opts)
+    plt.title(title, fontsize=11)
 
 filestr = 'comp-onset_%s-%s-%s' % (onset_nm, savestr, vargroup)
 atm.savefigs(savedir + filestr, 'pdf', merge=True)
