@@ -274,7 +274,26 @@ def lineplot(ubudget_sector, keys, day, style, xlims=(-60, 60),
     if title is not None:
         plt.title(title)
 
+# Summary plot of psi and u lat-pres contours for presentation
+nrow, ncol = 2, 2
+advance_by = 'row'
+fig_kw = {'figsize' : (11, 7), 'sharex' : 'col', 'sharey' : 'row'}
+gridspec_kw = {'left' : 0.1, 'right' : 0.96, 'wspace' : 0.06, 'hspace' : 0.2,
+               'bottom' : 0.08, 'top' : 0.95}
+plotdays = [-15, 0, 15, 30]
+xlims, xticks = (-35, 35), range(-30, 31, 10)
+grp = atm.FigGroup(nrow, ncol,fig_kw=fig_kw, gridspec_kw=gridspec_kw)
+for day in plotdays:
+    grp.next()
+    title = 'Day %d' % day
+    latpres(data_latp, day, ps, xlims=xlims, xticks=xticks)
+    plt.title(title, fontsize=11)
+    if grp.row < grp.nrow - 1:
+        plt.xlabel('')
+    if grp.col > 0:
+        plt.ylabel('')
 
+# Lat-pres contours and line plots of 200 mb momentum budget
 style = {'ADV_AVG' : 'b', 'COR_AVG' : 'b--', 'ADV+COR' : 'r',
          'PGF_ST' : 'k', 'ADV_CRS' : 'g',  'ADV_AVST' : 'g--',
          'ADV_STAV' : 'g-.', 'EMFC' : 'm', 'EMFC_TR' : 'm--', 'EMFC_ST' : 'm-.',
