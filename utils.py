@@ -384,6 +384,8 @@ def load_dailyrel(datafiles, yearnm='year', onset_varnm='D_ONSET',
                   retreat_varnm='D_RETREAT'):
 
     ds = atm.load_concat(datafiles, concat_dim=yearnm)
+    if isinstance(ds, xray.DataArray):
+        ds = ds.to_dataset()
     varnms = ds.data_vars.keys()
     if onset_varnm is not None:
         onset = ds[onset_varnm]
