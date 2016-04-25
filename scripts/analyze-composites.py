@@ -46,7 +46,7 @@ vargroup = 'pres'
 
 varlist = {
     'test' : ['precip', 'U200'],
-    'pres' : ['precip', 'U200', 'T200'],
+    'pres' : ['precip', 'U200', 'T200', 'THETA_E_LML'],
     'group1' : ['precip', 'U200', 'V200', 'T200', 'H200', 'U850', 'V850',
                 'H850'],
     'group2' : ['T850', 'QV850', 'THETA950', 'THETA_E950', 'V*THETA_E950',
@@ -215,7 +215,7 @@ def all_data(datafiles, npre, npost, lon1, lon2, compdays, comp_attrs):
         sectorcompvar = get_composites(sectorvar, compdays, comp_attrs)
 
         # Latitude of maximum subcloud theta_e
-        if varnm == 'THETA_E950':
+        if varnm == 'THETA_E950' or varnm == 'THETA_E_LML':
             sector_latmax[varnm] = theta_e_latmax(sectorvar)
 
         # Compute regression or take the climatology
@@ -258,12 +258,14 @@ def get_colormap(varnm, anom_plot):
     return cmap
 
 
-def annotate_theta_e(days, latmax, ax=None):
+def annotate_theta_e(days, latmax, ax=None, nroll=7):
     if ax is None:
         ax = plt.gca()
+    if nroll is not None:
+        latmax = atm.rolling_mean(latmax, nroll, center=True)
     latmax_0 = latmax.sel(dayrel=0)
     ax.plot(days, latmax, 'k', linewidth=2, label='Latitude of Max')
-    ax.legend(loc='lower left')
+    ax.legend(loc='lower right', fontsize=10)
     s = atm.latlon_labels(latmax_0, latlon='lat', fmt='%.1f')
     ax.annotate(s, xy=(0, latmax_0), xycoords='data',
                 xytext=(-50, 50), textcoords='offset points',
@@ -282,10 +284,10 @@ def lineplot(sectors, ax1=None, y1_label='', y2_label='', title='',
     ax2_fmts = [{'linewidth' : 2, 'alpha' : ax2_alpha, 'color' : ax2_color}]
     lat = atm.get_coord(sectors, 'lat')
     ax1.set_title(title)
-    if row < nrow:
+    if row < nrow - 1:
         ax1.set_xticklabels([])
     else:
-        ax1.set_xlabel('Lat')
+        ax1.set_xlabel('Latitude')
     ax1.set_ylabel(y1_label)
     ax1.grid(True)
     i1, i2 = 0, 0
@@ -321,9 +323,12 @@ def lineplot(sectors, ax1=None, y1_label='', y2_label='', title='',
 # ----------------------------------------------------------------------
 # Latitude-time contour plot
 
-fig_kw = {'figsize' : (14, 10), 'sharex' : True, 'sharey' : True}
-gridspec_kw = {'left' : 0.05, 'right' : 0.98, 'bottom' : 0.05,
-               'top' : 0.92, 'wspace' : 0.01, 'hspace' : 0.1}
+fig_kw = {'figsize' : (11, 7), 'sharex' : True, 'sharey' : True}
+gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'bottom' : 0.07, 'top' : 0.95,
+               'wspace' : 0.05}
+# fig_kw = {'figsize' : (14, 10), 'sharex' : True, 'sharey' : True}
+# gridspec_kw = {'left' : 0.05, 'right' : 0.98, 'bottom' : 0.05,
+#                'top' : 0.92, 'wspace' : 0.01, 'hspace' : 0.1}
 suptitle = '%d-%dE ' %(lon1, lon2) + yearstr
 nrow, ncol = (2, 2)
 keys = sectordata.keys()
@@ -335,16 +340,19 @@ for varnm in keys:
     lat = atm.get_coord(plotdata, 'lat')
     days = atm.get_coord(plotdata, coord_name='dayrel')
     cmap = get_colormap(varnm, anom_plot)
-    utils.contourf_lat_time(lat, days, plotdata, varnm, cmap, onset_nm)
+    utils.contourf_lat_time(lat, days, plotdata, title=varnm, cmap=cmap,
+                            onset_nm=onset_nm)
     plt.ylim(axlims[0], axlims[1])
     if grp.row < nrow - 1:
         plt.xlabel('')
     if grp.col > 0:
         plt.ylabel('')
     # Add latitudes of maxima
-    if varnm in ['THETA_E950'] and not anom_plot:
+    if varnm in ['THETA_E950', 'THETA_E_LML'] and not anom_plot:
         latmax = sector_latmax[varnm]
         annotate_theta_e(days, latmax)
+        plt.title('THETA_EB', fontsize=11)
+        plt.axvline(0, color='k')
 
 
 filestr = 'sector_%d-%dE-onset_%s-%s-%s'
@@ -365,6 +373,7 @@ climits = {'precip' : (0, 20), 'U200' : (-50, 50), 'V200' : (-10, 10),
            'EMFD200' : (-2e-4, 2e-4),
            'H850' : (1.1, 1.6), 'T850' : (260, 305),
            'QV850' : (0, 0.015),
+           'THETA_LML' : (260, 315), 'THETA_E_LML' : (270, 360),
            'THETA975' : (260, 315), 'THETA_E975' : (260, 370),
            'DSE975' : (2.6e5, 3.2e5), 'MSE975' : (2.5e5, 3.5e5),
            'V*DSE975' : (-6e6,6e6), 'V*MSE975' : (-9e6, 9e6),
@@ -395,6 +404,10 @@ legend_opts = {'fontsize' : 9, 'handlelength' : 2.5, 'frameon' : False}
 grp = atm.FigGroup(nrow, ncol, advance_by='col', fig_kw=fig_kw,
                    gridspec_kw=gridspec_kw, suptitle=suptitle)
 for varnm in comp:
+    if varnm == 'THETA_E_LML':
+        varstr = 'THETA_EB'
+    else:
+        varstr = varnm.upper()
     dat = {key : atm.subset(comp[varnm][key], subset_dict)
            for key in keys}
     if anom_plot:
@@ -418,7 +431,7 @@ for varnm in comp:
             if symmetric:
                 cmax = np.nanmax(abs(dat[key]))
                 plt.clim(-cmax, cmax)
-        plt.title(varnm.upper() + ' ' + key.upper(), fontsize=11)
+        plt.title(varstr + ' ' + key.upper(), fontsize=11)
         if grp.col > 0:
             plt.gca().set_yticklabels([])
         if grp.row < nrow - 1:
@@ -429,7 +442,7 @@ for varnm in comp:
         legend_opts['loc'] = 'upper center'
     else:
         legend_opts['loc'] = 'lower center'
-    title = '%s %d-%dE' % (varnm.upper(), lon1, lon2)
+    title = '%s %d-%dE' % (varstr, lon1, lon2)
     lineplot(sectorcomp[varnm], plt.gca(), y1_label, y2_label,
              latmin=axlims[0], latmax=axlims[1], row=grp.row, nrow=nrow,
              legend_opts=legend_opts)

@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import collections
 
 import atmos as atm
+import utils
 
 # ----------------------------------------------------------------------
 datadir = atm.homedir() + 'datastore/merra/analysis/'
@@ -29,7 +30,9 @@ for y, year in enumerate(years):
         filenm = files[nm][y]
         print('Loading ' + filenm)
         with xray.open_dataset(filenm) as ds:
-            data[nm] = ds[nm].load()
+            ds.load()
+        for key in [nm, 'D_ONSET', 'D_RETREAT']:
+            data[key] = ds[key]
     print('Computing theta and theta_e')
     data['THETA_LML'] = atm.potential_temp(data['TLML'], data['PS'])
     data['THETA_E_LML'] = atm.equiv_potential_temp(data['TLML'], data['PS'],
@@ -37,18 +40,15 @@ for y, year in enumerate(years):
     for nm in varnms_out:
         filenm = filestr % (nm, year)
         print('Saving to ' + filenm)
-        atm.save_nc(filenm, data[nm])
+        atm.save_nc(filenm, data[nm], data['D_ONSET'], data['D_RETREAT'])
 
 # Save climatology
 yearstr = '%d-%d' % (years.min(), years.max())
-filestr2 = filestr.replace('%d.nc', '%s.nc')
+filestr2 = filestr.replace('%d.nc', yearstr + '.nc')
 for varnm in varnms_out:
-    var, onset, retreat = load_dailyrel(files[varnm])
-    ds = xray.Dataset()
-    ds[varnm], ds['D_ONSET'], ds['D_RETREAT'] = var, onset, retreat
+    var, _, _ = utils.load_dailyrel(files[varnm])
     print('Computing climatological mean')
-    ds = ds.mean(dim='year')
-    ds[varnm].attrs = var.attrs
-    filenm = filestr2 % (nm, yearstr)
+    var = var.mean(dim='year')
+    filenm = filestr2 % nm
     print('Saving to ' + filenm)
-    ds.to_netcdf(filenm)
+    atm.save_nc(filenm, var)
