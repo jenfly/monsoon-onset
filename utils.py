@@ -188,8 +188,8 @@ def get_onset_indices(onset_nm, datafiles, years, data=None):
         if data is None:
             tseries = get_mfc_box(datafiles, None, None, years, *chp_opts)
             data = tseries['MFC_ACC']
-        index = indices.onset_changepoint(data)
-        index['ts_daily'] = tseries['MFC']
+            index['ts_daily'] = tseries['MFC']
+        index = indices.onset_changepoint(data)        
     elif onset_nm == 'CHP_PCP':
         if data is None:
             tseries = get_mfc_box(None, datafiles, None, years, *chp_opts)
