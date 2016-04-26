@@ -46,7 +46,7 @@ vargroup = 'pres'
 
 varlist = {
     'test' : ['precip', 'U200'],
-    'pres' : ['precip', 'U200', 'T200', 'THETA_E_LML'],
+    'pres' : ['precip', 'U200', 'T200', 'U850', 'V850', 'THETA_E_LML'],
     'group1' : ['precip', 'U200', 'V200', 'T200', 'H200', 'U850', 'V850',
                 'H850'],
     'group2' : ['T850', 'QV850', 'THETA950', 'THETA_E950', 'V*THETA_E950',
@@ -62,9 +62,11 @@ varnms = varlist[vargroup]
 # Day ranges for lat-lon composites
 comps_all = {'PRE' : range(-5, 0), 'POST' : range(15, 20),
              'PRE1' : range(-60, -45), 'PRE2' : range(-30, -15),
-             'SSN' : range(0, 137), 'DIFF' : None}
+             'SSN' : range(0, 137), 'DIFF' : None,
+             'D0' : [0], 'D15' : [15]}
 
-compkeys = ['PRE', 'POST', 'DIFF']
+compkeys = ['D0', 'D15', 'DIFF']
+#compkeys = ['PRE', 'POST', 'DIFF']
 #compkeys = ['PRE1', 'PRE2', 'SSN']
 
 # Day range for latitude vs. day plots
@@ -275,7 +277,7 @@ def lineplot(sectors, ax1=None, y1_label='', y2_label='', title='',
              latmin=None, latmax=None,
              legend_opts = {'fontsize' : 9, 'loc' : 'lower center',
                             'handlelength' : 2.5, 'frameon' : False},
-             ax2_color='r', ax2_alpha=0.5, row=1, nrow=1):
+             ax2_color='r', ax2_alpha=0.5, row=1, nrow=1, y1_lims=None):
     if ax1 is None:
         ax1 = plt.gca()
 
@@ -288,6 +290,8 @@ def lineplot(sectors, ax1=None, y1_label='', y2_label='', title='',
         ax1.set_xticklabels([])
     else:
         ax1.set_xlabel('Latitude')
+    if y1_lims is not None:
+        ax1.set_ylim(y1_lims)
     ax1.set_ylabel(y1_label)
     ax1.grid(True)
     i1, i2 = 0, 0
@@ -385,7 +389,7 @@ climits = {'precip' : (0, 20), 'U200' : (-50, 50), 'V200' : (-10, 10),
            'VFLXCPT' : (-1.3e10, 1.3e10), 'VFLXPHI' : (-5e9, 5e9),
            'VFLXQV' : (-350, 350), 'VFLXMSE' : (-1.6e10, 1.6e10)
            }
-
+y1_lims = {'THETA_E_LML' : (275, 360)}
 keys = compdays.keys()
 y1_label = ''
 y2_label = ', '.join([key for key in compdays if comp_attrs[key]['axis'] == 2])
@@ -445,7 +449,7 @@ for varnm in comp:
     title = '%s %d-%dE' % (varstr, lon1, lon2)
     lineplot(sectorcomp[varnm], plt.gca(), y1_label, y2_label,
              latmin=axlims[0], latmax=axlims[1], row=grp.row, nrow=nrow,
-             legend_opts=legend_opts)
+             legend_opts=legend_opts, y1_lims=y1_lims.get(varnm))
     plt.title(title, fontsize=11)
 
 filestr = 'comp-onset_%s-%s-%s' % (onset_nm, savestr, vargroup)
