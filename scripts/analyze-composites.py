@@ -46,7 +46,7 @@ vargroup = 'pres'
 
 varlist = {
     'test' : ['precip', 'U200'],
-    'pres' : ['precip', 'U200', 'T200', 'U850', 'V850', 'THETA_E_LML'],
+    'pres' : ['precip', 'U200', 'T200', 'TLML', 'QLML', 'THETA_E_LML'],
     'group1' : ['precip', 'U200', 'V200', 'T200', 'H200', 'U850', 'V850',
                 'H850'],
     'group2' : ['T850', 'QV850', 'THETA950', 'THETA_E950', 'V*THETA_E950',
@@ -375,8 +375,8 @@ climits = {'precip' : (0, 20), 'U200' : (-50, 50), 'V200' : (-10, 10),
            'H200' : (11.2, 12.6), 'U850' : (-20, 20), 'V850' : (-10, 10),
            'rel_vort850' : (-3e-5, 3e-5), 'abs_vort850' : (-1.5e-4, 1.5e-4),
            'EMFD200' : (-2e-4, 2e-4),
-           'H850' : (1.1, 1.6), 'T850' : (260, 305),
-           'QV850' : (0, 0.015),
+           'H850' : (1.1, 1.6), 'T850' : (260, 305), 'QV850' : (0, 0.015),
+           'TLML' : (260, 315), 'QLML' : (0, 0.022),
            'THETA_LML' : (260, 315), 'THETA_E_LML' : (270, 360),
            'THETA975' : (260, 315), 'THETA_E975' : (260, 370),
            'DSE975' : (2.6e5, 3.2e5), 'MSE975' : (2.5e5, 3.5e5),
@@ -410,6 +410,8 @@ grp = atm.FigGroup(nrow, ncol, advance_by='col', fig_kw=fig_kw,
 for varnm in comp:
     if varnm == 'THETA_E_LML':
         varstr = 'THETA_EB'
+    elif varnm.endswith('LML'):
+        varstr = varnm.replace('LML', '_EB')
     else:
         varstr = varnm.upper()
     dat = {key : atm.subset(comp[varnm][key], subset_dict)

@@ -23,7 +23,8 @@ years = np.arange(1979, 2015)
 datadir = atm.homedir() + 'datastore/merra/daily/'
 datafiles = {}
 datafiles['HOWI'] = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
-datafiles['MFC'] = [datadir + 'merra_MFC_ps-300mb_%d.nc' % yr for yr in years]
+datafiles['MFC'] = [datadir + 'merra_MFC_40E-120E_90S-90N_%d.nc' % yr
+                    for yr in years]
 datafiles['PCP'] = [datadir + 'merra_precip_%d.nc' % yr for yr in years]
 
 # Lat-lon box for MFC / precip
@@ -106,6 +107,12 @@ for i in range(1, 5):
     plt.xlabel('Year')
     plt.xlim(years.min(), years.max())
 plt.suptitle(onset_nm + ' Monsoon Onset/Retreat')
+
+# ----------------------------------------------------------------------
+# Summary plots of correlations between indices
+
+i_detrend = True
+
 
 # ----------------------------------------------------------------------
 # Correlations between indices

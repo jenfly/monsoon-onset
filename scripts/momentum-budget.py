@@ -189,16 +189,21 @@ def psi_latpres(psi, ps, cint=10, xlims=(-60, 60), xticks=range(-60, 61, 15),
     plt.grid()
     plt.title(title, fontsize=10)
 
-plotdays = [-30, -15, 0, 15, 30]
-keys = ['TOT', 'MMC', 'EDDY', 'PGF', 'RESID']
+# plotdays = [-30, -15, 0, 15, 30]
+# keys = ['TOT', 'MMC', 'EDDY', 'PGF', 'RESID']
+plotdays = [-30, 0, 30]
+keys = ['TOT', 'MMC', 'EDDY']
 xlims, xticks = (-35, 35), range(-30, 31, 10)
 cint = 5
 nrow, ncol = len(keys), len(plotdays)
 advance_by = 'col'
-fig_kw = {'figsize' : (14, 8), 'sharex' : True, 'sharey' : True}
-gridspec_kw = {'left' : 0.06, 'right' : 0.99, 'wspace' : 0.06, 'hspace' : 0.08,
-               'bottom' : 0.06, 'top' : 0.92}
-suptitle = '%d-%d E $\psi$ components' % (lon1, lon2)
+fig_kw = {'figsize' : (11, 7), 'sharex' : True, 'sharey' : True}
+gridspec_kw = {'left' : 0.08, 'right' : 0.99, 'wspace' : 0.06, 'hspace' : 0.08,
+               'bottom' : 0.08, 'top' : 0.9}
+# fig_kw = {'figsize' : (14, 8), 'sharex' : True, 'sharey' : True}
+# gridspec_kw = {'left' : 0.06, 'right' : 0.99, 'wspace' : 0.06, 'hspace' : 0.08,
+#                'bottom' : 0.06, 'top' : 0.92}
+suptitle = '%d-%dE $\psi$ components' % (lon1, lon2)
 grp = atm.FigGroup(nrow, ncol, advance_by, fig_kw=fig_kw,
                    gridspec_kw=gridspec_kw, suptitle=suptitle)
 for key in keys:
@@ -300,28 +305,38 @@ style = {'ADV_AVG' : 'b', 'COR_AVG' : 'b--', 'ADV+COR' : 'r',
          'SUM' : 'k--', 'ACCEL' : 'c', 'ANA' : 'y', 'U' : 'k', 'V' : 'k--'}
 
 keys_dict = collections.OrderedDict()
+#keys_dict['ubudget'] = ['ADV_AVG', 'COR_AVG', 'ADV+COR', 'PGF_ST',
+#                        'ADV_CRS', 'EMFC', 'ANA', 'SUM', 'ACCEL']
 keys_dict['ubudget'] = ['ADV_AVG', 'COR_AVG', 'ADV+COR', 'PGF_ST',
-                        'ADV_CRS', 'EMFC', 'ANA', 'SUM', 'ACCEL']
+                        'ADV_CRS', 'EMFC']
 keys_dict['winds'] = ['U', 'V']
 keys_dict['eddies'] = ['EMFC_TR', 'EMFC_ST', 'EMFC', 'ADV_CRS']
 
 ylabels = {}
-units = '$10^{-4} m s^{-2}$'
-ylabels['ubudget'] = '%d hPa ubudget (%s)' % (plev, units)
+units = '$10^{-4}$ m s$^{-2}$'
+#ylabels['ubudget'] = '%d hPa ubudget (%s)' % (plev_plot, units)
+ylabels['ubudget'] = units
 ylabels['eddies'] = ylabels['ubudget']
-ylabels['winds'] = '%d hPa winds (m/s)' % plev
+#ylabels['winds'] = '%d hPa winds (m/s)' % plev_plot
+ylabels['winds'] = 'm/s'
 
-
-nrow, ncol = 4, 5
+#plotdays = [-30, -15, 0, 15, 30] + [-90, -45, 0, 45, 90]
+#nrow, ncol = 4, 5
+plotdays = [-30, 0, 30]
+nrow, ncol = 4, 3
 advance_by = 'row'
-fig_kw = {'figsize' : (18, 12), 'sharex' : 'col', 'sharey' : 'row'}
-gridspec_kw = {'left' : 0.05, 'right' : 0.99, 'wspace' : 0.06, 'hspace' : 0.08,
-               'bottom' : 0.04, 'top' : 0.92, 'height_ratios' : [1, 0.6, 1, 1]}
-legend_kw={'fontsize' : 8, 'loc' : 'lower center', 'ncol' : 2,
+# fig_kw = {'figsize' : (18, 12), 'sharex' : 'col', 'sharey' : 'row'}
+# gridspec_kw = {'left' : 0.05, 'right' : 0.99, 'wspace' : 0.06, 'hspace' : 0.08,
+#                'bottom' : 0.04, 'top' : 0.92, 'height_ratios' : [1, 0.6, 1, 1]}
+fig_kw = {'figsize' : (11, 9), 'sharex' : 'col', 'sharey' : 'row'}
+gridspec_kw = {'left' : 0.08, 'right' : 0.99, 'wspace' : 0.09, 'hspace' : 0.1,
+               'bottom' : 0.05, 'top' : 0.92, 'height_ratios' : [1, 0.6, 1, 1]}
+legend_kw={'fontsize' : 8, 'loc' : 'upper center', 'ncol' : 2,
            'handlelength' : 2.5}
 suptitle = '%d-%d E U and $\psi$ contours, ubudget at 200 hPa' % (lon1, lon2)
-plotdays = [-30, -15, 0, 15, 30] + [-90, -45, 0, 45, 90]
-for tropics in [False, True]:
+
+#for tropics in [False, True]:
+for tropics in [False]:
     if tropics:
         xlims, xticks = (-35, 35), range(-30, 31, 10)
     else:
@@ -339,10 +354,10 @@ for tropics in [False, True]:
             grp.next()
             if grp.col == 0:
                 legend = True
-                if nm == 'ubudget' :
-                    legend_kw['loc'] = 'lower center'
-                else:
-                    legend_kw['loc'] = 'upper center'
+                # if nm == 'ubudget' :
+                #     legend_kw['loc'] = 'lower center'
+                # else:
+                #     legend_kw['loc'] = 'upper center'
             else:
                 legend = False
             keys = keys_dict[nm]

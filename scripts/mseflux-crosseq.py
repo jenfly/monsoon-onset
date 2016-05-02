@@ -125,14 +125,18 @@ styles = {'VMSE' : {'color' : 'k', 'linewidth' : 2}, 'VCPT' : {'color' : 'k'},
           'VLQV' : {'color' : 'k', 'alpha' : 0.4, 'linewidth' : 1.5}}
 locs = {'40E-60E' : 'upper left', '40E-100E' : 'upper left',
         '60E-100E' : 'lower left'}
-nrow, ncol = 3, 1
-fig_kw = {'figsize' : (6, 9), 'sharex' : True}
-gridspec_kw = {'left' : 0.15, 'right' : 0.92, 'bottom' : 0.07, 'top' : 0.9,
-               'wspace' : 0.05}
-suptitle = 'Sector Cross-Eq <V*MSE> (%s)' % eq_int.attrs['units']
+lonranges = ['40E-60E', '60E-100E']
+#lonranges = eq_int.attrs['lonranges']
+nrow, ncol = 1, 2
+fig_kw = {'figsize' : (11, 4.5), 'sharex' : True}
+gridspec_kw = {'left' : 0.1, 'right' : 0.92, 'bottom' : 0.1, 'top' : 0.9,
+               'wspace' : 0.15}
+#suptitle = 'Sector Cross-Eq <V*MSE> (%s)' % eq_int.attrs['units']
+suptitle = ''
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw,
                    suptitle=suptitle)
-for lonrange in eq_int.attrs['lonranges']:
+
+for lonrange in lonranges:
     grp.next()
     plt.title(lonrange, fontsize=11)
     for nm in nms:
@@ -141,8 +145,11 @@ for lonrange in eq_int.attrs['lonranges']:
     plt.legend(fontsize=9, loc=locs[lonrange], handlelength=3)
     plt.grid()
     plt.xticks(np.arange(-120, 201, 30))
+    plt.axvline(0, color='k')
     if grp.row == grp.nrow - 1:
         plt.xlabel('Rel Day')
+    if grp.col == 0:
+        plt.ylabel('<V*MSE> (PW)')
 
 # ----------------------------------------------------------------------
 # OLD
