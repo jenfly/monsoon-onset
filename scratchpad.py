@@ -9,9 +9,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import atmos as atm
-import merra
-import precipdat
-import utils
 
 # ----------------------------------------------------------------------
 
