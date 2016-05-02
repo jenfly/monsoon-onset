@@ -605,6 +605,8 @@ def onset_changepoint(precip_acc, onset_range=(1, 250),
         ypred, _ = piecewise_polyfit(x, y, n0)
         return x0, ypred, rss
 
+    if yearnm not in precip_acc.dims:
+        precip_acc = atm.expand_dims(precip_acc, yearnm, -1, axis=0)
     years = precip_acc[yearnm].values
     chp = xray.Dataset()
     chp['tseries'] = precip_acc
@@ -704,6 +706,8 @@ def onset_changepoint_merged(precip_acc, order=1, yearnm='year',
         ypred, _ = piecewise_polyfit(x, y, n1, n2, order)
         return x1, x2, ypred, rss
 
+    if yearnm not in precip_acc.dims:
+        precip_acc = atm.expand_dims(precip_acc, yearnm, -1, axis=0)
     years = precip_acc[yearnm].values
     days = precip_acc[daynm].values
     chp = xray.Dataset()
