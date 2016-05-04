@@ -337,8 +337,8 @@ def onset_HOWI(uq_int, vq_int, npts=50, nroll=7, days_pre=range(138, 145),
 
     howi['onset'] = xray.DataArray(onset, coords={yearnm : howi[yearnm]})
     howi['retreat'] = xray.DataArray(retreat, coords={yearnm : howi[yearnm]})
-    howi.attrs['npts'] = npts
-    howi.attrs['nroll'] = nroll
+    howi.attrs = {'npts' : npts, 'nroll' : nroll, 'maxbreak' : maxbreak,
+                  'days_pre' : days_pre, 'days_post' : days_post}
 
     return howi, ds
 
@@ -418,7 +418,7 @@ def onset_OCI(u, latlon = (5, 15, 40, 80), mmdd_thresh=(6,1),
 
 # ----------------------------------------------------------------------
 def onset_SJKE(u, v, latlon = (-5, 20, 50, 70), ndays=3, yearnm='Year',
-             daynm='Day', thresh_std=1.0, nroll=None):
+             daynm='Day', thresh_std=1.0):
     """Return monsoon onset based on Somali Jet kinetic energy.
 
     Parameters
@@ -486,9 +486,8 @@ def onset_SJKE(u, v, latlon = (-5, 20, 50, 70), ndays=3, yearnm='Year',
     sjke = xray.Dataset()
     sjke['tseries'] = ke
     sjke['onset'] = xray.DataArray(onset, coords={yearnm : years})
-    sjke.attrs['latlon'] = latlon
-    sjke.attrs['threshold'] = threshold
-    sjke.attrs['ndays'] = ndays
+    sjke.attrs = {'latlon' : latlon, 'thresh_std' : thresh_std,
+                  'threshold' : threshold, 'ndays' : ndays}
 
     return sjke
 
