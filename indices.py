@@ -413,7 +413,6 @@ def onset_OCI(u, latlon = (5, 15, 40, 80), mmdd_thresh=(6,1),
     oci.attrs['latlon'] = latlon
     oci.attrs['mmdd_thresh'] = mmdd_thresh
     oci.attrs['ndays'] = ndays
-
     return oci
 
 # ----------------------------------------------------------------------
