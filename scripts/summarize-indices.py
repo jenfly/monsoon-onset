@@ -40,6 +40,7 @@ mfc = atm.combine_daily_years('MFC', datafiles['CHP_MFC'], years,
 mfcbar = atm.mean_over_geobox(mfc, lat1, lat2, lon1, lon2)
 mfc_acc = np.cumsum(mfcbar, axis=1)
 index['CHP_MFC'] = indices.onset_changepoint(mfc_acc)
+index['CHP_MFC']['daily_rates'] = mfcbar
 
 # HOWI index (Webster and Fasullo 2003)
 npts, maxbreak = 100, 10
@@ -63,6 +64,7 @@ u_sm = atm.rolling_mean(u850, nroll, axis=1, center=True)
 v_sm = atm.rolling_mean(v850, nroll, axis=1, center=True)
 index['SJKE'] = indices.onset_SJKE(u_sm, v_sm, thresh_std=thresh_std,
                                    yearnm='year', daynm='day')
+index['SJKE'].attrs['nroll'] = nroll
 
 # ----------------------------------------------------------------------
 # Plot daily timeseries and fit in a single year
