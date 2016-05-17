@@ -189,7 +189,7 @@ def get_onset_indices(onset_nm, datafiles, years, data=None):
             tseries = get_mfc_box(datafiles, None, None, years, *chp_opts)
             data = tseries['MFC_ACC']
             index['ts_daily'] = tseries['MFC']
-        index = indices.onset_changepoint(data)        
+        index = indices.onset_changepoint(data)
     elif onset_nm == 'CHP_PCP':
         if data is None:
             tseries = get_mfc_box(None, datafiles, None, years, *chp_opts)
@@ -357,6 +357,8 @@ def get_data_rel(varnm, years, datafiles, data, onset, npre, npost,
             var.attrs['long_name'] = 'Transient EMFD_y'
     else:
         with xray.open_dataset(datafiles[0]) as ds:
+            if varid not in ds.data_vars:
+                varid = varnm
             daynm_in = atm.get_coord(ds[varid], 'day', 'name')
         var = atm.combine_daily_years(varid, datafiles, years, yearname=yearnm,
                                       subset_dict={daynm_in : (daymin, daymax)})
