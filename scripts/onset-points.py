@@ -27,4 +27,27 @@ with xray.open_dataset(indfile) as index:
     index.load()
 with xray.open_dataset(datafile) as data:
     data.load()
+
+# Smooth data
+nroll_x, nroll_y = 3, 3
+for nm in data.data_vars:
+    data[nm] = atm.rolling_mean(data[nm], nroll_x, axis=-1, center=True)
+    data[nm] = atm.rolling_mean(data[nm], nroll_y, axis=-2, center=True)  
+
+# Climatology mean and standard deviation
+databar = data.mean(dim='year')
+datastd = data.std(dim='year')
+
+# Regression of gridpoint indices onto large-scale index
+reg, pts_mask = {}, {}
+for nm in data.data_vars:
+    reg[nm] = atm.regress_field(data[nm], index[nm], axis=0)
+    pts_mask[nm] = (reg[nm]['p'] >= 0.05)
+    
+
+# Plot climatology
+def plot_clim(varbar, varstd, clev_bar=10, clev_std=5):
+    atm.contourf_latlon(varstd, clev=clev_std, cmap='hot_r', symmetric=False,
+                        extend='max')
+    atm.contour_latlon(varbar, clev=clev_bar, colors='k', linewidths=2)
     

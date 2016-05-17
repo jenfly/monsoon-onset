@@ -1,6 +1,7 @@
 import sys
 sys.path.append('/home/jwalker/dynamics/python/atmos-tools')
 sys.path.append('/home/jwalker/dynamics/python/atmos-read')
+sys.path.append('/home/jwalker/dynamics/python/monsoon-onset')
 
 import xray
 import numpy as np
@@ -28,13 +29,14 @@ yearstr = '%d-%d.nc' % (min(years), max(years))
 savefile = savedir + 'merra_index_%s_' + yearstr
 
 # Large-scale indices to save (set to [] if only doing grid points)
-onset_nms = ['CHP_MFC', 'HOWI', 'OCI', 'SJKE']
+#onset_nms = ['CHP_MFC', 'HOWI', 'OCI', 'SJKE']
+onset_nms = []
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 
 # Grid point calcs
 pts_nm = 'CHP_PCP'
-pts_subset = {'lon' : (lon1, lon2), 'lat' : (5, 30)}
+pts_subset = {'lon' : (57, 103), 'lat' : (2, 33)}
 xsample, ysample = 1, 1
 
 
