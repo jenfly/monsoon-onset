@@ -4,29 +4,25 @@ sys.path.append('/home/jwalker/dynamics/python/atmos-read')
 
 import xray
 import numpy as np
-from datetime import datetime
-import matplotlib.pyplot as plt
-from matplotlib import animation
 import collections
 import pandas as pd
 
 import atmos as atm
-import precipdat
-import merra
 import indices
 import utils
 from utils import get_data_rel, load_dailyrel
 
 # ----------------------------------------------------------------------
+version = 'merra2'
+years = np.arange(1980, 2010)
 onset_nm = 'CHP_MFC'
-#ind_nm, npre, npost = 'onset', 120, 200
-ind_nm, npre, npost = 'retreat', 200, 60
-years = np.arange(1979, 2015)
+ind_nm, npre, npost = 'onset', 120, 200
+#ind_nm, npre, npost = 'retreat', 200, 60
 
-datadir = atm.homedir() + 'datastore/merra/daily/'
-savedir = atm.homedir() + 'datastore/merra/analysis/'
+datadir = atm.homedir() + 'datastore/%s/daily/' % version
+savedir = atm.homedir() + 'datastore/%s/analysis/' % version
 yearstr = '%d-%d' % (min(years), max(years))
-indfile = savedir + 'merra_index_%s_%s.nc' % (onset_nm, yearstr)
+indfile = savedir + version + '_index_%s_%s.nc' % (onset_nm, yearstr)
 
 varnms = ['precip', 'U200', 'V200', 'U850', 'V850', 'T200', 'T850']
 keys_remove = ['H950', 'V950',  'DSE950', 'MSE950', 'V*DSE950', 'V*MSE950']
@@ -38,12 +34,12 @@ lat1, lat2 = 10, 30
 # ----------------------------------------------------------------------
 # List of data files
 
-def yrlyfile(var, plev, year, subset1='40E-120E_90S-90N', subset2=''):
+def yrlyfile(version, var, plev, year, subset1='40E-120E_90S-90N', subset2=''):
     if plev is None:
         varid = var
     else:
         varid = '%s%d' % (var, plev)
-    return 'merra_%s_%s_%s%d.nc' % (varid, subset1, subset2, year)
+    return '%s_%s_%s_%s%d.nc' % (version, varid, subset1, subset2, year)
 
 def get_savefile(savedir, varnm, onset_nm, ind_nm, year):
     filenm = savedir + 'merra_%s_dailyrel' % varnm

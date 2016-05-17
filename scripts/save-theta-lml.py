@@ -5,21 +5,21 @@ sys.path.append('/home/jwalker/dynamics/python/atmos-read')
 import numpy as np
 import xray
 import pandas as pd
-import matplotlib.pyplot as plt
 import collections
 
 import atmos as atm
 import utils
 
 # ----------------------------------------------------------------------
-datadir = atm.homedir() + 'datastore/merra/analysis/'
-years = np.arange(1979, 2015)
+version = 'merra2'
+years = np.arange(1980, 2015)
 onset_nm = 'CHP_MFC'
+datadir = atm.homedir() + 'datastore/%s/analysis/' % version
 latlonstr = '40E-120E_90S-90N'
 varnms = ['TLML', 'QLML', 'PS']
 varnms_out = ['THETA_LML', 'THETA_E_LML']
 files = {}
-filestr = datadir + 'merra_%s_dailyrel_' + onset_nm + '_%d.nc'
+filestr = datadir + version + '_%s_dailyrel_' + onset_nm + '_%d.nc'
 for nm in varnms + varnms_out:
     files[nm] = [filestr % (nm, yr) for yr in years]
 

@@ -8,7 +8,6 @@ sys.path.append('/home/jwalker/dynamics/python/atmos-read')
 import numpy as np
 import xray
 import pandas as pd
-import matplotlib.pyplot as plt
 import collections
 
 import atmos as atm
@@ -16,7 +15,7 @@ import atmos as atm
 # ----------------------------------------------------------------------
 version = 'merra2'
 datadir = atm.homedir() + 'datastore/%s/daily/' % version
-savedir = atm.homedir() + 'datastore/%s/analysis/' % version
+savedir = datadir
 years = np.arange(1980, 2010)
 plevs = [1000,925,850,775,700,600,500,400,300,250,200,150,100,70,50,30,20]
 pdim = 1
