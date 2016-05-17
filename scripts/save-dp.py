@@ -14,23 +14,24 @@ import collections
 import atmos as atm
 
 # ----------------------------------------------------------------------
-datadir = atm.homedir() + 'datastore/merra/daily/'
-savedir = atm.homedir() + 'datastore/merra/analysis/'
-#years = np.arange(1979, 2015)
-years = np.arange(1979, 2006)
+version = 'merra2'
+datadir = atm.homedir() + 'datastore/%s/daily/' % version
+savedir = atm.homedir() + 'datastore/%s/analysis/' % version
+years = np.arange(1980, 2010)
 plevs = [1000,925,850,775,700,600,500,400,300,250,200,150,100,70,50,30,20]
 pdim = 1
 varnms = ['U', 'OMEGA']
 
-def datafile(datadir, varnm, plev, year):
+def datafile(datadir, varnm, plev, year, version):
     latlonstr = '40E-120E_90S-90N'
-    filenm = datadir + 'merra_%s%d_%s_%d.nc' % (varnm, plev, latlonstr, year)
+    filenm = '%s_%s%d_%s_%d.nc' % (version, varnm, plev, latlonstr, year)
+    filenm = datadir + filenm
     return filenm
 
-def concat_plevs(datadir, year, varnm, plevs, pdim):
+def concat_plevs(datadir, year, varnm, plevs, pdim, version):
     pname = 'Height'
     for i, plev in enumerate(plevs):
-        filenm = datafile(datadir, varnm, plev, year)
+        filenm = datafile(datadir, varnm, plev, year, version)
         print('Reading ' + filenm)
         with xray.open_dataset(filenm) as ds:
             var_in = ds[varnm].load()
@@ -63,9 +64,9 @@ def calc_dp(var, plev):
 # Compute d/dp and save
 for year in years:
     for varnm in varnms:
-        var = concat_plevs(datadir, year, varnm, plevs, pdim)
+        var = concat_plevs(datadir, year, varnm, plevs, pdim, version)
         for plev in plevs:
             dvar = calc_dp(var, plev)
-            filenm = datafile(savedir, 'D%sDP' % varnm, plev, year)
+            filenm = datafile(savedir, 'D%sDP' % varnm, plev, year, version)
             print('Saving to ' + filenm)
             atm.save_nc(filenm, dvar)
