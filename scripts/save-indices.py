@@ -14,16 +14,15 @@ import utils
 
 # ----------------------------------------------------------------------
 version = 'merra2'
-years = np.arange(1980, 2010)
-onset_nm = 'CHP_MFC'
-datadir = atm.homedir() + 'datastore/%s/daily/' % version
-savedir = atm.homedir() + 'datastore/%s/analysis/' % version
+years = np.arange(1980, 2016)
+datadir = atm.homedir() + 'eady/datastore/%s/daily/' % version
+savedir = atm.homedir() + 'eady/datastore/%s/analysis/' % version
 datafiles = {}
-filestr = datadir + version + '_%s_%s_%d.nc'
-datafiles['CHP_MFC'] = [filestr % ('MFC', '40E-120E_90S-90N', y) for y in years]
-datafiles['HOWI'] = [filestr % ('vimt', 'ps-300mb', y) for y in years]
-datafiles['U850'] = [filestr % ('U850', '40E-120E_90S-90N', y) for y in years]
-datafiles['V850'] = [filestr % ('V850', '40E-120E_90S-90N', y) for y in years]
+filestr = datadir + '%d/' + version + '_%s_%s_%d.nc'
+datafiles['CHP_MFC'] = [filestr % (y, 'MFC', '40E-120E_90S-90N', y) for y in years]
+datafiles['HOWI'] = [filestr % (y, 'vimt', 'ps-300mb', y) for y in years]
+datafiles['U850'] = [filestr % (y, 'U850', '40E-120E_90S-90N', y) for y in years]
+datafiles['V850'] = [filestr % (y, 'V850', '40E-120E_90S-90N', y) for y in years]
 yearstr = '%d-%d.nc' % (min(years), max(years))
 savefile = savedir + version + '_index_%s_' + yearstr
 
@@ -34,7 +33,7 @@ lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 
 # Grid point calcs
-pts_nm = 'CHP_PCP'
+pts_nm = 'CHP_PCP' # Set to None to omit
 pts_subset = {'lon' : (57, 103), 'lat' : (2, 33)}
 xsample, ysample = 1, 1
 
@@ -103,7 +102,8 @@ def get_data(version, datadir, year, pts_nm, pts_subset, xsample, ysample):
         if version == 'merra':
             precname = 'precip'
         else:
-            precname = 'PRECTOT'
+            precname = 'PRECTOT_40E-120E_90S-90N'
+        datadir = datadir + '/%d/' % year
         filenm = datadir + '%s_%s_%d.nc' % (version, precname, year)
         print('Loading ' + filenm)
         with xray.open_dataset(filenm) as ds:
@@ -133,19 +133,20 @@ def yrly_file(savefile, year, pts_nm):
     filenm = filenm.replace(yearstr, '%d.nc' % year)
     return filenm
 
-# Calculate onset/retreat in each year
-for year in years:
-    pcp_acc = get_data(version, datadir, year, pts_nm, pts_subset, xsample,
-                       ysample)
-    index = calc_points(pcp_acc)
-    filenm = yrly_file(savefile, year, pts_nm)
-    print('Saving to ' + filenm)
-    index.to_netcdf(filenm)
+if pts_nm is not None:
+    # Calculate onset/retreat in each year
+    for year in years:
+        pcp_acc = get_data(version, datadir, year, pts_nm, pts_subset, xsample,
+                           ysample)
+        index = calc_points(pcp_acc)
+        filenm = yrly_file(savefile, year, pts_nm)
+        print('Saving to ' + filenm)
+        index.to_netcdf(filenm)
 
-# Combine years
-filenm = savefile % ('pts_' + pts_nm)
-files = [yrly_file(savefile, yr, pts_nm) % yr for yr in years]
-ds = atm.load_concat(files, concat_dim='year')
-ds['year'] = years
-print('Saving to ' + filenm)
-ds.to_netcdf(filenm)
+    # Combine years
+    filenm = savefile % ('pts_' + pts_nm)
+    files = [yrly_file(savefile, yr, pts_nm) % yr for yr in years]
+    ds = atm.load_concat(files, concat_dim='year')
+    ds['year'] = years
+    print('Saving to ' + filenm)
+    ds.to_netcdf(filenm)
