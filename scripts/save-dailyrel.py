@@ -27,22 +27,21 @@ indfile = savedir + version + '_index_%s_%s.nc' % (onset_nm, yearstr)
 
 varnms = ['PRECTOT', 'U200', 'V200',  'T200', 'H200', 'OMEGA500',
           'U850', 'V850', 'T850', 'H850', 'QV850', 'TLML', 'QLML', 'PS',
-          'EFLUX', 'EVAP', 'HFLUX', 'VFLXCPT', 'VFLXPHI', 'VFLXQV',
+          'THETA_LML', 'THETA_E_LML', 'EFLUX', 'EVAP', 'HFLUX',
+          'VFLXCPT', 'VFLXPHI', 'VFLXQV', 'VFLXMSE',
           'UFLXCPT', 'UFLXPHI', 'UFLXQV']
 sector_varnms = ['U', 'V', 'OMEGA', 'T', 'H', 'QV']
-keys_remove = ['H950', 'V950',  'DSE950', 'MSE950', 'V*DSE950', 'V*MSE950']
-
-# Lat-lon box for MFC / precip onset calcs
-lon1, lon2 = 60, 100
-lat1, lat2 = 10, 30
 
 # ----------------------------------------------------------------------
 # List of data files
 
 def yrlyfile(version, datadir, varnm, year, subset1='40E-120E_90S-90N',
              subset2=''):
-    filenm = datadir + '%d/%s_%s_%s_%s%d.nc'
-    filenm = filenm % (year, version, varnm, subset1, subset2, year)
+    if varnm.startswith('THETA'):
+        filenm = None
+    else:
+        filenm = datadir + '%d/%s_%s_%s_%s%d.nc'
+        filenm = filenm % (year, version, varnm, subset1, subset2, year)
     return filenm
 
 def get_savefile(version, savedir, varnm, onset_nm, ind_nm, year):
@@ -53,7 +52,7 @@ def get_savefile(version, savedir, varnm, onset_nm, ind_nm, year):
     return filenm
 
 # Lat-lon data files
-datafiles = {}
+datafiles = collections.OrderedDict()
 for nm in varnms:
     datafiles[nm] = [yrlyfile(version, datadir, nm, yr) for yr in years]
 
@@ -77,17 +76,30 @@ retreat = index['retreat']
 # ----------------------------------------------------------------------
 # Get daily data
 
-def get_varid(varnm):
+def get_info(varnm):
     if varnm.find('sector') >= 0:
+        plev = None
         varid = varnm.split('_')[0]
+    elif varnm.endswith('LML'):
+        plev = 'LML'
+        varid = varnm.replace('_LML', '').replace('LML', '')
     else:
-        varid = varnm
-    return varid
+        chars = list(varnm)
+        plev = ''.join([c for c in chars if c.isdigit()])
+        varid = varnm.replace(plev, '')
+        if plev == '':
+            plev = None
+        else:
+            plev = int(plev)
+    return varid, plev
 
 
 # Save daily data for each year to file
 for y, year in enumerate(years):
-    files = {key : [datafiles[key][y]] for key in datafiles}
+    data = {}
+    files = collections.OrderedDict()
+    for key in datafiles:
+        files[key] = datafiles[key][y]
     d_onset = int(onset[y].values)
     d_retreat = int(retreat[y].values)
     d0 = int(index[ind_nm][y].values)
@@ -96,10 +108,12 @@ for y, year in enumerate(years):
     retreat_var = xray.DataArray([d_retreat], name='D_RETREAT', coords=coords)
     for varnm in files:
         print('Reading daily data for ' + varnm)
-        varid = get_varid(varnm)
-        var = get_data_rel(varid, year, files.get(varnm), data, d0, npre, npost)
+        varid, plev = get_info(varnm)
+        var = get_data_rel(varid, plev, year, files.get(varnm), data, d0, npre,
+                           npost)
         var.attrs = atm.odict_delete(var.attrs, 'd_onset')
         var.name = varid
+        data[varnm] = var
         savefile = get_savefile(version, savedir, varnm, onset_nm, ind_nm, year)
         print('Saving to ' + savefile)
         atm.save_nc(savefile, var, onset_var, retreat_var)
