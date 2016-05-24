@@ -288,7 +288,7 @@ def var_type(varnm):
 
 
 # ----------------------------------------------------------------------
-def get_data_rel(varnm, years, datafiles, data, onset, npre, npost,
+def get_data_rel(varid, plev, years, datafiles, data, onset, npre, npost,
                  yearnm='year', daynm='day'):
     """Return daily data relative to onset date.
 
@@ -299,77 +299,57 @@ def get_data_rel(varnm, years, datafiles, data, onset, npre, npost,
 
     years = atm.makelist(years)
     onset = atm.makelist(onset)
+    datafiles = atm.makelist(datafiles)
     daymin, daymax = min(onset) - npre, max(onset) + npost
 
-    if varnm.isalpha():
-        varid, plev = varnm, None
+    if isinstance(plev, int) or isinstance(plev, float):
+        pres = atm.pres_convert(plev, 'hPa', 'Pa')
+    elif plev == 'LML' and 'PS' in data:
+        pres = data['PS']
     else:
-        plev = int(varnm[-3:])
-        varid = varnm[:-3]
+        pres = None
 
-    if varnm == 'precip':
-        subset_dict = {'day' : (daymin, daymax),
-                       'lon' : (40, 120),
-                       'lat' : (-60, 60)}
-        var = atm.combine_daily_years('PRECTOT', datafiles, years,
-                                      yearname=yearnm, subset_dict=subset_dict)
-    elif var_type(varnm) == 'calc':
-        if plev is not None:
-            pres = atm.pres_convert(plev, 'hPa', 'Pa')
-            Tnm = 'T%d' % plev
-            Hnm = 'H%d' % plev
-            QVnm = 'QV%d' % plev
-            Unm = 'U%d' % plev
-            Vnm = 'V%d' % plev
+    def get_var(data, varnm, plev=None):
+        if plev is None:
+            plev = ''
+        elif plev == 'LML' and varnm == 'QV':
+            varnm = 'Q'
+        return data[varnm + str(plev)]
+
+    if var_type(varid) == 'calc':
         print('Computing ' + varid)
         if varid == 'THETA':
-            var = atm.potential_temp(data[Tnm], pres)
+            var = atm.potential_temp(get_var(data, 'T', plev), pres)
         elif varid == 'THETA_E':
-            var = atm.equiv_potential_temp(data[Tnm], pres, data[QVnm])
+            var = atm.equiv_potential_temp(get_var(data, 'T', plev), pres,
+                                           get_var(data, 'QV', plev))
         elif varid == 'DSE':
-            var = atm.dry_static_energy(data[Tnm], data[Hnm])
+            var = atm.dry_static_energy(get_var(data, 'T', plev),
+                                        get_var(data, 'H', plev))
         elif varid == 'MSE':
-            var = atm.moist_static_energy(data[Tnm], data[Hnm], data[QVnm])
-        elif varid.startswith('V*'):
-            varid2 = '%s%d' % (varid[2:], plev)
-            var = data['V%d' % plev] * data[varid2]
-            var.name = varid
-        elif varid == 'abs_vort':
-            rel_vort = data['rel_vort%d' % plev]
-            lat = atm.get_coord(rel_vort, 'lat')
-            f = atm.coriolis(lat)
-            f = atm.biggify(f, rel_vort, tile=True)
-            var = rel_vort + f
-            var.name = varid
+            var = atm.moist_static_energy(get_var(data, 'T', plev),
+                                          get_var(data, 'H', plev),
+                                          get_var(data, 'QV', plev))
         elif varid == 'VFLXMSE':
             Lv = atm.constants.Lv.values
             var = data['VFLXCPT'] + data['VFLXPHI'] + data['VFLXQV'] * Lv
             var.attrs['units'] = data['VFLXCPT'].attrs['units']
             var.attrs['long_name'] = 'Vertically integrated MSE meridional flux'
-        elif varid == 'EMFD':
-            nroll = 7
-            u_tr = data[Unm] - atm.rolling_mean(data[Unm], nroll, axis=1)
-            v_tr = data[Vnm] - atm.rolling_mean(data[Vnm], nroll, axis=1)
-
-            _, _, var = atm.divergence_spherical_2d(u_tr * u_tr,
-                                                          u_tr * v_tr)
-            var.name = varid
-            var.attrs['long_name'] = 'Transient EMFD_y'
     else:
         with xray.open_dataset(datafiles[0]) as ds:
             if varid not in ds.data_vars:
-                varid = varnm
+                varid = varid + str(plev)
             daynm_in = atm.get_coord(ds[varid], 'day', 'name')
         var = atm.combine_daily_years(varid, datafiles, years, yearname=yearnm,
                                       subset_dict={daynm_in : (daymin, daymax)})
         var = atm.squeeze(var)
 
     # Convert precip and evap to mm/day
-    if varnm in ['precip', 'EVAP']:
+    if varid in ['precip', 'PRECTOT', 'EVAP']:
         var = atm.precip_convert(var, var.attrs['units'], 'mm/day')
 
     # Align relative to onset day:
-    if var_type(varnm) == 'basic':
+    if var_type(varid) == 'basic':
         print('Aligning data relative to onset day')
         daynm_in = atm.get_coord(var, 'day', 'name')
         if daynm_in !=  daynm:
