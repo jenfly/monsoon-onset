@@ -131,6 +131,7 @@ for varnm in relfiles:
     ds = xray.Dataset()
     ds[varid], ds['D_ONSET'], ds['D_RETREAT'] = var, onset, retreat
     print('Computing climatological mean')
+    yearnm = atm.get_coord(ds, 'year', 'name')
     ds = ds.mean(dim=yearnm)
     ds[varid].attrs = var.attrs
     ds[varid].attrs['years'] = years
