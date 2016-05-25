@@ -126,7 +126,7 @@ for key in datafiles:
                      % yr for yr in years]
 
 for varnm in relfiles:
-    varid = get_varid(varnm)
+    varid, _ = get_info(varnm)
     var, onset, retreat = load_dailyrel(relfiles[varnm])
     ds = xray.Dataset()
     ds[varid], ds['D_ONSET'], ds['D_RETREAT'] = var, onset, retreat
