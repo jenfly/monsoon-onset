@@ -14,25 +14,31 @@ import indices
 # ----------------------------------------------------------------------
 # Changepoint onset at individual points
 
-years = np.arange(1979, 2015)
-datadir = atm.homedir() + 'datastore/merra/analysis/'
-onset_nm, pts_nm = 'CHP_MFC', 'CHP_PCP'
+version = 'merra2'
+datadir = atm.homedir() + 'datastore/%s/analysis/' % version
+datafile = datadir + version + '_index_pts_CHP_CMAP_1980-2014.nc'
+indfile = datadir + version + '_index_CHP_MFC_1980-2015.nc'
+titlestr = 'CMAP 1980-2014'
 
-yearstr = '%d-%d.nc' % (min(years), max(years))
-filestr = datadir + 'merra_index_%s_' + yearstr
-indfile = filestr % onset_nm
-datafile = filestr % ('pts_' + pts_nm)
+# Smoothing parameters
+#nroll_x, nroll_y = 3, 3
+nroll_x, nroll_y = None, None
 
 with xray.open_dataset(indfile) as index:
     index.load()
 with xray.open_dataset(datafile) as data:
     data.load()
 
+# Overlapping years
+years = atm.get_coord(data, 'year')
+index = index.sel(year=years)
+
 # Smooth data
-nroll_x, nroll_y = 3, 3
 for nm in data.data_vars:
-    data[nm] = atm.rolling_mean(data[nm], nroll_x, axis=-1, center=True)
-    data[nm] = atm.rolling_mean(data[nm], nroll_y, axis=-2, center=True)  
+    if nroll_x is not None:
+        data[nm] = atm.rolling_mean(data[nm], nroll_x, axis=-1, center=True)
+    if nroll_y is not None:
+        data[nm] = atm.rolling_mean(data[nm], nroll_y, axis=-2, center=True)  
 
 # Climatology mean and standard deviation
 databar = data.mean(dim='year')
@@ -47,7 +53,22 @@ for nm in data.data_vars:
 
 # Plot climatology
 def plot_clim(varbar, varstd, clev_bar=10, clev_std=5):
-    atm.contourf_latlon(varstd, clev=clev_std, cmap='hot_r', symmetric=False,
+    atm.contourf_latlon(varstd, clev=clev_std, cmap='Blues', symmetric=False,
                         extend='max')
     atm.contour_latlon(varbar, clev=clev_bar, colors='k', linewidths=2)
-    
+
+# Plot regression
+def plot_reg(var, mask, clev=0.2, xsample=1, ysample=1):    
+    xname = atm.get_coord(mask, 'lon', 'name')
+    yname = atm.get_coord(mask, 'lat', 'name')
+    atm.contourf_latlon(var, clev=clev)
+    atm.stipple_pts(mask, xname=xname, yname=yname, xsample=xsample, 
+                    ysample=ysample)
+
+nm = 'onset'
+plt.figure(figsize=(8, 11))
+plt.subplot(2, 1, 1)
+plot_clim(databar[nm], datastd[nm])                    
+plt.subplot(2, 1, 2)
+plot_reg(reg[nm]['m'], pts_mask[nm])
+  
