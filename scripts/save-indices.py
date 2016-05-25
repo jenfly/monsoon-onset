@@ -19,10 +19,13 @@ datadir = atm.homedir() + 'eady/datastore/%s/daily/' % version
 savedir = atm.homedir() + 'eady/datastore/%s/analysis/' % version
 datafiles = {}
 filestr = datadir + '%d/' + version + '_%s_%s_%d.nc'
-datafiles['CHP_MFC'] = [filestr % (y, 'MFC', '40E-120E_90S-90N', y) for y in years]
-datafiles['HOWI'] = [filestr % (y, 'vimt', 'ps-300mb', y) for y in years]
-datafiles['U850'] = [filestr % (y, 'U850', '40E-120E_90S-90N', y) for y in years]
-datafiles['V850'] = [filestr % (y, 'V850', '40E-120E_90S-90N', y) for y in years]
+subset1 = '40E-120E_90S-90N'
+datafiles['CHP_MFC'] = [filestr % (y, 'MFC', subset1, y) for y in years]
+datafiles['HOWI'] = {}
+for nm in ['UFLXQV', 'VFLXQV']:
+    datafiles['HOWI'][nm] = [filestr % (y, nm, subset1, y) for y in years]
+datafiles['U850'] = [filestr % (y, 'U850', subset1, y) for y in years]
+datafiles['V850'] = [filestr % (y, 'V850', subset1, y) for y in years]
 yearstr = '%d-%d.nc' % (min(years), max(years))
 savefile = savedir + version + '_index_%s_' + yearstr
 
@@ -61,10 +64,14 @@ if 'CHP_MFC' in onset_nms:
 if 'HOWI' in onset_nms:
     # HOWI index (Webster and Fasullo 2003)
     onset_nm = 'HOWI'
-    npts, maxbreak = 100, 10
-    ds = atm.combine_daily_years(['uq_int', 'vq_int'], datafiles[onset_nm],
-                                 years, yearname='year')
-    index, data = indices.onset_HOWI(ds['uq_int'], ds['vq_int'], npts,
+    npts, maxbreak = 200, 10
+    subset_dict = {'lon' : (40, 90), 'lat' : (0, 25)}
+    ds = xray.Dataset()
+    for nm in ['UFLXQV', 'VFLXQV']:
+        ds[nm] =  atm.combine_daily_years(nm, datafiles[onset_nm][nm], years,
+                                          yearname='year',
+                                          subset_dict=subset_dict)
+    index, data = indices.onset_HOWI(ds['UFLXQV'], ds['VFLXQV'], npts,
                                      maxbreak=maxbreak)
     save_index(index, onset_nm, savefile)
     #save_index(data, onset_nm + '_data', savefile)
