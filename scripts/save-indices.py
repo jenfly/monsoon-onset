@@ -9,6 +9,7 @@ import collections
 import pandas as pd
 
 import atmos as atm
+import precipdat
 import indices
 import utils
 
@@ -18,25 +19,29 @@ years = np.arange(1980, 2016)
 datadir = atm.homedir() + 'eady/datastore/%s/daily/' % version
 savedir = atm.homedir() + 'eady/datastore/%s/analysis/' % version
 datafiles = {}
-filestr = datadir + '%d/' + version + '_%s_%s_%d.nc'
-subset1 = '40E-120E_90S-90N'
+filestr = datadir + '%d/' + version + '_%s%s_%d.nc'
+subset1 = '_40E-120E_90S-90N'
 datafiles['CHP_MFC'] = [filestr % (y, 'MFC', subset1, y) for y in years]
 datafiles['HOWI'] = {}
 for nm in ['UFLXQV', 'VFLXQV']:
     datafiles['HOWI'][nm] = [filestr % (y, nm, subset1, y) for y in years]
 datafiles['U850'] = [filestr % (y, 'U850', subset1, y) for y in years]
 datafiles['V850'] = [filestr % (y, 'V850', subset1, y) for y in years]
+precname = {'merra' : 'precip', 'merra2' : 'PRECTOT_40E-120E_90S-90N'}[version]
+datafiles['CHP_PCP'] = [filestr % (y, precname, '', y) for y in years]
+datafiles['CHP_CMAP'] = [atm.homedir() + '/datastore/cmap/' +
+                     'cmap.enhanced.precip.pentad.mean.nc' for y in years]
 yearstr = '%d-%d.nc' % (min(years), max(years))
 savefile = savedir + version + '_index_%s_' + yearstr
 
 # Large-scale indices to save (set to [] if only doing grid points)
-#onset_nms = ['CHP_MFC', 'HOWI', 'OCI', 'SJKE']
-onset_nms = ['CHP_MFC', 'OCI', 'SJKE']
+onset_nms = ['CHP_MFC', 'HOWI', 'OCI', 'SJKE']
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 
 # Grid point calcs
-pts_nm = 'CHP_PCP' # Set to None to omit
+pts_nm = 'CHP_CMAP'
+#pts_nm = 'CHP_PCP' # Set to None to omit
 pts_subset = {'lon' : (57, 103), 'lat' : (2, 33)}
 xsample, ysample = 1, 1
 
@@ -104,20 +109,20 @@ if 'SJKE' in onset_nms:
 # ----------------------------------------------------------------------
 # Calculate onset/retreat indices at individual gridpoints
 
-def get_data(version, datadir, year, pts_nm, pts_subset, xsample, ysample):
+def get_data(filenm, year, pts_nm, pts_subset, xsample, ysample):
+    print('Loading ' + filenm)
     if pts_nm == 'CHP_PCP':
-        if version == 'merra':
-            precname = 'precip'
-        else:
-            precname = 'PRECTOT_40E-120E_90S-90N'
-        datadir = datadir + '/%d/' % year
-        filenm = datadir + '%s_%s_%d.nc' % (version, precname, year)
-        print('Loading ' + filenm)
         with xray.open_dataset(filenm) as ds:
             pcp = atm.subset(ds['PRECTOT'], pts_subset)
             pcp = pcp[:, ::ysample, ::xsample]
+            pcp = atm.precip_convert(pcp, pcp.attrs['units'], 'mm/day')
             pcp.load()
-    pcp = atm.precip_convert(pcp, pcp.attrs['units'], 'mm/day')
+    elif pts_nm == 'CHP_CMAP':
+        pcp = precipdat.read_cmap(filenm, yearmin=year, yearmax=year)
+        pcp = atm.subset(pcp, pts_subset, squeeze=True)
+        pcp = pcp[:, ::ysample, ::xsample]
+        # Multiply pentad average rate for cumulative sum
+        pcp = pcp * 5.0
     pcp_acc = np.cumsum(pcp, axis=0)
     return pcp_acc
 
@@ -141,10 +146,11 @@ def yrly_file(savefile, year, pts_nm):
     return filenm
 
 if pts_nm is not None:
+    if pts_nm == 'CHP_CMAP':
+        years = years[years < 2015]
     # Calculate onset/retreat in each year
-    for year in years:
-        pcp_acc = get_data(version, datadir, year, pts_nm, pts_subset, xsample,
-                           ysample)
+    for year, filenm in zip(years, datafiles[pts_nm]):
+        pcp_acc = get_data(filenm, year, pts_nm, pts_subset, xsample, ysample)
         index = calc_points(pcp_acc)
         filenm = yrly_file(savefile, year, pts_nm)
         print('Saving to ' + filenm)
@@ -152,6 +158,7 @@ if pts_nm is not None:
 
     # Combine years
     filenm = savefile % ('pts_' + pts_nm)
+    filenm = filenm.replace(yearstr, '%d-%d.nc' % (min(years), max(years)))
     files = [yrly_file(savefile, yr, pts_nm) % yr for yr in years]
     ds = atm.load_concat(files, concat_dim='year')
     ds['year'] = years
