@@ -13,6 +13,30 @@ import pandas as pd
 import atmos as atm
 import precipdat
 
+
+def onset_MOK(datafile='data/MOK.dat', yearsub=None):
+    """Return monsoon onset over Kerala index from IMD."""
+
+    def parse_date(year, datestr):
+        months = ['January', 'February', 'March', 'April', 'May', 'June',
+                  'July', 'August', 'September', 'October', 'November',
+                  'December']
+        month_lookup = {month : m + 1 for m, month in enumerate(months)}
+        day, month = datestr.split()
+        month = month_lookup[month]
+        day = int(day)
+        jday = atm.mmdd_to_jday(month, day, year)
+        return jday
+
+    mok = pd.read_table('data/MOK.dat', sep='\t', index_col=0, skiprows=1)
+    mok = mok['MOK']
+    if yearsub is not None:
+        mok = mok.loc[yearsub]
+    jdays = [parse_date(year, datestr) for year, datestr in mok.iteritems()]
+    jdays = pd.Series(jdays, index=mok.index, name='MOK')
+    return jdays
+
+
 def onset_WLH_1D(precip_sm, threshold=5.0, onset_min=20, precip_jan=None):
     """Return monsoon onset index computed by Wang & LinHo 2002 method.
 
