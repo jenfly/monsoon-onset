@@ -429,6 +429,49 @@ def contourf_lat_time(lat, days, plotdata, clev=None, title='', cmap='RdBu_r',
 
 
 # ----------------------------------------------------------------------
+def plotyy(data1, data2=None, xname='dayrel', data1_styles=None,
+           y2_opts={'color' : 'r', 'alpha' : 0.6},
+           xlims=None, xticks=None, ylims=None, yticks=None, y2_lims=None,
+           xlabel='', y1_label='', y2_label='', legend=False,
+           legend_kw={'fontsize' : 9, 'handlelength' : 2.5},
+           x0_axvlines=None):
+    """Plot data1 and data2 together on different y-axes."""
+
+    data1, data2 = atm.to_dataset(data1), atm.to_dataset(data2)
+
+    for nm in data1.data_vars:
+        if data1_styles is None:
+            plt.plot(data1[xname], data1[nm], label=nm)
+        else:
+            plt.plot(data1[xname], data1[nm], data1_styles[nm], label=nm)
+    atm.ax_lims_ticks(xlims, xticks, ylims, yticks)
+    plt.grid(True)
+    if x0_axvlines is not None:
+        for x0 in x0_axvlines:
+            plt.axvline(x0, color='k')
+    plt.xlabel(xlabel)
+    plt.ylabel(y1_label)
+    axes = [plt.gca()]
+
+    if data2 is not None:
+        plt.sca(plt.gca().twinx())
+        for nm in data2.data_vars:
+            plt.plot(data2[xname], data2[nm], label=nm, linewidth=2,
+                     **y2_opts)
+        if y2_lims is not None:
+            plt.ylim(y2_lims)
+        atm.fmt_axlabels('y', y2_label, **y2_opts)
+    axes = axes + [plt.gca()]
+
+    if legend:
+        if data2 is None:
+            plt.legend(**legend_kw)
+        else:
+            atm.legend_2ax(axes[0], axes[1], **legend_kw)
+
+    return axes
+
+# ----------------------------------------------------------------------
 def eddy_decomp(var, nt, lon1, lon2, taxis=0):
     """Decompose variable into mean and eddy fields."""
 
