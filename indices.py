@@ -13,7 +13,7 @@ import pandas as pd
 import atmos as atm
 import precipdat
 
-
+# ----------------------------------------------------------------------
 def onset_MOK(datafile='data/MOK.dat', yearsub=None):
     """Return monsoon onset over Kerala index from IMD."""
 
@@ -644,9 +644,15 @@ def onset_changepoint(precip_acc, onset_range=(1, 250),
         pred = np.nan * np.ones(precip_sub.shape)
         rss = np.nan * np.ones(precip_sub.shape)
         for y, year in enumerate(years):
-            print (year)
-            results = find_changepoint(dsub, precip_sub[y], order)
-            d_cp[y], pred[y,:], rss[y,:] = results
+            # Cut out any NaNs from day range
+            pcp_yr = precip_sub[y]
+            ind = np.where(np.isfinite(pcp_yr))[0]
+            islice = slice(ind.min(), ind.max())
+            pcp_yr = pcp_yr[islice]
+            days_yr = pcp_yr[daynm].values
+            print('%d (%d-%d)' % (year, min(days_yr), max(days_yr)))
+            results = find_changepoint(days_yr, pcp_yr, order)
+            d_cp[y], pred[y, islice], rss[y, islice] = results
         chp[key] = xray.DataArray(d_cp, dims=[yearnm], coords={yearnm : years})
         chp['tseries_fit_' + key] = xray.DataArray(
             pred, dims=[yearnm, daynm], coords={yearnm : years, daynm : dsub})
