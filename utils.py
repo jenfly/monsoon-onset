@@ -13,6 +13,72 @@ import merra
 import indices
 
 # ----------------------------------------------------------------------
+def wrapyear(data, data_prev, data_next, daymin, daymax, year=None,
+             year_prev=None):
+    """Wrap daily data from previous and next years for extended day ranges.
+    """
+    daynm = atm.get_coord(data, 'day', 'name')
+
+    def leap_adjust(data, year):
+        data = atm.squeeze(data)
+        ndays = 365
+        if year is not None and atm.isleap(year):
+            ndays += 1
+        else:
+            # Remove NaN for day 366 in non-leap year
+            data = atm.subset(data, {'day' : (1, ndays)})
+        return data, ndays
+
+    data, ndays = leap_adjust(data, year)
+    if data_prev is not None:
+        data_prev, ndays_prev = leap_adjust(data_prev, year_prev)
+        data_prev[daynm] = data_prev[daynm] - ndays_prev
+        data_out = xray.concat([data_prev, data], dim=daynm)
+    else:
+        data_out = data
+    if data_next is not None:
+        data_next, _ = leap_adjust(data_next, year + 1)
+        data_next[daynm] = data_next[daynm] + ndays
+        data_out = xray.concat([data_out, data_next], dim=daynm)
+    data_out = atm.subset(data_out, {daynm : (daymin, daymax)})
+
+    return data_out
+
+
+# ----------------------------------------------------------------------
+def wrapyear_all(data, daymin, daymax):
+    """Wrap daily data to extended ranges over each year in yearly data."""
+
+    def extract_year(data, year, years):
+        if year in years:
+            data_out = atm.subset(data, {'year' : (year, year)})
+        else:
+            data_out = None
+        return data_out
+
+    daynm = atm.get_coord(data, 'day', 'name')
+    days = np.arange(daymin, daymax + 1)
+    days = xray.DataArray(days, name=daynm, coords={daynm : days})
+    years = atm.get_coord(data, 'year')
+    yearnm = atm.get_coord(data, 'year', 'name')
+    for y, year in enumerate(years):
+        year_prev, year_next = year - 1, year + 1
+        var = extract_year(data, year, years)
+        var_prev = extract_year(data, year_prev, years)
+        var_next = extract_year(data, year_next, years)
+        var_out = wrapyear(var, var_prev, var_next, daymin, daymax, year,
+                           year_prev)
+        var_out = atm.expand_dims(var_out, 'year', year, axis=0)
+        var_out = var_out.reindex_like(days)
+        if y == 0:
+            data_out = var_out
+        else:
+            data_out = xray.concat([data_out, var_out], dim=yearnm)
+
+    return data_out
+
+
+# ----------------------------------------------------------------------
 def daily_rel2onset(data, d_onset, npre, npost):
     """Return subset of daily data aligned relative to onset day.
 
