@@ -27,7 +27,7 @@ varnms = ['PRECTOT', 'U200', 'V200', 'U850', 'V850']
 lat_extract = {'U200' : 0, 'V200' : 15, 'U850' : 15, 'V850' : 15}
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
-nroll = 7 # n-day rolling averages for smoothing daily timeseries
+nroll = 5 # n-day rolling averages for smoothing daily timeseries
 npre, npost = 120, 200
 
 yearstr = '%d-%d.nc' % (min(years), max(years))
@@ -118,8 +118,6 @@ def yrly_index(onset_all, legend=True):
     """Plot onset day vs. year for different onset definitions."""
 
     corr = onset_all.corr()[onset_nm]
-    print(corr)
-
     labels = {nm : nm for nm in onset_all.columns}
     for nm in onset_all.columns:
         if nm != onset_nm:
@@ -142,47 +140,102 @@ def yrly_index(onset_all, legend=True):
     plt.ylabel('Day of Year')
     plt.title('Onset')
 
+def daily_tseries(tseries, index, npre, npost, legend, grp):
+    """Plot dailyrel timeseries climatology"""
+    xlims = (-npre, npost)
+    xticks = range(-npre, npost + 1, 30)
+    x0 = [0, index['length'].mean(dim='year')]
+    keypairs = [(['MFC', 'CMAP'], ['MFC_ACC']),
+                (['U850_15N'], ['V850_15N']),
+                (['U200_0N'],['V200_15N'])]
+    opts = [('upper left', 'mm/day', 'mm'),
+            ('upper left', 'm/s', 'm/s'),
+            ('lower left', 'm/s', 'm/s')]
+    y2_opts={'color' : 'r', 'alpha' : 0.6}
+    styles = ['k', 'k--', 'g', 'm']
+    for pair, opt in zip(keypairs, opts):
+        grp.next()
+        keys1, keys2 = pair
+        legend_kw['loc'] = opt[0]
+        y1_label = opt[1]
+        y2_label = opt[2]
+        data1 = tseries[keys1]
+        if keys2 is not None:
+            data2 = tseries[keys2]
+        else:
+            data2 = None
+        data1_styles = {nm : style for (nm, style) in zip(keys1, styles)}
+        utils.plotyy(data1, data2, xname='dayrel', data1_styles=data1_styles,
+                     y2_opts=y2_opts, xlims=xlims, xticks=xticks, 
+                     xlabel='Rel Day', y1_label=y1_label, y2_label=y2_label, 
+                     legend=legend, legend_kw=legend_kw, x0_axvlines=x0)
+
+
+def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
+                    xlims=(-120, 200), xticks=np.arange(-120, 201, 30),
+                    ylims=(-60, 60), yticks=np.arange(-60, 61, 20),
+                    ssn_length=None):
+    vals = var.values.T
+    lat = atm.get_coord(var, 'lat')
+    days = atm.get_coord(var, 'dayrel')
+    if var.min() >= 0:
+        cmap, extend, symmetric = 'PuBuGn', 'max', False
+    else:
+        cmap, extend, symmetric = 'RdBu_r', 'both', True
+    if clev == None:
+        cint = atm.cinterval(vals, n_pref=nc_pref, symmetric=symmetric)
+        clev = atm.clevels(vals, cint, symmetric=symmetric)
+    cticks_dict = {'precip' : np.arange(0, 13, 2),
+                   'T200' : np.arange(-208, 227, 2),
+                   'U200' : np.arange(-60, 61, 10),
+                   'PSI500' : np.arange(-800, 801, 200)}
+    cticks = cticks_dict.get(var.name)
+    plt.contourf(days, lat, vals, clev, cmap=cmap, extend=extend)
+    plt.colorbar(ticks=cticks)
+    atm.ax_lims_ticks(xlims, xticks, ylims, yticks)
+    plt.grid()
+    plt.title(title)
+    plt.axvline(0, color='k')
+    if ssn_length is not None:
+        plt.axvline(ssn_length, color='k')
+    if grp is not None and grp.row == grp.ncol - 1:
+        plt.xlabel('Rel Day')
+    if grp is not None and grp.col == 0:
+        plt.ylabel('Latitude')
+
 
 # ----------------------------------------------------------------------
 
-# Plot daily tseries
-xlims = (-npre, npost)
-xticks = range(-npre, npost + 1, 30)
-x0 = [0, index['length'].mean(dim='year')]
-keypairs = [(['MFC', 'CMAP'], ['MFC_ACC']),
-            (['U850_15N'], ['V850_15N']),
-            (['U200_0N'],['V200_15N'])]
-opts = [('upper left', 'mm/day', 'mm'),
-        ('upper left', 'm/s', 'm/s'),
-        ('lower left', 'm/s', 'm/s')]
-y2_opts={'color' : 'r', 'alpha' : 0.6}
+# Plot daily tseries   
 nrow, ncol = 2, 2
 fig_kw = {'figsize' : (11, 7)}
 gridspec_kw = {'left' : 0.06, 'right' : 0.93, 'bottom' : 0.06, 'top' : 0.95,
                'wspace' : 0.35, 'hspace' : 0.2}
-styles = ['k', 'k--', 'g', 'm']
-legend_kw={'fontsize' : 11, 'handlelength' : 2.5}
+legend_kw = {'fontsize' : 11, 'handlelength' : 2.5}
+legend = True
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
-for pair, opt in zip(keypairs, opts):
-    grp.next()
-    keys1, keys2 = pair
-    legend_kw['loc'] = opt[0]
-    y1_label = opt[1]
-    y2_label = opt[2]
-    data1 = tseries[keys1]
-    if keys2 is not None:
-        data2 = tseries[keys2]
-    else:
-        data2 = None
-    data1_styles = {nm : style for (nm, style) in zip(keys1, styles)}
-    utils.plotyy(data1, data2, xname='dayrel', data1_styles=data1_styles,
-                 y2_opts=y2_opts, xlims=xlims, xticks=xticks, xlabel='Rel Day',
-                 y1_label=y1_label, y2_label=y2_label, legend=True,
-                 legend_kw=legend_kw, x0_axvlines=x0)
+daily_tseries(tseries, index, npre, npost, legend, grp)
+
 
 # Plot yearly tseries
 grp.next()
 yrly_index(onset_all, legend=True)
+
+
+# Lat-day contour plots
+keys = [pcp_nm, 'U200', 'V200', 'U850']
+nrow, ncol = 2, 2
+fig_kw = {'figsize' : (11, 7), 'sharex' : True, 'sharey' : True}
+gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'bottom' : 0.07, 'top' : 0.95,
+               'wspace' : 0.05}
+grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
+for key in keys:
+    grp.next()
+    var = atm.dim_mean(data[key], 'lon', lon1, lon2)
+    var = atm.rolling_mean(var, nroll, axis=0, center=True)
+    contourf_latday(var, title=key.upper(), grp=grp, 
+                    ssn_length=index['length'].mean(dim='year'))
+
 
 # ----------------------------------------------------------------------
 # Table of summary stats on onset/retreat/length
@@ -216,5 +269,7 @@ print(stats.to_latex())
 # Table of correlations between detrended indices
 # onset-retreat-length-ENSO
 
+corr = onset_all.corr()[onset_nm]
+print(corr)
 
 # ----------------------------------------------------------------------
