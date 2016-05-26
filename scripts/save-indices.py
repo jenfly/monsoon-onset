@@ -7,6 +7,7 @@ import xray
 import numpy as np
 import collections
 import pandas as pd
+import os
 
 import atmos as atm
 import precipdat
@@ -45,6 +46,8 @@ pts_nm = 'CHP_CMAP'
 pts_subset = {'lon' : (57, 103), 'lat' : (2, 33)}
 xsample, ysample = 1, 1
 
+# Options for large-scale and gridpoint CHP calcs
+chp_opts = {'onset_range' : (1, 250), 'retreat_range' : (201, 400)}
 
 # ----------------------------------------------------------------------
 # Calculate and save large-scale onset/retreat indices
@@ -60,8 +63,10 @@ if 'CHP_MFC' in onset_nms:
     mfc = atm.combine_daily_years('MFC', datafiles[onset_nm], years,
                                   yearname='year')
     mfcbar = atm.mean_over_geobox(mfc, lat1, lat2, lon1, lon2)
+    daymax = max(chp_opts['retreat_range'])
+    mfcbar = utils.wrapyear_all(mfcbar, daymin=1, daymax=daymax)
     mfc_acc = np.cumsum(mfcbar, axis=1)
-    index = indices.onset_changepoint(mfc_acc)
+    index = indices.onset_changepoint(mfc_acc, **chp_opts)
     mfcbar.attrs = collections.OrderedDict({'units' : mfc.attrs['units']})
     index['daily_ts'] = mfcbar
     save_index(index, onset_nm, savefile)
@@ -109,16 +114,35 @@ if 'SJKE' in onset_nms:
 # ----------------------------------------------------------------------
 # Calculate onset/retreat indices at individual gridpoints
 
-def get_data(filenm, year, pts_nm, pts_subset, xsample, ysample):
+def get_data(filenm, year, pts_nm, pts_subset, xsample, ysample, daymax=366):
     print('Loading ' + filenm)
+
+    def get_year(filenm, pts_subset, xsample, ysample):
+        if os.path.isfile(filenm):
+            with xray.open_dataset(filenm) as ds:
+                pcp = atm.subset(ds['PRECTOT'], pts_subset)
+                pcp = pcp[:, ::ysample, ::xsample]
+                pcp = atm.precip_convert(pcp, pcp.attrs['units'], 'mm/day')
+                pcp.load()
+        else:
+            pcp = None
+        return pcp
+
     if pts_nm == 'CHP_PCP':
-        with xray.open_dataset(filenm) as ds:
-            pcp = atm.subset(ds['PRECTOT'], pts_subset)
-            pcp = pcp[:, ::ysample, ::xsample]
-            pcp = atm.precip_convert(pcp, pcp.attrs['units'], 'mm/day')
-            pcp.load()
+        pcp = get_year(filenm, pts_subset, xsample, ysample)
+        if daymax > 366:
+            filenm_next = filenm.replace('%d' % year, '%d' % (year + 1))
+            pcp_next = get_year(filenm_next, pts_subset, xsample, ysample)
+            pcp = utils.wrapyear(pcp, None, pcp_next, daymin=1, daymax=daymax,
+                                 year=year)
     elif pts_nm == 'CHP_CMAP':
-        pcp = precipdat.read_cmap(filenm, yearmin=year, yearmax=year)
+        if daymax > 366:
+            yearmax = year + 1
+        else:
+            yearmax = year
+        pcp = precipdat.read_cmap(filenm, yearmin=year, yearmax=yearmax)
+        if pcp.shape[0] > 1:
+            pcp = utils.wrapyear(pcp[0], None, pcp[1], 1, daymax, year=year)
         pcp = atm.subset(pcp, pts_subset, squeeze=True)
         pcp = pcp[:, ::ysample, ::xsample]
         # Multiply pentad average rate for cumulative sum
@@ -126,7 +150,7 @@ def get_data(filenm, year, pts_nm, pts_subset, xsample, ysample):
     pcp_acc = np.cumsum(pcp, axis=0)
     return pcp_acc
 
-def calc_points(pcp_acc):
+def calc_points(pcp_acc, chp_opts):
     onset = (np.nan * pcp_acc[0]).drop('day')
     retreat = (np.nan * pcp_acc[0]).drop('day')
     lat = atm.get_coord(pcp_acc, 'lat')
@@ -134,7 +158,7 @@ def calc_points(pcp_acc):
     for i, lat0 in enumerate(lat):
         for j, lon0 in enumerate(lon):
             print('%.1f E, %.1f N' % (lon0, lat0))
-            chp = indices.onset_changepoint(pcp_acc[:, i, j])
+            chp = indices.onset_changepoint(pcp_acc[:, i, j], **chp_opts)
             onset.values[i, j] = chp.onset.values
             retreat.values[i, j] = chp.retreat.values
     data = xray.Dataset({'onset' : onset, 'retreat' : retreat})
@@ -146,12 +170,14 @@ def yrly_file(savefile, year, pts_nm):
     return filenm
 
 if pts_nm is not None:
+    daymax = max(chp_opts['retreat_range'])
     if pts_nm == 'CHP_CMAP':
         years = years[years < 2015]
     # Calculate onset/retreat in each year
     for year, filenm in zip(years, datafiles[pts_nm]):
-        pcp_acc = get_data(filenm, year, pts_nm, pts_subset, xsample, ysample)
-        index = calc_points(pcp_acc)
+        pcp_acc = get_data(filenm, year, pts_nm, pts_subset, xsample, ysample,
+                           daymax)
+        index = calc_points(pcp_acc, chp_opts)
         filenm = yrly_file(savefile, year, pts_nm)
         print('Saving to ' + filenm)
         index.to_netcdf(filenm)
