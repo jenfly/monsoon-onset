@@ -647,7 +647,7 @@ def onset_changepoint(precip_acc, onset_range=(1, 250),
             # Cut out any NaNs from day range
             pcp_yr = precip_sub[y]
             ind = np.where(np.isfinite(pcp_yr))[0]
-            islice = slice(ind.min(), ind.max())
+            islice = slice(ind.min(), ind.max() + 1)
             pcp_yr = pcp_yr[islice]
             days_yr = pcp_yr[daynm].values
             print('%d (%d-%d)' % (year, min(days_yr), max(days_yr)))
