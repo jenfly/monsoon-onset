@@ -137,30 +137,9 @@ for nm in varnms:
 # ----------------------------------------------------------------------
 # Functions for plotting
 
-def fmt_axes(xlims, xticks, ylims, yticks):
-    if xticks is not None:
-        plt.xticks(xticks)
-    if xlims is not None:
-        plt.xlim(xlims)
-    if yticks is not None:
-        plt.yticks(yticks)
-    if ylims is not None:
-        plt.ylim(ylims)
-
-def clear_labels(axtype, ax=None):
-    if ax is None:
-        ax = plt.gca()
-    if axtype.lower() == 'x':
-        ax.set_xlabel('')
-        ax.set_xticklabels([])
-    else:
-        ax.set_ylabel('')
-        ax.set_yticklabels([])
-
-def to_dataset(data):
-    if isinstance(data, xray.DataArray):
-        data = data.to_dataset()
-    return data
+fmt_axes = atm.ax_lims_ticks
+clear_labels = atm.clear_labels
+to_dataset = atm.to_dataset
 
 def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
                     xlims=(-120, 200), xticks=np.arange(-120, 201, 30),
