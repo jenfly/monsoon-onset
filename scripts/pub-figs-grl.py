@@ -21,7 +21,7 @@ years = np.arange(1980, 2016)
 datadir = atm.homedir() + 'datastore/%s/analysis/' % version
 onset_nm = 'CHP_MFC'
 onset_nms = ['CHP_MFC', 'MOK', 'HOWI', 'OCI']
-pts_nm = 'CHP_CMAP'
+pts_nm = 'CHP_PCP'
 pcp_nm = 'PRECTOT'
 varnms = ['PRECTOT', 'U200', 'V200', 'U850', 'V850']
 lat_extract = {'U200' : 0, 'V200' : 15, 'U850' : 15, 'V850' : 15}
@@ -40,8 +40,10 @@ datafiles['CMAP'] = datadir + 'cmap_dailyrel_' + onset_nm + '_1980-2014.nc'
 ptsfile = datadir + version + '_index_pts_%s_' % pts_nm
 if pts_nm == 'CHP_CMAP':
     ptsfile = ptsfile + '1980-2014.nc'
+    pts_xroll, pts_yroll = None, None
 else:
     ptsfile = ptsfile + yearstr
+    pts_xroll, pts_yroll = 3, 3
 
 # ----------------------------------------------------------------------
 # Read data
@@ -68,6 +70,21 @@ for nm in index_all:
 print('Loading ' + ptsfile)
 with xray.open_dataset(ptsfile) as index_pts:
     index_pts.load()
+for nm in index_pts.data_vars:
+    if pts_xroll is not None:
+        index_pts[nm] = atm.rolling_mean(index_pts[nm], pts_xroll, axis=-1,
+                                         center=True)
+    if pts_yroll is not None:
+        index_pts[nm] = atm.rolling_mean(index_pts[nm], pts_yroll, axis=-2,
+                                         center=True)
+
+# Regression of gridpoint indices onto large-scale index
+print('Regression of gridpoint indices onto large-scale index')
+pts_reg, pts_mask = {}, {}
+for nm in index_pts.data_vars:
+    ind = index[nm].sel(year=index_pts['year'])
+    pts_reg[nm] = atm.regress_field(index_pts[nm], ind, axis=0)
+    pts_mask[nm] = (pts_reg[nm]['p'] >= 0.05)
 
 # Dailyrel climatology
 keys_dict = {'PRECTOT' : 'PRECTOT', 'CMAP' : 'precip', 'U200' : 'U',
@@ -114,6 +131,11 @@ if nroll is not None:
 # ----------------------------------------------------------------------
 # Plotting functions
 
+def fix_axes(axlims):
+    plt.gca().set_ylim(axlims[:2])
+    plt.gca().set_xlim(axlims[2:])
+    plt.draw()
+
 def yrly_index(onset_all, legend=True):
     """Plot onset day vs. year for different onset definitions."""
 
@@ -138,7 +160,7 @@ def yrly_index(onset_all, legend=True):
     plt.xticks(xticks, xticklabels)
     plt.xlabel('Year')
     plt.ylabel('Day of Year')
-    plt.title('Onset')
+    #plt.title('Onset')
 
 def daily_tseries(tseries, index, npre, npost, legend, grp):
     """Plot dailyrel timeseries climatology"""
@@ -208,18 +230,46 @@ def precip_maps(precip, days, grp, cmax=20, cint=1, axlims=(5, 35, 60, 100),
                 cmap='PuBuGn'):
     """Lat-lon maps of precip on selected days."""
     clev = np.arange(0, cmax + cint/2.0, cint)
-    cticks = np.arange(0, clev.max(), 2)
+    cticks = np.arange(0, clev.max() + 1, 2)
     for day in days:
         grp.next()
         pcp = precip.sel(dayrel=day)
         m = atm.contourf_latlon(pcp, clev=clev, axlims=axlims, cmap=cmap,
                                 colorbar=False, extend='max')
         atm.text(day, (0.05, 0.9), fontsize=12, fontweight='bold')
-    plt.colorbar(ax=grp.axes.ravel().tolist(), orientation='vertical',
-                 shrink=0.8, ticks=cticks)
-    plt.gca().set_ylim(axlims[:2])
-    plt.gca().set_xlim(axlims[2:])
-    plt.draw()
+    # plt.colorbar(ax=grp.axes.ravel().tolist(), orientation='vertical',
+    #              shrink=0.8, ticks=cticks)
+    atm.colorbar_multiplot(orientation='vertical', shrink=0.8, ticks=cticks)
+    fix_axes(axlims)
+
+
+def pts_clim(index_pts, nm, clev_bar=10, clev_std=np.arange(0, 21, 1),
+             axlims=(5, 32, 60, 100), cmap='spectral'):
+    """Plot climatological mean and standard deviation of grid point indices."""
+    varbar = index_pts[nm].mean(dim='year')
+    varstd = index_pts[nm].std(dim='year')
+    atm.contourf_latlon(varstd, clev=clev_std, axlims=axlims, cmap=cmap,
+                        symmetric=False, extend='max')
+    _, cs = atm.contour_latlon(varbar, clev=clev_bar, axlims=axlims, colors='k',
+                               linewidths=2)
+    plt.clabel(cs, fmt='%.0f', fontsize=9)
+    fix_axes(axlims)
+
+# Plot regression
+def plot_reg(pts_reg, pts_mask, nm, clev=0.2, xsample=1, ysample=1,
+             axlims=(5, 32, 60, 100), cline=None):
+    """Plot regression of grid point indices onto large-scale index."""
+    var = pts_reg[nm]['m']
+    mask = pts_mask[nm]
+    xname = atm.get_coord(mask, 'lon', 'name')
+    yname = atm.get_coord(mask, 'lat', 'name')
+    atm.contourf_latlon(var, clev=clev, axlims=axlims, extend='both')
+    atm.stipple_pts(mask, xname=xname, yname=yname, xsample=xsample,
+                    ysample=ysample)
+    if cline is not None:
+        atm.contour_latlon(var, clev=[cline], axlims=axlims, colors='b',
+                           linewidths=2)
+    fix_axes(axlims)
 
 # ----------------------------------------------------------------------
 
@@ -255,20 +305,36 @@ for key in keys:
 
 # Precip maps
 #days = [-30, -15, 0, 15, 30, 45, 60, 75, 90]
-days = [-5, 0, 5, 10, 15, 20, 25, 30, 35]
-cmax, cint = 12, 1
-nrow, ncol = 3, 3
-fig_kw = {'figsize' : (10, 6), 'sharex' : True, 'sharey' : True}
+days = [-5, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 60]
+nrow, ncol = 4, 3
+cmax, cint = 20, 1
+fig_kw = {'figsize' : (10, 8), 'sharex' : True, 'sharey' : True}
 gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'wspace' : 0.15, 'hspace' : 0.05}
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 precip_maps(data[pcp_nm], days, grp, cmax=cmax, cint=cint)
+
+# Grid point indices
+nm = 'onset'
+cmap = 'spectral'
+clev_bar = 10
+clev_std = np.arange(0, 21, 1)
+clev_reg = np.arange(-1.2, 1.25, 0.2)
+xsample, ysample = 2, 2
+nrow, ncol = 1, 2
+fig_kw = {'figsize' : (9, 3.5)}
+gridspec_kw = {'left' : 0.1, 'wspace' : 0.3}
+grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
+grp.next()
+pts_clim(index_pts, nm, clev_bar=clev_bar, clev_std=clev_std, cmap=cmap)
+grp.next()
+plot_reg(pts_reg, pts_mask, nm, clev=clev_reg, xsample=xsample, ysample=ysample)
 
 # ----------------------------------------------------------------------
 # Table of summary stats on onset/retreat/length
 
 nms = ['Mean', 'Std', 'Max', 'Min']
 for nm in ['onset', 'retreat', 'length']:
-    ind = index[onset_nm][nm].values
+    ind = index[nm].values
     series = pd.Series([ind.mean(), ind.std(), ind.max(), ind.min()], index=nms)
     if nm == 'onset':
         stats = series.to_frame(name=nm.capitalize())
@@ -280,7 +346,7 @@ def daystr(day):
     day = round(day)
     mm, dd = atm.jday_to_mmdd(day)
     mon = atm.month_str(mm)
-    return '%.0f (%s-%.0f)' % (day, mon, dd)
+    return '%.0f (%s-%.0f)' % (day, mon.capitalize(), dd)
 
 for nm1 in stats.columns:
     for nm2 in stats.index:
