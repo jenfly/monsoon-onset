@@ -166,8 +166,8 @@ def daily_tseries(tseries, index, npre, npost, legend, grp):
             data2 = None
         data1_styles = {nm : style for (nm, style) in zip(keys1, styles)}
         utils.plotyy(data1, data2, xname='dayrel', data1_styles=data1_styles,
-                     y2_opts=y2_opts, xlims=xlims, xticks=xticks, 
-                     xlabel='Rel Day', y1_label=y1_label, y2_label=y2_label, 
+                     y2_opts=y2_opts, xlims=xlims, xticks=xticks,
+                     xlabel='Rel Day', y1_label=y1_label, y2_label=y2_label,
                      legend=legend, legend_kw=legend_kw, x0_axvlines=x0)
 
 
@@ -204,9 +204,26 @@ def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
         plt.ylabel('Latitude')
 
 
+def precip_maps(precip, days, grp, cmax=20, cint=1, axlims=(5, 35, 60, 100),
+                cmap='PuBuGn'):
+    """Lat-lon maps of precip on selected days."""
+    clev = np.arange(0, cmax + cint/2.0, cint)
+    cticks = np.arange(0, clev.max(), 2)
+    for day in days:
+        grp.next()
+        pcp = precip.sel(dayrel=day)
+        m = atm.contourf_latlon(pcp, clev=clev, axlims=axlims, cmap=cmap,
+                                colorbar=False, extend='max')
+        atm.text(day, (0.05, 0.9), fontsize=12, fontweight='bold')
+    plt.colorbar(ax=grp.axes.ravel().tolist(), orientation='vertical',
+                 shrink=0.8, ticks=cticks)
+    plt.gca().set_ylim(axlims[:2])
+    plt.gca().set_xlim(axlims[2:])
+    plt.draw()
+
 # ----------------------------------------------------------------------
 
-# Plot daily tseries   
+# Plot daily tseries
 nrow, ncol = 2, 2
 fig_kw = {'figsize' : (11, 7)}
 gridspec_kw = {'left' : 0.06, 'right' : 0.93, 'bottom' : 0.06, 'top' : 0.95,
@@ -233,9 +250,18 @@ for key in keys:
     grp.next()
     var = atm.dim_mean(data[key], 'lon', lon1, lon2)
     var = atm.rolling_mean(var, nroll, axis=0, center=True)
-    contourf_latday(var, title=key.upper(), grp=grp, 
+    contourf_latday(var, title=key.upper(), grp=grp,
                     ssn_length=index['length'].mean(dim='year'))
 
+# Precip maps
+#days = [-30, -15, 0, 15, 30, 45, 60, 75, 90]
+days = [-5, 0, 5, 10, 15, 20, 25, 30, 35]
+cmax, cint = 12, 1
+nrow, ncol = 3, 3
+fig_kw = {'figsize' : (10, 6), 'sharex' : True, 'sharey' : True}
+gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'wspace' : 0.15, 'hspace' : 0.05}
+grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
+precip_maps(data[pcp_nm], days, grp, cmax=cmax, cint=cint)
 
 # ----------------------------------------------------------------------
 # Table of summary stats on onset/retreat/length
