@@ -45,6 +45,12 @@ else:
     ptsfile = ptsfile + yearstr
     pts_xroll, pts_yroll = 3, 3
 
+enso_nm = 'NINO3'
+#enso_nm = 'NINO3.4'
+ensofile = atm.homedir() + ('dynamics/calc/ENSO/enso_%s.csv' %
+                            enso_nm.lower().replace('.', '').replace('+', ''))
+enso_keys = ['MAM', 'JJA']
+
 # ----------------------------------------------------------------------
 # Read data
 
@@ -98,7 +104,16 @@ for nm in datafiles:
         data[nm] = ds[keys_dict[nm]].load()
 
 # ENSO indices
-
+enso = pd.read_csv(ensofile, index_col=0)
+enso = enso.loc[years]
+for key in enso_keys:
+    if key not in enso.columns:
+        months = atm.season_months(key)
+        month_names = [(atm.month_str(m)).capitalize() for m in months]
+        enso[key] = enso[month_names].mean(axis=1)
+enso = enso[enso_keys]
+col_names = [enso_nm + ' ' + nm for nm in enso.columns]
+enso.columns = col_names
 
 # ----------------------------------------------------------------------
 # Daily timeseries
@@ -141,9 +156,9 @@ def yrly_index(onset_all, legend=True):
 
     corr = onset_all.corr()[onset_nm]
     labels = {nm : nm for nm in onset_all.columns}
-    for nm in onset_all.columns:
-        if nm != onset_nm:
-            labels[nm] = labels[nm] + ' %.2f' % corr[nm]
+    # for nm in onset_all.columns:
+    #     if nm != onset_nm:
+    #         labels[nm] = labels[nm] + ' %.2f' % corr[nm]
 
     styles = {'CHP_MFC' : {'color' : 'k', 'linewidth' : 2},
               'OCI' : {'color' : 'r'}, 'HOWI' : {'color' : 'b'},
@@ -248,8 +263,9 @@ def pts_clim(index_pts, nm, clev_bar=10, clev_std=np.arange(0, 21, 1),
     """Plot climatological mean and standard deviation of grid point indices."""
     varbar = index_pts[nm].mean(dim='year')
     varstd = index_pts[nm].std(dim='year')
-    atm.contourf_latlon(varstd, clev=clev_std, axlims=axlims, cmap=cmap,
-                        symmetric=False, extend='max')
+    m = atm.contourf_latlon(varstd, clev=clev_std, axlims=axlims, cmap=cmap,
+                            symmetric=False, colorbar=False, extend='max')
+    m.colorbar(ticks=np.arange(0, 21, 2))
     _, cs = atm.contour_latlon(varbar, clev=clev_bar, axlims=axlims, colors='k',
                                linewidths=2)
     plt.clabel(cs, fmt='%.0f', fontsize=9)
@@ -257,7 +273,8 @@ def pts_clim(index_pts, nm, clev_bar=10, clev_std=np.arange(0, 21, 1),
 
 # Plot regression
 def plot_reg(pts_reg, pts_mask, nm, clev=0.2, xsample=1, ysample=1,
-             axlims=(5, 32, 60, 100), cline=None):
+             axlims=(5, 32, 60, 100), cline=None, alpha=0.25,
+             markersize=5):
     """Plot regression of grid point indices onto large-scale index."""
     var = pts_reg[nm]['m']
     mask = pts_mask[nm]
@@ -265,15 +282,16 @@ def plot_reg(pts_reg, pts_mask, nm, clev=0.2, xsample=1, ysample=1,
     yname = atm.get_coord(mask, 'lat', 'name')
     atm.contourf_latlon(var, clev=clev, axlims=axlims, extend='both')
     atm.stipple_pts(mask, xname=xname, yname=yname, xsample=xsample,
-                    ysample=ysample)
+                    ysample=ysample, alpha=alpha, markersize=markersize)
     if cline is not None:
         atm.contour_latlon(var, clev=[cline], axlims=axlims, colors='b',
                            linewidths=2)
     fix_axes(axlims)
 
 # ----------------------------------------------------------------------
+# FIGURES
 
-# Plot daily tseries
+# Plot yearly tseries
 nrow, ncol = 2, 2
 fig_kw = {'figsize' : (11, 7)}
 gridspec_kw = {'left' : 0.06, 'right' : 0.93, 'bottom' : 0.06, 'top' : 0.95,
@@ -281,12 +299,11 @@ gridspec_kw = {'left' : 0.06, 'right' : 0.93, 'bottom' : 0.06, 'top' : 0.95,
 legend_kw = {'fontsize' : 11, 'handlelength' : 2.5}
 legend = True
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
-daily_tseries(tseries, index, npre, npost, legend, grp)
-
-
-# Plot yearly tseries
 grp.next()
 yrly_index(onset_all, legend=True)
+
+# Plot daily tseries
+daily_tseries(tseries, index, npre, npost, legend, grp)
 
 
 # Lat-day contour plots
@@ -305,7 +322,7 @@ for key in keys:
 
 # Precip maps
 #days = [-30, -15, 0, 15, 30, 45, 60, 75, 90]
-days = [-5, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 60]
+days = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
 nrow, ncol = 4, 3
 cmax, cint = 20, 1
 fig_kw = {'figsize' : (10, 8), 'sharex' : True, 'sharey' : True}
@@ -328,6 +345,12 @@ grp.next()
 pts_clim(index_pts, nm, clev_bar=clev_bar, clev_std=clev_std, cmap=cmap)
 grp.next()
 plot_reg(pts_reg, pts_mask, nm, clev=clev_reg, xsample=xsample, ysample=ysample)
+# NOTE!!!!!!
+# Transparency gets lost if saved directly to eps
+# Save this figure to pdf first, then run:
+# pdftops -eps fig04.pdf fig04.eps
+
+
 
 # ----------------------------------------------------------------------
 # Table of summary stats on onset/retreat/length
@@ -359,9 +382,100 @@ print(stats.to_latex())
 
 # ----------------------------------------------------------------------
 # Table of correlations between detrended indices
-# onset-retreat-length-ENSO
 
-corr = onset_all.corr()[onset_nm]
-print(corr)
+detrend = True
+df_onset = onset_all
+df_ind = index[['onset', 'retreat', 'length']].to_dataframe()
+df_enso = enso
+if detrend:
+    df_onset = atm.detrend(df_onset)
+    df_ind = atm.detrend(df_ind)
+    df_enso = atm.detrend(df_enso)
+
+corr_onset = df_onset.corr()
+print(corr_onset.round(2))
+
+df1 = pd.concat([df_ind, df_enso], axis=1)
+df2 = df_ind
+
+corr = {}
+for key in ['r', 'm', 'p']:
+    corr[key] = pd.DataFrame(np.ones((len(df1.columns), len(df2.columns))),
+                             index=df1.columns, columns=df2.columns)
+
+for key1 in df1.columns:
+    for key2 in df2.columns:
+        reg = atm.Linreg(df1[key1], df2[key2])
+        corr['r'].loc[key1][key2] = reg.r
+        corr['m'].loc[key1][key2] = reg.slope
+        corr['p'].loc[key1][key2] = reg.p
+
+# Minimum absolute value of r to be significant
+rcrit = (abs(corr['r'][corr['p'] <= 0.05])).min().min()
+def format_r(r):
+    rstr = '%.2f' % r
+    # if abs(r) >= rcrit:
+    #     rstr = 'textbf ' + rstr
+    return rstr
+
+print('\n\n*** Correlation coefficients ***')
+print(corr['r'].to_latex(float_format=format_r))
+print('Lowest significant value of abs(r) %.2f' % rcrit)
+
+print('\n\n*** Regression coefficients ***')
+print(corr['m'].round(2))
 
 # ----------------------------------------------------------------------
+# Duration of transition
+
+d0, peak1, peak2 = 0, 30, 90
+d1_list = [7, 14, 21, 28, 5, 10, 15, 20, 25]
+
+ts_peak = atm.dim_mean(tseries, 'dayrel', peak1, peak2)
+ts0 = atm.subset(tseries, {'dayrel' : (d0, d0)}, squeeze=True)
+df = pd.DataFrame()
+
+for d1 in d1_list:
+    ts1 = atm.subset(tseries, {'dayrel' : (d1, d1)}, squeeze=True)
+    delta = (ts1 - ts0) / (ts_peak - ts0)
+    delta = delta.round(2).to_array().to_series()
+    df['D1=%d' % d1] = delta
+
+print('Ratio of onset transition (day D1 minus day %d) to peak difference\n'
+      '(peak days %d to %d minus day %d)' % (d0, peak1, peak2, d0))
+print(df)
+
+# ----------------------------------------------------------------------
+nrow, ncol = 9, 4
+fig_kw = {'figsize' : (8.5, 11), 'sharex' : True, 'sharey' : True}
+gridspec_kw = {'left' : 0.06, 'right' : 0.97, 'bottom' : 0.06, 'top' : 0.98,
+               'wspace' : 0.05, 'hspace' : 0.05}
+grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
+days = atm.get_coord(index['tseries'], 'day')
+for y, year in enumerate(years):
+    grp.next()
+    plt.plot(days, index['tseries'][y], 'k')
+    for x0 in [index['onset'][y], index['retreat'][y]]:
+        plt.axvline(x0, color='k')
+    atm.text(year, (0.05, 0.85), fontsize=9)
+plt.xlim(0, 365)
+plt.ylim(-350, 350)
+xticks = np.arange(0, 365, 50)
+xtick_labels = [0, '', 100, '', 200, '', 300, '']
+plt.xticks(xticks, xtick_labels)
+
+
+# data1_styles = {'tseries' : 'k'}
+# y2_opts = {'color' : 'r', 'alpha' : 0.5, 'linewidth' : 1}
+# for y, year in enumerate(years):
+#     grp.next()
+#     x0 = [index['onset'][y], index['retreat'][y]]
+#     data2 = index.get('daily_ts')
+#     if data2 is not None:
+#         data2 = atm.rolling_mean(data2[y], nroll, center=True)
+#     utils.plotyy(index['tseries'][y], data2=data2, xname='day',
+#                  data1_styles=data1_styles, y2_opts=y2_opts,
+#                  xlims=None, xticks=None, ylims=None, yticks=None, y2_lims=None,
+#                  xlabel='', y1_label='', y2_label='', legend=False,
+#                  x0_axvlines=x0)
+#     atm.text(year, (0.05, 0.85), fontsize=9)
