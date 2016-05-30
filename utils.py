@@ -496,7 +496,7 @@ def contourf_lat_time(lat, days, plotdata, clev=None, title='', cmap='RdBu_r',
 
 # ----------------------------------------------------------------------
 def plotyy(data1, data2=None, xname='dayrel', data1_styles=None,
-           y2_opts={'color' : 'r', 'alpha' : 0.6},
+           y2_opts={'color' : 'r', 'alpha' : 0.6, 'linewidth' : 2},
            xlims=None, xticks=None, ylims=None, yticks=None, y2_lims=None,
            xlabel='', y1_label='', y2_label='', legend=False,
            legend_kw={'fontsize' : 9, 'handlelength' : 2.5},
@@ -522,10 +522,11 @@ def plotyy(data1, data2=None, xname='dayrel', data1_styles=None,
     if data2 is not None:
         plt.sca(plt.gca().twinx())
         for nm in data2.data_vars:
-            plt.plot(data2[xname], data2[nm], label=nm, linewidth=2,
-                     **y2_opts)
+            plt.plot(data2[xname], data2[nm], label=nm, **y2_opts)
         if y2_lims is not None:
             plt.ylim(y2_lims)
+        if 'linewidth' in y2_opts:
+            y2_opts.pop('linewidth')
         atm.fmt_axlabels('y', y2_label, **y2_opts)
     axes = axes + [plt.gca()]
 
