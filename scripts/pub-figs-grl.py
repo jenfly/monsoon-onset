@@ -44,6 +44,7 @@ if pts_nm == 'CHP_CMAP':
 else:
     ptsfile = ptsfile + yearstr
     pts_xroll, pts_yroll = 3, 3
+mfcbudget_file = datadir + version + '_mfc_budget_' + yearstr
 
 enso_nm = 'NINO3'
 #enso_nm = 'NINO3.4'
@@ -91,6 +92,14 @@ for nm in index_pts.data_vars:
     ind = index[nm].sel(year=index_pts['year'])
     pts_reg[nm] = atm.regress_field(index_pts[nm], ind, axis=0)
     pts_mask[nm] = (pts_reg[nm]['p'] >= 0.05)
+
+# MFC budget
+with xray.open_dataset(mfcbudget_file) as mfc_budget:
+    mfc_budget.load()
+mfc_budget = mfc_budget.rename({'DWDT' : 'dw/dt'})
+if nroll is not None:
+    for nm in mfc_budget.data_vars:
+        mfc_budget[nm] = atm.rolling_mean(mfc_budget[nm], nroll, center=True)
 
 # Dailyrel climatology
 keys_dict = {'PRECTOT' : 'PRECTOT', 'CMAP' : 'precip', 'U200' : 'U',
@@ -151,15 +160,38 @@ def fix_axes(axlims):
     plt.gca().set_xlim(axlims[2:])
     plt.draw()
 
+def plot_mfc_budget(mfc_budget, index, year, legend=True,
+                    legend_kw={'fontsize' : 9, 'loc' : 'upper left',
+                               'handlelength' : 2.5}):
+    ts = mfc_budget.sel(year=year)
+    ind = index.sel(year=year)
+    days = ts['day'].values
+    styles = {'PRECTOT' : {'color' : 'k'},
+              'EVAP' : {'color' : 'k', 'linestyle' : 'dashed'},
+              'MFC' : {'color' : 'k', 'linewidth' : 2},
+              'dw/dt' : {'color' : '0.7', 'linewidth' : 2}}
+
+    for nm in styles:
+        plt.plot(days, ts[nm], label=nm, **styles[nm])
+    plt.axvline(ind['onset'], color='k')
+    plt.axvline(ind['retreat'], color='k')
+    plt.xlabel('Day of Year')
+    plt.ylabel('mm/day')
+    ax1 = plt.gca()
+    ax2 = plt.twinx()
+    plt.sca(ax2)
+    plt.plot(days, ind['tseries'], 'r', alpha=0.6, linewidth=2, label='MFC_ACC')
+    atm.fmt_axlabels('y', 'mm', color='r', alpha=0.6)
+    if legend:
+        atm.legend_2ax(ax1, ax2, **legend_kw)
+
+
 def yrly_index(onset_all, legend=True):
     """Plot onset day vs. year for different onset definitions."""
 
     corr = onset_all.corr()[onset_nm]
     labels = {nm : nm for nm in onset_all.columns}
-    # for nm in onset_all.columns:
-    #     if nm != onset_nm:
-    #         labels[nm] = labels[nm] + ' %.2f' % corr[nm]
-
+    labels['CHP_MFC'] = 'CHP'
     styles = {'CHP_MFC' : {'color' : 'k', 'linewidth' : 2},
               'OCI' : {'color' : 'r'}, 'HOWI' : {'color' : 'b'},
               'MOK' : {'color' : 'g'}}
@@ -169,7 +201,8 @@ def yrly_index(onset_all, legend=True):
     for nm in onset_all.columns:
         plt.plot(years, onset_all[nm], label=labels[nm], **styles[nm])
     if legend:
-        plt.legend(fontsize=9, loc='upper left', ncol=2)
+        plt.legend(fontsize=9, loc='upper left', ncol=2, frameon=False,
+                   framealpha=0.0)
     plt.grid()
     plt.xlim(min(years) - 1, max(years) + 1)
     plt.xticks(xticks, xticklabels)
@@ -291,19 +324,33 @@ def plot_reg(pts_reg, pts_mask, nm, clev=0.2, xsample=1, ysample=1,
 # ----------------------------------------------------------------------
 # FIGURES
 
-# Plot yearly tseries
-nrow, ncol = 2, 2
-fig_kw = {'figsize' : (11, 7)}
-gridspec_kw = {'left' : 0.06, 'right' : 0.93, 'bottom' : 0.06, 'top' : 0.95,
-               'wspace' : 0.35, 'hspace' : 0.2}
-legend_kw = {'fontsize' : 11, 'handlelength' : 2.5}
+# Daily MFC budget and CHP tseries fit in a single year
+plotyear = 2000
+nrow, ncol = 1, 2
+fig_kw = {'figsize' : (10, 4)}
+gridspec_kw = {'left' : 0.05, 'right' : 0.97, 'wspace' : 0.4}
 legend = True
+legend_kw = {'fontsize' : 9, 'loc' : 'upper left', 'handlelength' : 2.5,
+             'frameon' : False, 'framealpha' : 0.0}
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
+grp.next()
+plot_mfc_budget(mfc_budget, index, plotyear, legend=legend, legend_kw=legend_kw)
+
+# Plot yearly tseries
 grp.next()
 yrly_index(onset_all, legend=True)
 
 # Plot daily tseries
+nrow, ncol = 2, 2
+fig_kw = {'figsize' : (10, 6)}
+gridspec_kw = {'left' : 0.1, 'right' : 0.9, 'bottom' : 0.06, 'top' : 0.95,
+               'wspace' : 0.35, 'hspace' : 0.2}
+legend_kw = {'fontsize' : 8, 'handlelength' : 2.5, 'frameon' : False,
+             'framealpha' : 0.0}
+legend = True
+grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 daily_tseries(tseries, index, npre, npost, legend, grp)
+grp.axes[1,1].axis('off')
 
 
 # Lat-day contour plots
