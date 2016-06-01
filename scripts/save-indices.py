@@ -194,7 +194,8 @@ if pts_nm is not None:
         pcp_acc = get_data(filenm, year, pts_nm, pts_subset, xsample, ysample,
                            daymax)
         index = calc_points(pcp_acc, chp_opts)
-        if pts_name == 'CHP_GPCP':
+        atm.disptime()
+        if pts_nm == 'CHP_GPCP':
             index = gpcp_correct(index, year)
         filenm = yrly_file(savefile, year, pts_nm)
         print('Saving to ' + filenm)
