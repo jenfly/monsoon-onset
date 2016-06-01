@@ -130,7 +130,7 @@ enso.columns = col_names
 tseries = xray.Dataset()
 tseries['MFC'] = utils.daily_rel2onset(index_all['CHP_MFC']['daily_ts'],
                                        index['onset'], npre, npost)
-tseries['MFC_ACC'] = utils.daily_rel2onset(index_all['CHP_MFC']['tseries'],
+tseries['CMFC'] = utils.daily_rel2onset(index_all['CHP_MFC']['tseries'],
                                            index['onset'], npre, npost)
 for nm in ['CMAP', 'PRECTOT']:
     tseries[nm] = atm.mean_over_geobox(data[nm], lat1, lat2, lon1, lon2)
@@ -170,7 +170,6 @@ def plot_mfc_budget(mfc_budget, index, year, legend=True,
               'EVAP' : {'color' : 'k', 'linestyle' : 'dashed'},
               'MFC' : {'color' : 'k', 'linewidth' : 2},
               'dw/dt' : {'color' : '0.7', 'linewidth' : 2}}
-
     for nm in styles:
         plt.plot(days, ts[nm], label=nm, **styles[nm])
     plt.axvline(ind['onset'], color='k')
@@ -180,10 +179,11 @@ def plot_mfc_budget(mfc_budget, index, year, legend=True,
     ax1 = plt.gca()
     ax2 = plt.twinx()
     plt.sca(ax2)
-    plt.plot(days, ind['tseries'], 'r', alpha=0.6, linewidth=2, label='MFC_ACC')
+    plt.plot(days, ind['tseries'], 'r', alpha=0.6, linewidth=2, label='CMFC')
     atm.fmt_axlabels('y', 'mm', color='r', alpha=0.6)
     if legend:
         atm.legend_2ax(ax1, ax2, **legend_kw)
+    return ax1, ax2
 
 
 def yrly_index(onset_all, legend=True):
@@ -215,7 +215,7 @@ def daily_tseries(tseries, index, npre, npost, legend, grp):
     xlims = (-npre, npost)
     xticks = range(-npre, npost + 1, 30)
     x0 = [0, index['length'].mean(dim='year')]
-    keypairs = [(['MFC', 'CMAP'], ['MFC_ACC']),
+    keypairs = [(['MFC', 'CMAP'], ['CMFC']),
                 (['U850_15N'], ['V850_15N']),
                 (['U200_0N'],['V200_15N'])]
     opts = [('upper left', 'mm/day', 'mm'),
@@ -275,14 +275,16 @@ def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
 
 
 def precip_maps(precip, days, grp, cmax=20, cint=1, axlims=(5, 35, 60, 100),
-                cmap='PuBuGn'):
+                cmap='PuBuGn', res='c'):
     """Lat-lon maps of precip on selected days."""
     clev = np.arange(0, cmax + cint/2.0, cint)
     cticks = np.arange(0, clev.max() + 1, 2)
+    lat1, lat2, lon1, lon2 = axlims
     for day in days:
         grp.next()
         pcp = precip.sel(dayrel=day)
-        m = atm.contourf_latlon(pcp, clev=clev, axlims=axlims, cmap=cmap,
+        m = atm.init_latlon(lat1, lat2, lon1, lon2, resolution=res)
+        m = atm.contourf_latlon(pcp, m=m, clev=clev, axlims=axlims, cmap=cmap,
                                 colorbar=False, extend='max')
         atm.text(day, (0.05, 0.9), fontsize=12, fontweight='bold')
     # plt.colorbar(ax=grp.axes.ravel().tolist(), orientation='vertical',
@@ -292,11 +294,13 @@ def precip_maps(precip, days, grp, cmax=20, cint=1, axlims=(5, 35, 60, 100),
 
 
 def pts_clim(index_pts, nm, clev_bar=10, clev_std=np.arange(0, 21, 1),
-             axlims=(5, 32, 60, 100), cmap='spectral'):
+             axlims=(5, 32, 60, 100), cmap='spectral', res='c'):
     """Plot climatological mean and standard deviation of grid point indices."""
     varbar = index_pts[nm].mean(dim='year')
     varstd = index_pts[nm].std(dim='year')
-    m = atm.contourf_latlon(varstd, clev=clev_std, axlims=axlims, cmap=cmap,
+    lat1, lat2, lon1, lon2 = axlims
+    m = atm.init_latlon(lat1, lat2, lon1, lon2, resolution=res)
+    m = atm.contourf_latlon(varstd, m=m, clev=clev_std, axlims=axlims, cmap=cmap,
                             symmetric=False, colorbar=False, extend='max')
     m.colorbar(ticks=np.arange(0, 21, 2))
     _, cs = atm.contour_latlon(varbar, clev=clev_bar, axlims=axlims, colors='k',
@@ -492,24 +496,57 @@ print('Ratio of onset transition (day D1 minus day %d) to peak difference\n'
       '(peak days %d to %d minus day %d)' % (d0, peak1, peak2, d0))
 print(df)
 
+
 # ----------------------------------------------------------------------
-nrow, ncol = 9, 4
-fig_kw = {'figsize' : (8.5, 11), 'sharex' : True, 'sharey' : True}
-gridspec_kw = {'left' : 0.06, 'right' : 0.97, 'bottom' : 0.06, 'top' : 0.98,
-               'wspace' : 0.05, 'hspace' : 0.05}
+# MFC budget timeseries in each year
+nrow, ncol = 3, 4
+fig_kw = {'figsize' : (11, 7)}
+gridspec_kw = {'left' : 0.05, 'right' : 0.9, 'wspace' : 0.05, 'hspace' : 0.1}
+legend_kw = {'fontsize' : 9, 'loc' : 'upper left', 'handlelength' : 2.5,
+             'frameon' : False, 'framealpha' : 0.0}
+xlims = (0, 400)
+y1_lims = (-5, 15)
+y2_lims = (-400, 400)
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
-days = atm.get_coord(index['tseries'], 'day')
-for y, year in enumerate(years):
+for year in years:
     grp.next()
-    plt.plot(days, index['tseries'][y], 'k')
-    for x0 in [index['onset'][y], index['retreat'][y]]:
-        plt.axvline(x0, color='k')
-    atm.text(year, (0.05, 0.85), fontsize=9)
-plt.xlim(0, 365)
-plt.ylim(-350, 350)
-xticks = np.arange(0, 365, 50)
-xtick_labels = [0, '', 100, '', 200, '', 300, '']
-plt.xticks(xticks, xtick_labels)
+    if grp.row == 0 and grp.col == 0:
+        legend = True
+    else:
+        legend = False
+    ax1, ax2 = plot_mfc_budget(mfc_budget, index, year, legend=legend,
+                               legend_kw=legend_kw)
+    ax1.set_ylim(y1_lims)
+    ax2.set_ylim(y2_lims)
+    if grp.col > 0:
+        ax1.set_ylabel('')
+        ax1.set_yticklabels([])
+    if grp.col < grp.ncol - 1:
+        ax2.set_ylabel('')
+        ax2.set_yticklabels([])
+    if grp.row < grp.nrow - 1:
+        for ax in [ax1, ax2]:
+            ax.set_xlabel('')
+            ax.set_xticklabels([])
+    atm.text(year, (0.05, 0.9), fontsize=9)
+# ----------------------------------------------------------------------
+# nrow, ncol = 9, 4
+# fig_kw = {'figsize' : (8.5, 11), 'sharex' : True, 'sharey' : True}
+# gridspec_kw = {'left' : 0.06, 'right' : 0.97, 'bottom' : 0.06, 'top' : 0.98,
+#                'wspace' : 0.05, 'hspace' : 0.05}
+# grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
+# days = atm.get_coord(index['tseries'], 'day')
+# for y, year in enumerate(years):
+#     grp.next()
+#     plt.plot(days, index['tseries'][y], 'k')
+#     for x0 in [index['onset'][y], index['retreat'][y]]:
+#         plt.axvline(x0, color='k')
+#     atm.text(year, (0.05, 0.85), fontsize=9)
+# plt.xlim(0, 365)
+# plt.ylim(-350, 350)
+# xticks = np.arange(0, 365, 50)
+# xtick_labels = [0, '', 100, '', 200, '', 300, '']
+# plt.xticks(xticks, xtick_labels)
 
 
 # data1_styles = {'tseries' : 'k'}
