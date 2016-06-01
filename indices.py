@@ -851,85 +851,123 @@ def summarize_indices(years, onset, retreat=None, indname='', binwidth=5,
 
 
 # ----------------------------------------------------------------------
-def plot_index_years(index, years=None, figsize=(14,10), nrow=3, ncol=4,
-                     suptitle='', yearnm='year', daynm='day',
-                     vertline=False):
-    """Plot daily timeseries of monsoon index/onset/retreat each year.
+def plot_index_years(index, nrow=3, ncol=4,
+                     fig_kw={'figsize' : (11, 7), 'sharex' : True,
+                             'sharey' : True},
+                     gridspec_kw={'left' : 0.1, 'right' : 0.95, 'wspace' : 0.05,
+                                  'hspace' : 0.1},
+                     incl_fit=False, suptitle='', xlabel='Day', ylabel='Index',
+                     xlims=None, ylims=None, xticks=np.arange(0, 401, 100),
+                     grid=True):
+    """Plot daily timeseries of monsoon onset/retreat index each year.
     """
 
-    days = index[daynm]
-    if years is None:
-        # All years
-        years = index[yearnm].values
+    years = atm.get_coord(index, 'year')
+    days = atm.get_coord(index, 'day')
+    grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw,
+                       suptitle=suptitle)
+    for year in years:
+        grp.next()
+        ind = atm.subset(index, {'year' : (year, year)}, squeeze=True)
+        ts = ind['tseries']
+        d0_list = [ind['onset'], ind['retreat']]
+        plt.plot(days, ts, 'k')
+        for d0 in d0_list:
+            plt.axvline(d0, color='k')
+        if incl_fit and 'tseries_fit_onset' in ind:
+            plt.plot(days, ind['tseries_fit_onset'], 'r')
+        if incl_fit and 'tseries_fit_retreat' in ind:
+            plt.plot(days, ind['tseries_fit_retreat'], 'b')
+        atm.text(year, (0.05, 0.9))
+        atm.ax_lims_ticks(xlims=xlims, ylims=ylims, xticks=xticks)
+        plt.grid(grid)
+        if grp.row == grp.nrow - 1:
+            plt.xlabel(xlabel)
+        if grp.col == 0:
+            plt.ylabel(ylabel)
 
-    tseries = atm.subset(index['tseries'], {yearnm : (years, None)})
-    if 'onset' in index.data_vars:
-        onset = atm.subset(index['onset'], {yearnm : (years, None)}).values
-    else:
-        onset = np.nan * years
-    if 'retreat' in index.data_vars:
-        retreat = atm.subset(index['retreat'], {yearnm : (years, None)}).values
-    else:
-        retreat = np.nan * years
+    return grp
 
-    # Earliest/latest onset/retreat, shortest/longest seasons
-    length = retreat - onset
-    yrs_ex, nms_ex = [], []
-    if not np.isnan(onset).all():
-        yrs_ex.extend([years[onset.argmin()], years[onset.argmax()]])
-        nms_ex.extend(['Earliest Onset', 'Latest Onset'])
-    if not np.isnan(retreat).all():
-        yrs_ex.extend([years[retreat.argmin()], years[retreat.argmax()]])
-        nms_ex.extend(['Earliest Retreat', 'Latest Retreat'])
-    if not np.isnan(length).all():
-        yrs_ex.extend([years[length.argmin()], years[length.argmax()]])
-        nms_ex.extend(['Shortest Monsoon', 'Longest Monsoon'])
-    yrs_extreme = collections.defaultdict(str)
-    for yr, nm in zip(yrs_ex, nms_ex):
-        yrs_extreme[yr] = yrs_extreme[yr] + ' - ' + nm
 
-    # Monsoon index with onset and retreat in individual years
-    def line_or_point(d, ind, daynm, vertline, ax, label, clr):
-        d = int(d)
-        val = atm.subset(ind, {daynm : (d, None)})
-        if vertline:
-            ax.plot([d, d], ax.get_ylim(), clr, linewidth=2, label=label)
-        ax.plot(d, val, clr + 'o', label=label)
-
-    def onset_tseries(days, ind, d_onset, d_retreat, daynm, ax=None):
-        if ax is None:
-            ax = plt.gca()
-        ax.plot(days, ind)
-        if d_onset is not None and not np.isnan(d_onset):
-            line_or_point(d_onset, ind, daynm, vertline, ax, label='onset',
-                          clr='r')
-        if d_retreat is not None and not np.isnan(d_retreat):
-            line_or_point(d_retreat, ind, daynm, vertline, ax, label='retreat',
-                          clr='b')
-        ax.grid()
-        ax.set_xlim(days.min() - 1, days.max() + 1)
-
-    # Plot each year
-    for y, year in enumerate(years):
-        if y % (nrow * ncol) == 0:
-            fig, axes = plt.subplots(nrow, ncol, figsize=figsize, sharex=True)
-            plt.subplots_adjust(left=0.08, right=0.95, wspace=0.1, hspace=0.2)
-            plt.suptitle(suptitle)
-            yplot = 1
-        else:
-            yplot += 1
-        i, j = atm.subplot_index(nrow, ncol, yplot)
-        ax = axes[i-1, j-1]
-        onset_tseries(days, tseries[y], onset[y], retreat[y], daynm, ax)
-        if year in yrs_extreme.keys():
-            titlestr = str(year) + yrs_extreme[year]
-        else:
-            titlestr = str(year)
-        ax.set_title(titlestr)
-        if i == nrow:
-            ax.set_xlabel('Day')
-
-    return yrs_extreme
+# def plot_index_years(index, years=None, figsize=(14,10), nrow=3, ncol=4,
+#                      suptitle='', yearnm='year', daynm='day',
+#                      vertline=False):
+#     """Plot daily timeseries of monsoon index/onset/retreat each year.
+#     """
+#
+#     days = index[daynm]
+#     if years is None:
+#         # All years
+#         years = index[yearnm].values
+#
+#     tseries = atm.subset(index['tseries'], {yearnm : (years, None)})
+#     if 'onset' in index.data_vars:
+#         onset = atm.subset(index['onset'], {yearnm : (years, None)}).values
+#     else:
+#         onset = np.nan * years
+#     if 'retreat' in index.data_vars:
+#         retreat = atm.subset(index['retreat'], {yearnm : (years, None)}).values
+#     else:
+#         retreat = np.nan * years
+#
+#     # Earliest/latest onset/retreat, shortest/longest seasons
+#     length = retreat - onset
+#     yrs_ex, nms_ex = [], []
+#     if not np.isnan(onset).all():
+#         yrs_ex.extend([years[onset.argmin()], years[onset.argmax()]])
+#         nms_ex.extend(['Earliest Onset', 'Latest Onset'])
+#     if not np.isnan(retreat).all():
+#         yrs_ex.extend([years[retreat.argmin()], years[retreat.argmax()]])
+#         nms_ex.extend(['Earliest Retreat', 'Latest Retreat'])
+#     if not np.isnan(length).all():
+#         yrs_ex.extend([years[length.argmin()], years[length.argmax()]])
+#         nms_ex.extend(['Shortest Monsoon', 'Longest Monsoon'])
+#     yrs_extreme = collections.defaultdict(str)
+#     for yr, nm in zip(yrs_ex, nms_ex):
+#         yrs_extreme[yr] = yrs_extreme[yr] + ' - ' + nm
+#
+#     # Monsoon index with onset and retreat in individual years
+#     def line_or_point(d, ind, daynm, vertline, ax, label, clr):
+#         d = int(d)
+#         val = atm.subset(ind, {daynm : (d, None)})
+#         if vertline:
+#             ax.plot([d, d], ax.get_ylim(), clr, linewidth=2, label=label)
+#         ax.plot(d, val, clr + 'o', label=label)
+#
+#     def onset_tseries(days, ind, d_onset, d_retreat, daynm, ax=None):
+#         if ax is None:
+#             ax = plt.gca()
+#         ax.plot(days, ind)
+#         if d_onset is not None and not np.isnan(d_onset):
+#             line_or_point(d_onset, ind, daynm, vertline, ax, label='onset',
+#                           clr='r')
+#         if d_retreat is not None and not np.isnan(d_retreat):
+#             line_or_point(d_retreat, ind, daynm, vertline, ax, label='retreat',
+#                           clr='b')
+#         ax.grid()
+#         ax.set_xlim(days.min() - 1, days.max() + 1)
+#
+#     # Plot each year
+#     for y, year in enumerate(years):
+#         if y % (nrow * ncol) == 0:
+#             fig, axes = plt.subplots(nrow, ncol, figsize=figsize, sharex=True)
+#             plt.subplots_adjust(left=0.08, right=0.95, wspace=0.1, hspace=0.2)
+#             plt.suptitle(suptitle)
+#             yplot = 1
+#         else:
+#             yplot += 1
+#         i, j = atm.subplot_index(nrow, ncol, yplot)
+#         ax = axes[i-1, j-1]
+#         onset_tseries(days, tseries[y], onset[y], retreat[y], daynm, ax)
+#         if year in yrs_extreme.keys():
+#             titlestr = str(year) + yrs_extreme[year]
+#         else:
+#             titlestr = str(year)
+#         ax.set_title(titlestr)
+#         if i == nrow:
+#             ax.set_xlabel('Day')
+#
+#     return yrs_extreme
 
 
 # ----------------------------------------------------------------------
