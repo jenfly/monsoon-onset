@@ -25,7 +25,7 @@ ind_nm, npre, npost = 'onset', 120, 200
 #ind_nm, npre, npost = 'retreat', 200, 50
 
 pcp_nm = 'gpcp'
-years = np.arange(1997, 2015)
+years = np.arange(1997, 2016)
 #years = np.arange(1980, 2015) # CMAP last full year is 2014
 #pcpfiles = atm.homedir() + 'datastore/cmap/cmap.enhanced.precip.pentad.mean.nc'
 pcpfiles = [atm.homedir() + 'datastore/gpcp/gpcp_daily_%d.nc' % yr
@@ -35,6 +35,9 @@ savefile = datadir + '%s_dailyrel_%s_%s-%d.nc' % (pcp_nm, onset_nm, min(years),
                                                   max(years))
 if ind_nm == 'retreat':
     savefile = savefile.replace('dailyrel', 'dailyrel_retreat')
+
+subset_dict = {'lon' : (40, 120), 'lat' : (-45, 45)}
+
 # ----------------------------------------------------------------------
 # Data and calcs
 
@@ -57,8 +60,12 @@ if pcp_nm == 'cmap':
     pcp = xray.DataArray(vals, dims=dimnames, coords=coords, name=name,
                          attrs=attrs)
 else:
-    pcp = atm.combine_daily_years(None, pcpfiles, years, yearname='year')
+    pcp = atm.combine_daily_years(None, pcpfiles, years, yearname='year',
+                                  subset_dict=subset_dict)
 
+
+# Wrap from following year to get extended daily range
+# pcp = utils.wrapyear_all(pcp, daymin=daymin, daymax=daymax)
 
 # Daily relative to onset/withdrawal
 pcp_rel = utils.daily_rel2onset(pcp, d0, npre, npost)

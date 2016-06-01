@@ -16,7 +16,9 @@ import utils
 
 # ----------------------------------------------------------------------
 version = 'merra2'
-years = np.arange(1980, 2016)
+#years = np.arange(1980, 2016)
+years = np.arange(1997, 2016) # GPCP
+
 datadir = atm.homedir() + 'eady/datastore/%s/daily/' % version
 savedir = atm.homedir() + 'eady/datastore/%s/analysis/' % version
 datafiles = {}
@@ -32,6 +34,9 @@ precname = {'merra' : 'precip', 'merra2' : 'PRECTOT_40E-120E_90S-90N'}[version]
 datafiles['CHP_PCP'] = [filestr % (y, precname, '', y) for y in years]
 datafiles['CHP_CMAP'] = [atm.homedir() + '/datastore/cmap/' +
                      'cmap.enhanced.precip.pentad.mean.nc' for y in years]
+datafiles['CHP_GPCP'] = [atm.homedir() + 'datastore/gpcp/' +
+                         'gpcp_daily_%d.nc' % yr for yr in years]
+
 yearstr = '%d-%d.nc' % (min(years), max(years))
 savefile = savedir + version + '_index_%s_' + yearstr
 
@@ -41,7 +46,7 @@ lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 
 # Grid point calcs
-pts_nm = 'CHP_CMAP'
+pts_nm = 'CHP_GPCP'
 #pts_nm = 'CHP_PCP' # Set to None to omit
 pts_subset = {'lon' : (57, 103), 'lat' : (2, 33)}
 xsample, ysample = 1, 1
@@ -120,7 +125,11 @@ def get_data(filenm, year, pts_nm, pts_subset, xsample, ysample, daymax=366):
     def get_year(filenm, pts_subset, xsample, ysample):
         if os.path.isfile(filenm):
             with xray.open_dataset(filenm) as ds:
-                pcp = atm.subset(ds['PRECTOT'], pts_subset)
+                # Get name of precip variable
+                for pcpname in ['PRECTOT', 'PREC', ds.data_vars.keys()[0]]:
+                    if pcpname in ds.data_vars:
+                        break
+                pcp = atm.subset(ds[pcpname], pts_subset)
                 pcp = pcp[:, ::ysample, ::xsample]
                 pcp = atm.precip_convert(pcp, pcp.attrs['units'], 'mm/day')
                 pcp.load()
@@ -128,14 +137,7 @@ def get_data(filenm, year, pts_nm, pts_subset, xsample, ysample, daymax=366):
             pcp = None
         return pcp
 
-    if pts_nm == 'CHP_PCP':
-        pcp = get_year(filenm, pts_subset, xsample, ysample)
-        if daymax > 366:
-            filenm_next = filenm.replace('%d' % year, '%d' % (year + 1))
-            pcp_next = get_year(filenm_next, pts_subset, xsample, ysample)
-            pcp = utils.wrapyear(pcp, None, pcp_next, daymin=1, daymax=daymax,
-                                 year=year)
-    elif pts_nm == 'CHP_CMAP':
+    if pts_nm == 'CHP_CMAP':
         if daymax > 366:
             yearmax = year + 1
         else:
@@ -147,6 +149,14 @@ def get_data(filenm, year, pts_nm, pts_subset, xsample, ysample, daymax=366):
         pcp = pcp[:, ::ysample, ::xsample]
         # Multiply pentad average rate for cumulative sum
         pcp = pcp * 5.0
+    else:
+        pcp = get_year(filenm, pts_subset, xsample, ysample)
+        if daymax > 366:
+            filenm_next = filenm.replace('%d' % year, '%d' % (year + 1))
+            pcp_next = get_year(filenm_next, pts_subset, xsample, ysample)
+            pcp = utils.wrapyear(pcp, None, pcp_next, daymin=1, daymax=daymax,
+                                 year=year)
+
     pcp_acc = np.cumsum(pcp, axis=0)
     return pcp_acc
 
@@ -169,6 +179,12 @@ def yrly_file(savefile, year, pts_nm):
     filenm = filenm.replace(yearstr, '%d.nc' % year)
     return filenm
 
+def gpcp_correct(index, year):
+    # Set retreat values to NaN in GPCP 2015 because insufficient data
+    if year == 2015:
+        index['retreat'].values = np.nan * index['retreat'].values
+    return index
+
 if pts_nm is not None:
     daymax = max(chp_opts['retreat_range'])
     if pts_nm == 'CHP_CMAP':
@@ -178,6 +194,8 @@ if pts_nm is not None:
         pcp_acc = get_data(filenm, year, pts_nm, pts_subset, xsample, ysample,
                            daymax)
         index = calc_points(pcp_acc, chp_opts)
+        if pts_name == 'CHP_GPCP':
+            index = gpcp_correct(index, year)
         filenm = yrly_file(savefile, year, pts_nm)
         print('Saving to ' + filenm)
         index.to_netcdf(filenm)
