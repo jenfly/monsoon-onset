@@ -36,7 +36,7 @@ savefile = datadir + '%s_dailyrel_%s_%s-%d.nc' % (pcp_nm, onset_nm, min(years),
 if ind_nm == 'retreat':
     savefile = savefile.replace('dailyrel', 'dailyrel_retreat')
 
-subset_dict = {'lon' : (40, 120), 'lat' : (-45, 45)}
+subset_dict = {'lon' : (40, 120)}
 
 # ----------------------------------------------------------------------
 # Data and calcs
