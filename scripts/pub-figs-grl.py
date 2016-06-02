@@ -47,7 +47,7 @@ if pts_nm == 'CHP_CMAP':
     pts_xroll, pts_yroll = None, None
 elif pts_nm == 'CHP_GPCP':
     ptsfile = ptsfile + '1997-2015.nc'
-    pts_xroll, pts_yroll = 4, 4
+    pts_xroll, pts_yroll = None, None
 else:
     ptsfile = ptsfile + yearstr
     pts_xroll, pts_yroll = 3, 3

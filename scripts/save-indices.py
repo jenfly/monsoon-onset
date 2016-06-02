@@ -32,16 +32,17 @@ datafiles['U850'] = [filestr % (y, 'U850', subset1, y) for y in years]
 datafiles['V850'] = [filestr % (y, 'V850', subset1, y) for y in years]
 precname = {'merra' : 'precip', 'merra2' : 'PRECTOT_40E-120E_90S-90N'}[version]
 datafiles['CHP_PCP'] = [filestr % (y, precname, '', y) for y in years]
-datafiles['CHP_CMAP'] = [atm.homedir() + '/datastore/cmap/' +
+datafiles['CHP_CMAP'] = [atm.homedir() + 'eady/datastore/cmap/' +
                      'cmap.enhanced.precip.pentad.mean.nc' for y in years]
-datafiles['CHP_GPCP'] = [atm.homedir() + 'datastore/gpcp/' +
+datafiles['CHP_GPCP'] = [atm.homedir() + 'eady/datastore/gpcp/' +
                          'gpcp_daily_%d.nc' % yr for yr in years]
 
 yearstr = '%d-%d.nc' % (min(years), max(years))
 savefile = savedir + version + '_index_%s_' + yearstr
 
 # Large-scale indices to save (set to [] if only doing grid points)
-onset_nms = ['CHP_MFC', 'HOWI', 'OCI', 'SJKE']
+#onset_nms = ['CHP_MFC', 'HOWI', 'OCI', 'SJKE']
+onset_nms = []
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 
@@ -124,23 +125,33 @@ def get_data(filenm, year, pts_nm, pts_subset, xsample, ysample, xroll=None,
              yroll=None, daymax=366):
     print('Loading ' + filenm)
 
+    def smooth_data(pcp, dimname, nroll):
+        if nroll is None:
+            return pcp
+        dim = atm.get_coord(pcp, dimname, 'dim')
+        coord = atm.get_coord(pcp, dimname)
+        delta = max(abs(np.diff(coord))) * np.ceil(nroll / 2.0)
+        subset = {dimname : (coord.min() + delta, coord.max() - delta)}
+        pcp = atm.rolling_mean(pcp, nroll, axis=dim, center=True)
+        pcp = atm.subset(pcp, subset)
+        return pcp
+
     def get_year(filenm, pts_subset, xsample, ysample, xroll, yroll):
-        if os.path.isfile(filenm):
-            with xray.open_dataset(filenm) as ds:
-                # Get name of precip variable
-                for pcpname in ['PRECTOT', 'PREC', ds.data_vars.keys()[0]]:
-                    if pcpname in ds.data_vars:
-                        break
-                pcp = atm.subset(ds[pcpname], pts_subset)
-                if xroll is not None:
-                    pcp = atm.rolling_mean(pcp, xroll, axis=-1, center=True)
-                if yroll is not None:
-                    pcp = atm.rolling_mean(pcp, yroll, axis=-2, center=True)
-                pcp = pcp[:, ::ysample, ::xsample]
-                pcp = atm.precip_convert(pcp, pcp.attrs['units'], 'mm/day')
-                pcp.load()
-        else:
-            pcp = None
+        if not os.path.isfile(filenm):
+            return None
+
+        with xray.open_dataset(filenm) as ds:
+            # Get name of precip variable
+            for pcpname in ['PRECTOT', 'PREC', ds.data_vars.keys()[0]]:
+                if pcpname in ds.data_vars:
+                    break
+            pcp = atm.subset(ds[pcpname], pts_subset)
+            pcp = smooth_data(pcp, 'lon', xroll)
+            pcp = smooth_data(pcp, 'lat', yroll)
+            pcp = pcp[:, ::ysample, ::xsample]
+            pcp = atm.precip_convert(pcp, pcp.attrs['units'], 'mm/day')
+            pcp.load()
+
         return pcp
 
     if pts_nm == 'CHP_CMAP':
