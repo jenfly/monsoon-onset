@@ -500,7 +500,7 @@ def plotyy(data1, data2=None, xname='dayrel', data1_styles=None,
            xlims=None, xticks=None, ylims=None, yticks=None, y2_lims=None,
            xlabel='', y1_label='', y2_label='', legend=False,
            legend_kw={'fontsize' : 9, 'handlelength' : 2.5},
-           x0_axvlines=None):
+           x0_axvlines=None, grid=True):
     """Plot data1 and data2 together on different y-axes."""
 
     data1, data2 = atm.to_dataset(data1), atm.to_dataset(data2)
@@ -511,7 +511,7 @@ def plotyy(data1, data2=None, xname='dayrel', data1_styles=None,
         else:
             plt.plot(data1[xname], data1[nm], data1_styles[nm], label=nm)
     atm.ax_lims_ticks(xlims, xticks, ylims, yticks)
-    plt.grid(True)
+    plt.grid(grid)
     if x0_axvlines is not None:
         for x0 in x0_axvlines:
             plt.axvline(x0, color='k')
