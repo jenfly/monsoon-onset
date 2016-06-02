@@ -48,8 +48,9 @@ lat1, lat2 = 10, 30
 # Grid point calcs
 pts_nm = 'CHP_GPCP'
 #pts_nm = 'CHP_PCP' # Set to None to omit
-pts_subset = {'lon' : (57, 103), 'lat' : (2, 33)}
+pts_subset = {'lon' : (55, 105), 'lat' : (-3, 40)}
 xsample, ysample = 1, 1
+xroll, yroll = 4, 4
 
 # Options for large-scale and gridpoint CHP calcs
 chp_opts = {'onset_range' : (1, 250), 'retreat_range' : (201, 400)}
@@ -119,10 +120,11 @@ if 'SJKE' in onset_nms:
 # ----------------------------------------------------------------------
 # Calculate onset/retreat indices at individual gridpoints
 
-def get_data(filenm, year, pts_nm, pts_subset, xsample, ysample, daymax=366):
+def get_data(filenm, year, pts_nm, pts_subset, xsample, ysample, xroll=None,
+             yroll=None, daymax=366):
     print('Loading ' + filenm)
 
-    def get_year(filenm, pts_subset, xsample, ysample):
+    def get_year(filenm, pts_subset, xsample, ysample, xroll, yroll):
         if os.path.isfile(filenm):
             with xray.open_dataset(filenm) as ds:
                 # Get name of precip variable
@@ -130,6 +132,10 @@ def get_data(filenm, year, pts_nm, pts_subset, xsample, ysample, daymax=366):
                     if pcpname in ds.data_vars:
                         break
                 pcp = atm.subset(ds[pcpname], pts_subset)
+                if xroll is not None:
+                    pcp = atm.rolling_mean(pcp, xroll, axis=-1, center=True)
+                if yroll is not None:
+                    pcp = atm.rolling_mean(pcp, yroll, axis=-2, center=True)
                 pcp = pcp[:, ::ysample, ::xsample]
                 pcp = atm.precip_convert(pcp, pcp.attrs['units'], 'mm/day')
                 pcp.load()
@@ -150,10 +156,11 @@ def get_data(filenm, year, pts_nm, pts_subset, xsample, ysample, daymax=366):
         # Multiply pentad average rate for cumulative sum
         pcp = pcp * 5.0
     else:
-        pcp = get_year(filenm, pts_subset, xsample, ysample)
+        pcp = get_year(filenm, pts_subset, xsample, ysample, xroll, yroll)
         if daymax > 366:
             filenm_next = filenm.replace('%d' % year, '%d' % (year + 1))
-            pcp_next = get_year(filenm_next, pts_subset, xsample, ysample)
+            pcp_next = get_year(filenm_next, pts_subset, xsample, ysample,
+                                xroll, yroll)
             pcp = utils.wrapyear(pcp, None, pcp_next, daymin=1, daymax=daymax,
                                  year=year)
 
@@ -192,7 +199,7 @@ if pts_nm is not None:
     # Calculate onset/retreat in each year
     for year, filenm in zip(years, datafiles[pts_nm]):
         pcp_acc = get_data(filenm, year, pts_nm, pts_subset, xsample, ysample,
-                           daymax)
+                           xroll=xroll, yroll=yroll, daymax=daymax)
         index = calc_points(pcp_acc, chp_opts)
         atm.disptime()
         if pts_nm == 'CHP_GPCP':
