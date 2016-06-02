@@ -5,6 +5,7 @@ sys.path.append('/home/jwalker/dynamics/python/atmos-read')
 import xray
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import collections
 import pandas as pd
 
@@ -15,6 +16,8 @@ import utils
 style = atm.homedir() + 'dynamics/python/mpl-styles/grl_article.mplstyle'
 plt.style.use(style)
 figwidth = 7.48
+fontsize = mpl.rcParams['font.size']
+labelsize = fontsize + 3
 
 # ----------------------------------------------------------------------
 version = 'merra2'
@@ -172,6 +175,20 @@ def fix_axes(axlims):
     plt.gca().set_xlim(axlims[2:])
     plt.draw()
 
+def add_labels(grp, labels, pos, fontsize, fontweight='bold'):
+    # Expand pos to list for each subplot, if needed
+    try:
+        n = len(pos[0])
+    except TypeError:
+        pos = [pos] * (grp.nrow * grp.ncol)
+    i = 0
+    for row in range(grp.nrow):
+        for col in range(grp.ncol):
+            grp.subplot(row, col)
+            atm.text(labels[i], pos[i], fontsize=fontsize,
+                     fontweight=fontweight)
+            i += 1
+
 def plot_mfc_budget(mfc_budget, index, year, legend=True,
                     legend_kw={'fontsize' : 9, 'loc' : 'upper left',
                                'handlelength' : 2.5}):
@@ -198,7 +215,8 @@ def plot_mfc_budget(mfc_budget, index, year, legend=True,
     return ax1, ax2
 
 
-def yrly_index(onset_all, legend=True, grid=False):
+def yrly_index(onset_all, grid=False,legend=True,
+               legend_kw={'loc' : 'upper left', 'ncol' : 2}):
     """Plot onset day vs. year for different onset definitions."""
 
     corr = onset_all.corr()[onset_nm]
@@ -213,29 +231,26 @@ def yrly_index(onset_all, legend=True, grid=False):
     for nm in onset_all.columns:
         plt.plot(years, onset_all[nm], label=labels[nm], **styles[nm])
     if legend:
-        plt.legend(fontsize=9, loc='upper left', ncol=2, frameon=False,
-                   framealpha=0.0)
+        plt.legend(**legend_kw)
     plt.grid(grid)
     plt.xlim(min(years) - 1, max(years) + 1)
     plt.xticks(xticks, xticklabels)
     plt.xlabel('Year')
     plt.ylabel('Day of Year')
-    #plt.title('Onset')
+
 
 def daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp, grid=False):
     """Plot dailyrel timeseries climatology"""
     xlims = (-npre, npost)
     xticks = range(-npre, npost + 1, 30)
     x0 = [0, index['length'].mean(dim='year')]
-    keypairs = [(['MFC', pcp_nm], ['CMFC']),
-                (['U850_15N'], ['V850_15N']),
-                (['U200_0N'],['V200_15N'])]
-    opts = [('upper left', 'mm/day', 'mm'),
-            ('upper left', 'm/s', 'm/s'),
-            ('lower left', 'm/s', 'm/s')]
+    keypairs = [(['MFC', pcp_nm], ['CMFC']), (['U850_15N'], ['V850_15N'])]
+    opts = [('upper left', 'mm/day', 'mm'), ('upper left', 'm/s', 'm/s')]
+    ylim_list = [(-3.5, 9), (-7, 15)]
     y2_opts={'color' : 'r', 'alpha' : 0.6}
     styles = ['k', 'k-.', 'g', 'm']
-    for pair, opt in zip(keypairs, opts):
+    legend_kw = {}
+    for pair, opt, ylims in zip(keypairs, opts, ylim_list):
         grp.next()
         keys1, keys2 = pair
         legend_kw['loc'] = opt[0]
@@ -248,7 +263,7 @@ def daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp, grid=False):
             data2 = None
         data1_styles = {nm : style for (nm, style) in zip(keys1, styles)}
         utils.plotyy(data1, data2, xname='dayrel', data1_styles=data1_styles,
-                     y2_opts=y2_opts, xlims=xlims, xticks=xticks,
+                     y2_opts=y2_opts, xlims=xlims, xticks=xticks, ylims=ylims,
                      xlabel='Rel Day', y1_label=y1_label, y2_label=y2_label,
                      legend=legend, legend_kw=legend_kw, x0_axvlines=x0,
                      grid=grid)
@@ -344,9 +359,10 @@ def plot_reg(pts_reg, pts_mask, nm, clev=0.2, xsample=1, ysample=1,
 
 # Daily MFC budget and CHP tseries fit in a single year
 plotyear = 2000
-nrow, ncol = 1, 2
-fig_kw = {'figsize' : (figwidth, 0.4 * figwidth)}
-gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'bottom' : 0.15, 'wspace' : 0.5}
+nrow, ncol = 2, 2
+fig_kw = {'figsize' : (figwidth, 0.7 * figwidth)}
+gridspec_kw = {'left' : 0.07, 'right' : 0.9, 'bottom' : 0.07, 'top' : 0.9,
+               'wspace' : 0.5, 'hspace' : 0.35}
 legend = True
 legend_kw = {'loc' : 'upper left', 'framealpha' : 0.0}
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
@@ -358,16 +374,13 @@ grp.next()
 yrly_index(onset_all, legend=True)
 
 # Plot daily tseries
-nrow, ncol = 2, 2
-fig_kw = {'figsize' : (figwidth, 0.6 * figwidth)}
-gridspec_kw = {'left' : 0.1, 'right' : 0.9, 'bottom' : 0.06, 'top' : 0.95,
-               'wspace' : 0.35, 'hspace' : 0.2}
-legend_kw = {'fontsize' : 8, 'handlelength' : 2.5, 'frameon' : False,
-             'framealpha' : 0.0}
 legend = True
-grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp)
-grp.axes[1,1].axis('off')
+
+# Add a-d labels
+labels = ['a', 'b', 'c', 'd']
+pos = (-0.2, 1.05)
+add_labels(grp, labels, pos, labelsize)
 
 
 # Lat-day contour plots
@@ -375,7 +388,7 @@ keys = [pcp_nm, 'U200', 'V200', 'U850']
 nrow, ncol = 2, 2
 fig_kw = {'figsize' : (figwidth, 0.64 * figwidth), 'sharex' : True,
           'sharey' : True}
-gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'bottom' : 0.07, 'top' : 0.95,
+gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'bottom' : 0.07, 'top' : 0.94,
                'wspace' : 0.05}
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 for key in keys:
@@ -383,12 +396,16 @@ for key in keys:
     var = atm.dim_mean(data[key], 'lon', lon1, lon2)
     contourf_latday(var, title=key.upper(), grp=grp,
                     ssn_length=index['length'].mean(dim='year'))
+labels = ['a', 'b', 'c', 'd']
+x1, x2, y0 = -0.15, -0.05, 1.05
+pos = [(x1, y0), (x2, y0), (x1, y0), (x2, y0)]
+add_labels(grp, labels, pos, labelsize)
 
 # Precip maps
 #days = [-30, -15, 0, 15, 30, 45, 60, 75, 90]
 days = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
 nrow, ncol = 4, 3
-cmax, cint = 10, 1
+cmax, cint = 12, 1
 fig_kw = {'figsize' : (figwidth, 0.8 * figwidth), 'sharex' : True,
           'sharey' : True}
 gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'wspace' : 0.15, 'hspace' : 0.05}
@@ -415,10 +432,7 @@ pts_clim(index_pts, nm, clev_bar=clev_bar, clev_std=clev_std, cmap=cmap)
 grp.next()
 plot_reg(pts_reg, pts_mask, nm, clev=clev_reg, xsample=xsample, ysample=ysample,
          color=stipple_clr)
-# NOTE!!!!!!
-# Transparency gets lost if saved directly to eps
-# Save this figure to pdf first, then run:
-# pdftops -eps fig04.pdf fig04.eps
+add_labels(grp, ['a', 'b'], (-0.15, 1.05), labelsize)
 
 
 
