@@ -5,7 +5,6 @@ sys.path.append('/home/jwalker/dynamics/python/atmos-read')
 import xray
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib as mpl
 import collections
 import pandas as pd
 
@@ -13,7 +12,9 @@ import atmos as atm
 import indices
 import utils
 
-mpl.rcParams['font.size'] = 11
+style = atm.homedir() + 'dynamics/python/mpl-styles/grl_article.mplstyle'
+plt.style.use(style)
+figwidth = 7.48
 
 # ----------------------------------------------------------------------
 version = 'merra2'
@@ -21,8 +22,10 @@ years = np.arange(1980, 2016)
 datadir = atm.homedir() + 'datastore/%s/analysis/' % version
 onset_nm = 'CHP_MFC'
 onset_nms = ['CHP_MFC', 'MOK', 'HOWI', 'OCI']
-pts_nm = 'CHP_PCP'
-pcp_nm = 'PRECTOT'
+#pts_nm = 'CHP_PCP'
+pts_nm = 'CHP_GPCP'
+#pcp_nm = 'PRECTOT'
+pcp_nm = 'GPCP'
 varnms = ['PRECTOT', 'U200', 'V200', 'U850', 'V850']
 lat_extract = {'U200' : 0, 'V200' : 15, 'U850' : 15, 'V850' : 15}
 lon1, lon2 = 60, 100
@@ -37,10 +40,14 @@ indfiles['MOK'] = atm.homedir() + 'dynamics/python/monsoon-onset/data/MOK.dat'
 filestr2 = datadir + version + '_%s_dailyrel_' + onset_nm + '_' + yearstr
 datafiles = {nm : filestr2 % nm for nm in varnms}
 datafiles['CMAP'] = datadir + 'cmap_dailyrel_' + onset_nm + '_1980-2014.nc'
+datafiles['GPCP'] = datadir + 'gpcp_dailyrel_' + onset_nm + '_1997-2015.nc'
 ptsfile = datadir + version + '_index_pts_%s_' % pts_nm
 if pts_nm == 'CHP_CMAP':
     ptsfile = ptsfile + '1980-2014.nc'
     pts_xroll, pts_yroll = None, None
+elif pts_nm == 'CHP_GPCP':
+    ptsfile = ptsfile + '1997-2015.nc'
+    pts_xroll, pts_yroll = 4, 4
 else:
     ptsfile = ptsfile + yearstr
     pts_xroll, pts_yroll = 3, 3
@@ -102,8 +109,8 @@ if nroll is not None:
         mfc_budget[nm] = atm.rolling_mean(mfc_budget[nm], nroll, center=True)
 
 # Dailyrel climatology
-keys_dict = {'PRECTOT' : 'PRECTOT', 'CMAP' : 'precip', 'U200' : 'U',
-             'U850' : 'U', 'V200' : 'V', 'V850' : 'V'}
+keys_dict = {'PRECTOT' : 'PRECTOT', 'CMAP' : 'precip', 'GPCP' : 'PREC',
+             'U200' : 'U', 'U850' : 'U', 'V200' : 'V', 'V850' : 'V'}
 data = {}
 for nm in datafiles:
     print('Loading ' + datafiles[nm])
@@ -132,7 +139,7 @@ tseries['MFC'] = utils.daily_rel2onset(index_all['CHP_MFC']['daily_ts'],
                                        index['onset'], npre, npost)
 tseries['CMFC'] = utils.daily_rel2onset(index_all['CHP_MFC']['tseries'],
                                            index['onset'], npre, npost)
-for nm in ['CMAP', 'PRECTOT']:
+for nm in ['CMAP', 'GPCP', 'PRECTOT']:
     tseries[nm] = atm.mean_over_geobox(data[nm], lat1, lat2, lon1, lon2)
 
 # Extract variables at specified latitudes
@@ -152,6 +159,11 @@ if nroll is not None:
     for nm in tseries.data_vars:
         tseries[nm] = atm.rolling_mean(tseries[nm], nroll, center=True)
 
+# Smooth latitude-dayrel data with rolling mean
+for nm in data:
+    daydim = atm.get_coord(data[nm], 'dayrel', 'dim')
+    data[nm] = atm.rolling_mean(data[nm], nroll, axis=daydim, center=True)
+
 # ----------------------------------------------------------------------
 # Plotting functions
 
@@ -167,7 +179,7 @@ def plot_mfc_budget(mfc_budget, index, year, legend=True,
     ind = index.sel(year=year)
     days = ts['day'].values
     styles = {'PRECTOT' : {'color' : 'k'},
-              'EVAP' : {'color' : 'k', 'linestyle' : 'dashed'},
+              'EVAP' : {'color' : 'k', 'linestyle' : 'dashdot'},
               'MFC' : {'color' : 'k', 'linewidth' : 2},
               'dw/dt' : {'color' : '0.7', 'linewidth' : 2}}
     for nm in styles:
@@ -186,7 +198,7 @@ def plot_mfc_budget(mfc_budget, index, year, legend=True,
     return ax1, ax2
 
 
-def yrly_index(onset_all, legend=True):
+def yrly_index(onset_all, legend=True, grid=False):
     """Plot onset day vs. year for different onset definitions."""
 
     corr = onset_all.corr()[onset_nm]
@@ -203,26 +215,26 @@ def yrly_index(onset_all, legend=True):
     if legend:
         plt.legend(fontsize=9, loc='upper left', ncol=2, frameon=False,
                    framealpha=0.0)
-    plt.grid()
+    plt.grid(grid)
     plt.xlim(min(years) - 1, max(years) + 1)
     plt.xticks(xticks, xticklabels)
     plt.xlabel('Year')
     plt.ylabel('Day of Year')
     #plt.title('Onset')
 
-def daily_tseries(tseries, index, npre, npost, legend, grp):
+def daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp, grid=False):
     """Plot dailyrel timeseries climatology"""
     xlims = (-npre, npost)
     xticks = range(-npre, npost + 1, 30)
     x0 = [0, index['length'].mean(dim='year')]
-    keypairs = [(['MFC', 'CMAP'], ['CMFC']),
+    keypairs = [(['MFC', pcp_nm], ['CMFC']),
                 (['U850_15N'], ['V850_15N']),
                 (['U200_0N'],['V200_15N'])]
     opts = [('upper left', 'mm/day', 'mm'),
             ('upper left', 'm/s', 'm/s'),
             ('lower left', 'm/s', 'm/s')]
     y2_opts={'color' : 'r', 'alpha' : 0.6}
-    styles = ['k', 'k--', 'g', 'm']
+    styles = ['k', 'k-.', 'g', 'm']
     for pair, opt in zip(keypairs, opts):
         grp.next()
         keys1, keys2 = pair
@@ -238,7 +250,8 @@ def daily_tseries(tseries, index, npre, npost, legend, grp):
         utils.plotyy(data1, data2, xname='dayrel', data1_styles=data1_styles,
                      y2_opts=y2_opts, xlims=xlims, xticks=xticks,
                      xlabel='Rel Day', y1_label=y1_label, y2_label=y2_label,
-                     legend=legend, legend_kw=legend_kw, x0_axvlines=x0)
+                     legend=legend, legend_kw=legend_kw, x0_axvlines=x0,
+                     grid=grid)
 
 
 def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
@@ -286,7 +299,7 @@ def precip_maps(precip, days, grp, cmax=20, cint=1, axlims=(5, 35, 60, 100),
         m = atm.init_latlon(lat1, lat2, lon1, lon2, resolution=res)
         m = atm.contourf_latlon(pcp, m=m, clev=clev, axlims=axlims, cmap=cmap,
                                 colorbar=False, extend='max')
-        atm.text(day, (0.05, 0.9), fontsize=12, fontweight='bold')
+        atm.text(day, (0.05, 0.85), fontsize=12, fontweight='bold')
     # plt.colorbar(ax=grp.axes.ravel().tolist(), orientation='vertical',
     #              shrink=0.8, ticks=cticks)
     atm.colorbar_multiplot(orientation='vertical', shrink=0.8, ticks=cticks)
@@ -310,8 +323,8 @@ def pts_clim(index_pts, nm, clev_bar=10, clev_std=np.arange(0, 21, 1),
 
 # Plot regression
 def plot_reg(pts_reg, pts_mask, nm, clev=0.2, xsample=1, ysample=1,
-             axlims=(5, 32, 60, 100), cline=None, alpha=0.25,
-             markersize=5):
+             axlims=(5, 32, 60, 100), cline=None, color='0.3', alpha=1.0,
+             markersize=2):
     """Plot regression of grid point indices onto large-scale index."""
     var = pts_reg[nm]['m']
     mask = pts_mask[nm]
@@ -319,7 +332,8 @@ def plot_reg(pts_reg, pts_mask, nm, clev=0.2, xsample=1, ysample=1,
     yname = atm.get_coord(mask, 'lat', 'name')
     atm.contourf_latlon(var, clev=clev, axlims=axlims, extend='both')
     atm.stipple_pts(mask, xname=xname, yname=yname, xsample=xsample,
-                    ysample=ysample, alpha=alpha, markersize=markersize)
+                    ysample=ysample, color=color, alpha=alpha,
+                    markersize=markersize)
     if cline is not None:
         atm.contour_latlon(var, clev=[cline], axlims=axlims, colors='b',
                            linewidths=2)
@@ -331,11 +345,10 @@ def plot_reg(pts_reg, pts_mask, nm, clev=0.2, xsample=1, ysample=1,
 # Daily MFC budget and CHP tseries fit in a single year
 plotyear = 2000
 nrow, ncol = 1, 2
-fig_kw = {'figsize' : (10, 4)}
-gridspec_kw = {'left' : 0.05, 'right' : 0.97, 'wspace' : 0.4}
+fig_kw = {'figsize' : (figwidth, 0.4 * figwidth)}
+gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'bottom' : 0.15, 'wspace' : 0.5}
 legend = True
-legend_kw = {'fontsize' : 9, 'loc' : 'upper left', 'handlelength' : 2.5,
-             'frameon' : False, 'framealpha' : 0.0}
+legend_kw = {'loc' : 'upper left', 'framealpha' : 0.0}
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 grp.next()
 plot_mfc_budget(mfc_budget, index, plotyear, legend=legend, legend_kw=legend_kw)
@@ -346,28 +359,28 @@ yrly_index(onset_all, legend=True)
 
 # Plot daily tseries
 nrow, ncol = 2, 2
-fig_kw = {'figsize' : (10, 6)}
+fig_kw = {'figsize' : (figwidth, 0.6 * figwidth)}
 gridspec_kw = {'left' : 0.1, 'right' : 0.9, 'bottom' : 0.06, 'top' : 0.95,
                'wspace' : 0.35, 'hspace' : 0.2}
 legend_kw = {'fontsize' : 8, 'handlelength' : 2.5, 'frameon' : False,
              'framealpha' : 0.0}
 legend = True
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
-daily_tseries(tseries, index, npre, npost, legend, grp)
+daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp)
 grp.axes[1,1].axis('off')
 
 
 # Lat-day contour plots
 keys = [pcp_nm, 'U200', 'V200', 'U850']
 nrow, ncol = 2, 2
-fig_kw = {'figsize' : (11, 7), 'sharex' : True, 'sharey' : True}
+fig_kw = {'figsize' : (figwidth, 0.64 * figwidth), 'sharex' : True,
+          'sharey' : True}
 gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'bottom' : 0.07, 'top' : 0.95,
                'wspace' : 0.05}
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 for key in keys:
     grp.next()
     var = atm.dim_mean(data[key], 'lon', lon1, lon2)
-    var = atm.rolling_mean(var, nroll, axis=0, center=True)
     contourf_latday(var, title=key.upper(), grp=grp,
                     ssn_length=index['length'].mean(dim='year'))
 
@@ -375,8 +388,9 @@ for key in keys:
 #days = [-30, -15, 0, 15, 30, 45, 60, 75, 90]
 days = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
 nrow, ncol = 4, 3
-cmax, cint = 20, 1
-fig_kw = {'figsize' : (10, 8), 'sharex' : True, 'sharey' : True}
+cmax, cint = 10, 1
+fig_kw = {'figsize' : (figwidth, 0.8 * figwidth), 'sharex' : True,
+          'sharey' : True}
 gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'wspace' : 0.15, 'hspace' : 0.05}
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 precip_maps(data[pcp_nm], days, grp, cmax=cmax, cint=cint)
@@ -384,18 +398,23 @@ precip_maps(data[pcp_nm], days, grp, cmax=cmax, cint=cint)
 # Grid point indices
 nm = 'onset'
 cmap = 'spectral'
+stipple_clr = '0.3'
 clev_bar = 10
 clev_std = np.arange(0, 21, 1)
 clev_reg = np.arange(-1.2, 1.25, 0.2)
-xsample, ysample = 2, 2
+if pts_nm == 'CHP_PCP':
+    xsample, ysample = 2, 2
+else:
+    xsample, ysample = 1, 1
 nrow, ncol = 1, 2
-fig_kw = {'figsize' : (9, 3.5)}
+fig_kw = {'figsize' : (figwidth, 0.4 * figwidth)}
 gridspec_kw = {'left' : 0.1, 'wspace' : 0.3}
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 grp.next()
 pts_clim(index_pts, nm, clev_bar=clev_bar, clev_std=clev_std, cmap=cmap)
 grp.next()
-plot_reg(pts_reg, pts_mask, nm, clev=clev_reg, xsample=xsample, ysample=ysample)
+plot_reg(pts_reg, pts_mask, nm, clev=clev_reg, xsample=xsample, ysample=ysample,
+         color=stipple_clr)
 # NOTE!!!!!!
 # Transparency gets lost if saved directly to eps
 # Save this figure to pdf first, then run:
