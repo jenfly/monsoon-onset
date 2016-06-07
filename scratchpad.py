@@ -11,6 +11,21 @@ import numpy as np
 import atmos as atm
 
 # ----------------------------------------------------------------------
+# Data-wrangling for ENSO indices
+
+datadir = atm.homedir() + 'dynamics/python/data/ENSO/'
+datafile = datadir + 'enso_sst_monthly.txt'
+df = pd.read_table(datafile, skiprows=8, index_col=[0, 1],
+                   delim_whitespace=True)
+savestr = datadir + 'enso_sst_monthly_%s.csv'
+for key in ['NINO1+2', 'NINO3', 'NINO3.4', 'NINO4']:
+    savefile = savestr % key.lower().replace('.', '').replace('+', '')
+    enso = df.unstack()[key]
+    enso.columns = [(atm.month_str(m)).capitalize() for m in range(1, 13)]
+    enso.to_csv(savefile)
+
+
+# ----------------------------------------------------------------------
 
 # x-y data
 regdays = [-60, -30, 0, 30, 60]
