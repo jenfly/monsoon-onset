@@ -58,8 +58,9 @@ mfcbudget_file = datadir + version + '_mfc_budget_' + yearstr
 
 enso_nm = 'NINO3'
 #enso_nm = 'NINO3.4'
-ensofile = atm.homedir() + ('dynamics/calc/ENSO/enso_%s.csv' %
-                            enso_nm.lower().replace('.', '').replace('+', ''))
+ensodir = atm.homedir() + 'dynamics/python/data/ENSO/'
+ensofile = ensodir + ('enso_sst_monthly_%s.csv' %
+                      enso_nm.lower().replace('.', '').replace('+', ''))
 enso_keys = ['MAM', 'JJA']
 
 # ----------------------------------------------------------------------
@@ -272,7 +273,7 @@ def daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp, grid=False):
 def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
                     xlims=(-120, 200), xticks=np.arange(-120, 201, 30),
                     ylims=(-60, 60), yticks=np.arange(-60, 61, 20),
-                    ssn_length=None):
+                    ssn_length=None, grid=False):
     vals = var.values.T
     lat = atm.get_coord(var, 'lat')
     days = atm.get_coord(var, 'dayrel')
@@ -283,7 +284,13 @@ def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
     if clev == None:
         cint = atm.cinterval(vals, n_pref=nc_pref, symmetric=symmetric)
         clev = atm.clevels(vals, cint, symmetric=symmetric)
-    cticks_dict = {'precip' : np.arange(0, 13, 2),
+    elif len(atm.makelist(clev)) == 1:
+        if var.name == 'PREC':
+            clev = np.arange(0, 10 + clev/2.0, clev)
+        else:
+            clev = atm.clevels(vals, clev, symmetric=symmetric)
+    cticks_dict = {'PRECTOT' : np.arange(0, 13, 2),
+                   'PREC' : np.arange(0, 11, 2),
                    'T200' : np.arange(-208, 227, 2),
                    'U200' : np.arange(-60, 61, 10),
                    'PSI500' : np.arange(-800, 801, 200)}
@@ -291,7 +298,7 @@ def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
     plt.contourf(days, lat, vals, clev, cmap=cmap, extend=extend)
     plt.colorbar(ticks=cticks)
     atm.ax_lims_ticks(xlims, xticks, ylims, yticks)
-    plt.grid()
+    plt.grid(grid)
     plt.title(title)
     plt.axvline(0, color='k')
     if ssn_length is not None:
@@ -385,6 +392,7 @@ add_labels(grp, labels, pos, labelsize)
 
 # Lat-day contour plots
 keys = [pcp_nm, 'U200', 'V200', 'U850']
+clevs = {pcp_nm : 1, 'U200' : 5, 'V200' : 1, 'U850' : 2}
 nrow, ncol = 2, 2
 fig_kw = {'figsize' : (figwidth, 0.64 * figwidth), 'sharex' : True,
           'sharey' : True}
@@ -394,7 +402,7 @@ grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 for key in keys:
     grp.next()
     var = atm.dim_mean(data[key], 'lon', lon1, lon2)
-    contourf_latday(var, title=key.upper(), grp=grp,
+    contourf_latday(var, clev=clevs[key], title=key.upper(), grp=grp,
                     ssn_length=index['length'].mean(dim='year'))
 labels = ['a', 'b', 'c', 'd']
 x1, x2, y0 = -0.15, -0.05, 1.05
