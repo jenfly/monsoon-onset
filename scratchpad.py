@@ -10,6 +10,25 @@ import numpy as np
 
 import atmos as atm
 
+
+# ----------------------------------------------------------------------
+# GPCP daily climatology
+
+years = range(1997, 2015)
+datadir = atm.homedir() + 'datastore/gpcp/'
+files = [datadir + 'gpcp_daily_%d.nc' % yr for yr in years]
+savefile = datadir + 'gpcp_daily_%d-%d.nc' % (min(years), max(years))
+
+pcp = atm.combine_daily_years('PREC', files, years, yearname='year')
+pcp = pcp.mean(dim='year')
+print('Saving to ' + savefile)
+atm.save_nc(savefile, pcp)
+
+day1 = atm.mmdd_to_jday(6, 1)
+day2 = atm.mmdd_to_jday(9, 30)
+pcp_ssn = atm.subset(pcp, {'day' : (day1, day2)})
+pcp_frac = pcp_ssn.sum(dim='day') / pcp.sum(dim='day')
+
 # ----------------------------------------------------------------------
 # Data-wrangling for ENSO indices
 
