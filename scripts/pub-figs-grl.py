@@ -18,6 +18,7 @@ plt.style.use(style)
 figwidth = 7.48
 fontsize = mpl.rcParams['font.size']
 labelsize = fontsize + 3
+dashes = [6, 2]
 
 # ----------------------------------------------------------------------
 version = 'merra2'
@@ -38,18 +39,22 @@ npre, npost = 120, 200
 
 yearstr = '%d-%d.nc' % (min(years), max(years))
 filestr = datadir + version + '_index_%s_' + yearstr
-indfiles = {nm : filestr % nm for nm in ['CHP_MFC', 'HOWI', 'OCI']}
+indfiles = collections.OrderedDict()
+for nm in ['CHP_MFC', 'HOWI', 'OCI']:
+    indfiles[nm] = filestr % nm
 indfiles['MOK'] = atm.homedir() + 'dynamics/python/monsoon-onset/data/MOK.dat'
 filestr2 = datadir + version + '_%s_dailyrel_' + onset_nm + '_' + yearstr
 datafiles = {nm : filestr2 % nm for nm in varnms}
 datafiles['CMAP'] = datadir + 'cmap_dailyrel_' + onset_nm + '_1980-2014.nc'
 datafiles['GPCP'] = datadir + 'gpcp_dailyrel_' + onset_nm + '_1997-2015.nc'
 ptsfile = datadir + version + '_index_pts_%s_' % pts_nm
+ptsmaskfile = None
 if pts_nm == 'CHP_CMAP':
     ptsfile = ptsfile + '1980-2014.nc'
     pts_xroll, pts_yroll = None, None
 elif pts_nm == 'CHP_GPCP':
     ptsfile = ptsfile + '1997-2015.nc'
+    ptsmaskfile = atm.homedir() + 'datastore/gpcp/gpcp_daily_1997-2014.nc'
     pts_xroll, pts_yroll = None, None
 else:
     ptsfile = ptsfile + yearstr
@@ -67,7 +72,7 @@ enso_keys = ['MAM', 'JJA']
 # Read data
 
 # Large-scale onset/retreat indices
-index_all = {}
+index_all = collections.OrderedDict()
 for nm in indfiles:
     print('Loading ' + indfiles[nm])
     if nm == 'MOK':
@@ -102,12 +107,34 @@ pts_reg, pts_mask = {}, {}
 for nm in index_pts.data_vars:
     ind = index[nm].sel(year=index_pts['year'])
     pts_reg[nm] = atm.regress_field(index_pts[nm], ind, axis=0)
-    pts_mask[nm] = (pts_reg[nm]['p'] >= 0.05)
+    pts_reg[nm]['pts_mask'] = (pts_reg[nm]['p'] >= 0.05)
+
+# Mask out grid points where CHP index is ill-defined
+def applymask(ds, mask_in):
+    for nm in ds.data_vars:
+        mask = atm.biggify(mask_in, ds[nm], tile=True)
+        vals = np.ma.masked_array(ds[nm], mask=mask).filled(np.nan)
+        ds[nm].values = vals
+    return ds
+
+if ptsmaskfile is not None:
+    fracmin = 0.5
+    day1 = atm.mmdd_to_jday(6, 1)
+    day2 = atm.mmdd_to_jday(9, 30)
+    with xray.open_dataset(ptsmaskfile) as ds:
+        pcp = ds['PREC'].sel(lat=index_pts.lat).sel(lon=index_pts.lon).load()
+    pcp_ssn = atm.subset(pcp, {'day' : (day1, day2)})
+    pcp_frac = pcp_ssn.sum(dim='day') / pcp.sum(dim='day')
+    mask = pcp_frac < fracmin
+    index_pts = applymask(index_pts, mask)
+    for key in pts_reg:
+        pts_reg[key] = applymask(pts_reg[key], mask)
 
 # MFC budget
 with xray.open_dataset(mfcbudget_file) as mfc_budget:
     mfc_budget.load()
 mfc_budget = mfc_budget.rename({'DWDT' : 'dw/dt'})
+mfc_budget['P-E'] = mfc_budget['PRECTOT'] - mfc_budget['EVAP']
 if nroll is not None:
     for nm in mfc_budget.data_vars:
         mfc_budget[nm] = atm.rolling_mean(mfc_budget[nm], nroll, center=True)
@@ -151,7 +178,8 @@ for nm, lat0 in lat_extract.iteritems():
     var = atm.dim_mean(data[nm], 'lon', lon1, lon2)
     lat = atm.get_coord(var, 'lat')
     lat0_str = atm.latlon_labels(lat0, 'lat', deg_symbol=False)
-    key = nm + '_' + lat0_str
+    # key = nm + '_' + lat0_str
+    key = nm
     lat_closest, _ = atm.find_closest(lat, lat0)
     print '%s %.2f %.2f' % (nm, lat0, lat_closest)
     tseries[key] = atm.subset(var, {'lat' : (lat_closest, None)}, squeeze=True)
@@ -192,14 +220,17 @@ def add_labels(grp, labels, pos, fontsize, fontweight='bold'):
 
 def plot_mfc_budget(mfc_budget, index, year, legend=True,
                     legend_kw={'fontsize' : 9, 'loc' : 'upper left',
-                               'handlelength' : 2.5}):
+                               'handlelength' : 2.5},
+                    dashes=[6, 2], netprecip=False):
     ts = mfc_budget.sel(year=year)
     ind = index.sel(year=year)
     days = ts['day'].values
-    styles = {'PRECTOT' : {'color' : 'k'},
-              'EVAP' : {'color' : 'k', 'linestyle' : 'dashdot'},
+    styles = {'PRECTOT' : {'color' : 'k', 'linestyle' : '--', 'dashes' : dashes},
+              'EVAP' : {'color' : 'k'},
               'MFC' : {'color' : 'k', 'linewidth' : 2},
               'dw/dt' : {'color' : '0.7', 'linewidth' : 2}}
+    if netprecip:
+        styles['P-E'] = {'color' : 'b', 'linewidth' : 2}
     for nm in styles:
         plt.plot(days, ts[nm], label=nm, **styles[nm])
     plt.axvline(ind['onset'], color='k')
@@ -224,8 +255,8 @@ def yrly_index(onset_all, grid=False,legend=True,
     labels = {nm : nm for nm in onset_all.columns}
     labels['CHP_MFC'] = 'CHP'
     styles = {'CHP_MFC' : {'color' : 'k', 'linewidth' : 2},
-              'OCI' : {'color' : 'r'}, 'HOWI' : {'color' : 'b'},
-              'MOK' : {'color' : 'g'}}
+              'OCI' : {'color' : 'r'}, 'HOWI' : {'color' : 'g'},
+              'MOK' : {'color' : 'b'}}
     xticks = np.arange(1980, 2016, 5)
     xticklabels = [1980, '', 1990, '', 2000, '', 2010, '']
 
@@ -240,16 +271,18 @@ def yrly_index(onset_all, grid=False,legend=True,
     plt.ylabel('Day of Year')
 
 
-def daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp, grid=False):
+def daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp, grid=False,
+                  dashes=[6, 2]):
     """Plot dailyrel timeseries climatology"""
     xlims = (-npre, npost)
     xticks = range(-npre, npost + 1, 30)
     x0 = [0, index['length'].mean(dim='year')]
-    keypairs = [(['MFC', pcp_nm], ['CMFC']), (['U850_15N'], ['V850_15N'])]
+    keypairs = [(['MFC', pcp_nm], ['CMFC']), (['U850'], ['V850'])]
     opts = [('upper left', 'mm/day', 'mm'), ('upper left', 'm/s', 'm/s')]
     ylim_list = [(-3.5, 9), (-7, 15)]
     y2_opts={'color' : 'r', 'alpha' : 0.6}
-    styles = ['k', 'k-.', 'g', 'm']
+    dashed = {'color' : 'k', 'linestyle' : '--', 'dashes' : dashes}
+    styles = ['k', dashed, 'g', 'm']
     legend_kw = {}
     for pair, opt, ylims in zip(keypairs, opts, ylim_list):
         grp.next()
@@ -344,12 +377,12 @@ def pts_clim(index_pts, nm, clev_bar=10, clev_std=np.arange(0, 21, 1),
     fix_axes(axlims)
 
 # Plot regression
-def plot_reg(pts_reg, pts_mask, nm, clev=0.2, xsample=1, ysample=1,
+def plot_reg(pts_reg, nm, clev=0.2, xsample=1, ysample=1,
              axlims=(5, 32, 60, 100), cline=None, color='0.3', alpha=1.0,
              markersize=2):
     """Plot regression of grid point indices onto large-scale index."""
     var = pts_reg[nm]['m']
-    mask = pts_mask[nm]
+    mask = pts_reg[nm]['pts_mask']
     xname = atm.get_coord(mask, 'lon', 'name')
     yname = atm.get_coord(mask, 'lat', 'name')
     atm.contourf_latlon(var, clev=clev, axlims=axlims, extend='both')
@@ -374,7 +407,8 @@ legend = True
 legend_kw = {'loc' : 'upper left', 'framealpha' : 0.0}
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 grp.next()
-plot_mfc_budget(mfc_budget, index, plotyear, legend=legend, legend_kw=legend_kw)
+plot_mfc_budget(mfc_budget, index, plotyear, dashes=dashes, legend=legend,
+                legend_kw=legend_kw)
 
 # Plot yearly tseries
 grp.next()
@@ -438,7 +472,7 @@ grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 grp.next()
 pts_clim(index_pts, nm, clev_bar=clev_bar, clev_std=clev_std, cmap=cmap)
 grp.next()
-plot_reg(pts_reg, pts_mask, nm, clev=clev_reg, xsample=xsample, ysample=ysample,
+plot_reg(pts_reg, nm, clev=clev_reg, xsample=xsample, ysample=ysample,
          color=stipple_clr)
 add_labels(grp, ['a', 'b'], (-0.15, 1.05), labelsize)
 
@@ -521,7 +555,8 @@ print(corr['m'].round(2))
 # Duration of transition
 
 d0, peak1, peak2 = 0, 30, 90
-d1_list = [7, 14, 21, 28, 5, 10, 15, 20, 25]
+#d1_list = [7, 14, 21, 28, 5, 10, 15, 20, 25]
+d1_list = [5, 10, 15, 20, 25]
 
 ts_peak = atm.dim_mean(tseries, 'dayrel', peak1, peak2)
 ts0 = atm.subset(tseries, {'dayrel' : (d0, d0)}, squeeze=True)
@@ -556,7 +591,7 @@ for year in years:
     else:
         legend = False
     ax1, ax2 = plot_mfc_budget(mfc_budget, index, year, legend=legend,
-                               legend_kw=legend_kw)
+                               legend_kw=legend_kw, netprecip=True)
     ax1.set_ylim(y1_lims)
     ax2.set_ylim(y2_lims)
     if grp.col > 0:
