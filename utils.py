@@ -508,6 +508,8 @@ def plotyy(data1, data2=None, xname='dayrel', data1_styles=None,
     for nm in data1.data_vars:
         if data1_styles is None:
             plt.plot(data1[xname], data1[nm], label=nm)
+        elif isinstance(data1_styles[nm], dict):
+            plt.plot(data1[xname], data1[nm], label=nm, **data1_styles[nm])
         else:
             plt.plot(data1[xname], data1[nm], data1_styles[nm], label=nm)
     atm.ax_lims_ticks(xlims, xticks, ylims, yticks)
