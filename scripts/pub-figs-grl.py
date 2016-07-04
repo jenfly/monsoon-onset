@@ -272,7 +272,7 @@ def yrly_index(onset_all, grid=False,legend=True,
 
 
 def daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp, grid=False,
-                  dashes=[6, 2]):
+                  dashes=[6, 2], dpeak=[20, 100]):
     """Plot dailyrel timeseries climatology"""
     xlims = (-npre, npost)
     xticks = range(-npre, npost + 1, 30)
@@ -301,7 +301,9 @@ def daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp, grid=False,
                      xlabel='Rel Day', y1_label=y1_label, y2_label=y2_label,
                      legend=legend, legend_kw=legend_kw, x0_axvlines=x0,
                      grid=grid)
-
+        if dpeak is not None:
+            for d0 in dpeak:
+                plt.axvline(d0, color='0.7', linewidth=2)
 
 def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
                     xlims=(-120, 200), xticks=np.arange(-120, 201, 30),
@@ -362,7 +364,8 @@ def precip_maps(precip, days, grp, cmax=20, cint=1, axlims=(5, 35, 60, 100),
 
 
 def pts_clim(index_pts, nm, clev_bar=10, clev_std=np.arange(0, 21, 1),
-             axlims=(5, 32, 60, 100), cmap='spectral', res='c'):
+             axlims=(5, 32, 60, 100), cmap='spectral', res='c',
+             label_locs=None, inline_spacing=2):
     """Plot climatological mean and standard deviation of grid point indices."""
     varbar = index_pts[nm].mean(dim='year')
     varstd = index_pts[nm].std(dim='year')
@@ -373,7 +376,11 @@ def pts_clim(index_pts, nm, clev_bar=10, clev_std=np.arange(0, 21, 1),
     m.colorbar(ticks=np.arange(0, 21, 2))
     _, cs = atm.contour_latlon(varbar, clev=clev_bar, axlims=axlims, colors='k',
                                linewidths=2)
-    plt.clabel(cs, fmt='%.0f', fontsize=9)
+    cs_opts = {'fmt' : '%.0f', 'fontsize' : 9,
+               'inline_spacing' : inline_spacing}
+    if label_locs is not None:
+        cs_opts['manual'] = label_locs
+    plt.clabel(cs, **cs_opts)
     fix_axes(axlims)
 
 # Plot regression
@@ -458,6 +465,8 @@ precip_maps(data[pcp_nm], days, grp, cmax=cmax, cint=cint)
 nm = 'onset'
 cmap = 'spectral'
 stipple_clr = '0.3'
+label_locs = [(75, 10), (71, 10), (88, 15), (67, 17), (77, 21),
+              (75, 24), (95, 12)]
 clev_bar = 10
 clev_std = np.arange(0, 21, 1)
 clev_reg = np.arange(-1.2, 1.25, 0.2)
@@ -470,11 +479,29 @@ fig_kw = {'figsize' : (figwidth, 0.4 * figwidth)}
 gridspec_kw = {'left' : 0.1, 'wspace' : 0.3}
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 grp.next()
-pts_clim(index_pts, nm, clev_bar=clev_bar, clev_std=clev_std, cmap=cmap)
+pts_clim(index_pts, nm, clev_bar=clev_bar, clev_std=clev_std, cmap=cmap,
+         label_locs=label_locs)
 grp.next()
 plot_reg(pts_reg, nm, clev=clev_reg, xsample=xsample, ysample=ysample,
          color=stipple_clr)
 add_labels(grp, ['a', 'b'], (-0.15, 1.05), labelsize)
+
+
+
+# Extra plots - maps of U850, V850 on various days
+clev = np.arange(-5, 5.1, 0.5)
+plotdays = [-10, -5, 0, 5, 10, 15, 20, 25]
+nrow, ncol = 2, 4
+fig_kw={'figsize' : (11, 5), 'sharex' : True, 'sharey' : True}
+for nm in ['U850', 'V850']:
+    var = data[nm]
+    grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, suptitle=nm)
+    for day in plotdays:
+        grp.next()
+        atm.contourf_latlon(var.sel(dayrel=day), clev=clev,
+                            axlims=(-30, 30, 40, 100), fancy=False,
+                            extend='both')
+        plt.title(day)
 
 
 
@@ -554,7 +581,7 @@ print(corr['m'].round(2))
 # ----------------------------------------------------------------------
 # Duration of transition
 
-d0, peak1, peak2 = 0, 30, 90
+d0, peak1, peak2 = 0, 20, 100
 #d1_list = [7, 14, 21, 28, 5, 10, 15, 20, 25]
 d1_list = [5, 10, 15, 20, 25]
 
