@@ -344,19 +344,21 @@ def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
         plt.ylabel('Latitude')
 
 
-def precip_maps(precip, days, grp, cmax=20, cint=1, axlims=(5, 35, 60, 100),
-                cmap='PuBuGn', res='c'):
+def plot_maps(var, days, grp, cmin=0, cmax=20, cint=1, axlims=(5, 35, 60, 100),
+                cmap='PuBuGn', res='c', extend='max', cticks=None,
+                daypos=(0.05, 0.85)):
     """Lat-lon maps of precip on selected days."""
-    clev = np.arange(0, cmax + cint/2.0, cint)
-    cticks = np.arange(0, clev.max() + 1, 2)
+    clev = np.arange(cmin, cmax + cint/2.0, cint)
+    if cticks is None:
+        cticks = np.arange(cmin, clev.max() + 1, 2)
     lat1, lat2, lon1, lon2 = axlims
     for day in days:
         grp.next()
-        pcp = precip.sel(dayrel=day)
+        pcp = var.sel(dayrel=day)
         m = atm.init_latlon(lat1, lat2, lon1, lon2, resolution=res)
         m = atm.contourf_latlon(pcp, m=m, clev=clev, axlims=axlims, cmap=cmap,
-                                colorbar=False, extend='max')
-        atm.text(day, (0.05, 0.85), fontsize=12, fontweight='bold')
+                                colorbar=False, extend=extend)
+        atm.text(day, daypos, fontsize=12, fontweight='bold')
     # plt.colorbar(ax=grp.axes.ravel().tolist(), orientation='vertical',
     #              shrink=0.8, ticks=cticks)
     atm.colorbar_multiplot(orientation='vertical', shrink=0.8, ticks=cticks)
@@ -459,7 +461,7 @@ fig_kw = {'figsize' : (figwidth, 0.8 * figwidth), 'sharex' : True,
           'sharey' : True}
 gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'wspace' : 0.15, 'hspace' : 0.05}
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
-precip_maps(data[pcp_nm], days, grp, cmax=cmax, cint=cint)
+plot_maps(data[pcp_nm], days, grp, cmax=cmax, cint=cint)
 
 # Grid point indices
 nm = 'onset'
@@ -487,22 +489,45 @@ plot_reg(pts_reg, nm, clev=clev_reg, xsample=xsample, ysample=ysample,
 add_labels(grp, ['a', 'b'], (-0.15, 1.05), labelsize)
 
 
-
+# ----------------------------------------------------------------------
 # Extra plots - maps of U850, V850 on various days
-clev = np.arange(-5, 5.1, 0.5)
-plotdays = [-10, -5, 0, 5, 10, 15, 20, 25]
-nrow, ncol = 2, 4
-fig_kw={'figsize' : (11, 5), 'sharex' : True, 'sharey' : True}
-for nm in ['U850', 'V850']:
+nms = ['U850', 'V850']
+#nms = ['U850', 'V850', 'U200', 'V200']
+suptitle_on = False
+axlims=(-30, 30, 40, 120)
+xticks = [40, 60, 80, 100, 120]
+xtick_labels = atm.latlon_labels(xticks, 'lon')
+yticks = [-30, -15, 0, 15, 30]
+ytick_labels = atm.latlon_labels(yticks, 'lat')
+daypos = 0.05, 1.02
+opts = {'U850' : {'cmax' : 10, 'cint' : 1, 'ctick_int' : 2},
+        'V850' : {'cmax' : 10, 'cint' : 1, 'ctick_int' : 2},
+        'U200' : {'cmax' : 40, 'cint' : 5, 'ctick_int' : 10},
+        'V200' : {'cmax' : 10, 'cint' : 1, 'ctick_int' : 2}}
+plotdays = [-15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35, 40]
+nrow, ncol = 4, 3
+fig_kw = {'figsize' : (figwidth, 0.85 * figwidth), 'sharex' : True,
+          'sharey' : True}
+gridspec_kw = {'top' : 0.95, 'bottom' : 0.05, 'left' : 0.07, 'right' : 1.06,
+               'wspace' : 0.3, 'hspace' : 0.25}
+for nm in nms:
     var = data[nm]
-    grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, suptitle=nm)
-    for day in plotdays:
-        grp.next()
-        atm.contourf_latlon(var.sel(dayrel=day), clev=clev,
-                            axlims=(-30, 30, 40, 100), fancy=False,
-                            extend='both')
-        plt.title(day)
-
+    cmax = opts[nm]['cmax']
+    cmin = -cmax
+    cint = opts[nm]['cint']
+    ctick_int = opts[nm]['ctick_int']
+    cticks = np.arange(cmin, cmax + ctick_int/2.0, ctick_int)
+    if suptitle_on:
+        suptitle = nm
+    else:
+        suptitle = ''
+    grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw,
+                       suptitle=suptitle)
+    plot_maps(var, plotdays, grp, cmin=cmin, cmax=cmax, cint=cint, axlims=axlims,
+              cmap='RdBu_r', res='c', extend='both', cticks=cticks,
+              daypos=daypos)
+    plt.xticks(xticks, xtick_labels)
+    plt.yticks(yticks, ytick_labels)
 
 
 # ----------------------------------------------------------------------
