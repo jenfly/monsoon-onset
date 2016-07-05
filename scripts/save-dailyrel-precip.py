@@ -20,9 +20,8 @@ datadir = atm.homedir() + 'datastore/%s/analysis/' % version
 onset_nm = 'CHP_MFC'
 indfile = atm.homedir() + ('datastore/%s/analysis/%s_index_%s_%s.nc' %
                            (version, version, onset_nm, yearstr))
-ind_nm, npre, npost = 'onset', 120, 200
-#ind_nm, npre, npost = 'onset', 119, 200
-#ind_nm, npre, npost = 'retreat', 200, 50
+#ind_nm, npre, npost = 'onset', 120, 200
+ind_nm, npre, npost = 'retreat', 270, 100
 
 pcp_nm = 'gpcp'
 years = np.arange(1997, 2016)
@@ -65,7 +64,9 @@ else:
 
 
 # Wrap from following year to get extended daily range
-# pcp = utils.wrapyear_all(pcp, daymin=daymin, daymax=daymax)
+daymin = min(d0) - npre
+daymax = max(d0) + npost
+pcp = utils.wrapyear_all(pcp, daymin=daymin, daymax=daymax)
 
 # Daily relative to onset/withdrawal
 pcp_rel = utils.daily_rel2onset(pcp, d0, npre, npost)

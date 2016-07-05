@@ -17,8 +17,8 @@ from utils import get_data_rel, load_dailyrel
 version = 'merra2'
 years = np.arange(1980, 2016)
 onset_nm = 'CHP_MFC'
-ind_nm, npre, npost = 'onset', 120, 200
-#ind_nm, npre, npost = 'retreat', 200, 60
+#ind_nm, npre, npost = 'onset', 120, 200
+ind_nm, npre, npost = 'retreat', 270, 100
 
 datadir = atm.homedir() + 'datastore/%s/daily/' % version
 savedir = atm.homedir() + 'eady/datastore/%s/analysis/' % version
@@ -103,6 +103,7 @@ for y, year in enumerate(years):
     d_onset = int(onset[y].values)
     d_retreat = int(retreat[y].values)
     d0 = int(index[ind_nm][y].values)
+    dmin, dmax = d0 - npre, d0 + npost
     coords = {'year' : [year]}
     onset_var = xray.DataArray([d_onset], name='D_ONSET', coords=coords)
     retreat_var = xray.DataArray([d_retreat], name='D_RETREAT', coords=coords)
