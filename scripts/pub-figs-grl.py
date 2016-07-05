@@ -272,7 +272,7 @@ def yrly_index(onset_all, grid=False,legend=True,
 
 
 def daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp, grid=False,
-                  dashes=[6, 2], dpeak=[20, 100]):
+                  dashes=[6, 2], dlist=[15]):
     """Plot dailyrel timeseries climatology"""
     xlims = (-npre, npost)
     xticks = range(-npre, npost + 1, 30)
@@ -301,9 +301,9 @@ def daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp, grid=False,
                      xlabel='Rel Day', y1_label=y1_label, y2_label=y2_label,
                      legend=legend, legend_kw=legend_kw, x0_axvlines=x0,
                      grid=grid)
-        if dpeak is not None:
-            for d0 in dpeak:
-                plt.axvline(d0, color='0.7', linewidth=2)
+        if dlist is not None:
+            for d0 in dlist:
+                plt.axvline(d0, color='k', linestyle='--', dashes=dashes)
 
 def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
                     xlims=(-120, 200), xticks=np.arange(-120, 201, 30),
@@ -434,6 +434,7 @@ add_labels(grp, labels, pos, labelsize)
 
 
 # Lat-day contour plots
+d0 = 15
 keys = [pcp_nm, 'U200', 'V200', 'U850']
 clevs = {pcp_nm : 1, 'U200' : 5, 'V200' : 1, 'U850' : 2}
 nrow, ncol = 2, 2
@@ -447,6 +448,8 @@ for key in keys:
     var = atm.dim_mean(data[key], 'lon', lon1, lon2)
     contourf_latday(var, clev=clevs[key], title=key.upper(), grp=grp,
                     ssn_length=index['length'].mean(dim='year'))
+    if d0 is not None:
+        plt.axvline(d0, color='k', linestyle='--', dashes=dashes)
 labels = ['a', 'b', 'c', 'd']
 x1, x2, y0 = -0.15, -0.05, 1.05
 pos = [(x1, y0), (x2, y0), (x1, y0), (x2, y0)]
