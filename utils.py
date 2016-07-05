@@ -7,6 +7,7 @@ import pandas as pd
 import xray
 import matplotlib.pyplot as plt
 import collections
+import os
 
 import atmos as atm
 import merra
@@ -354,9 +355,84 @@ def var_type(varnm):
 
 
 # ----------------------------------------------------------------------
-def get_data_rel(varid, plev, years, datafiles, data, onset, npre, npost,
-                 yearnm='year', daynm='day'):
-    """Return daily data relative to onset date.
+# def get_data_rel(varid, plev, years, datafiles, data, onset, npre, npost,
+#                  yearnm='year', daynm='day', rel=True):
+#     """Return daily data relative to onset date.
+#
+#     Data is read from datafiles if varnm is a basic variable.
+#     If varnm is a calculated variable (e.g. potential temperature),
+#     the base variables for calculation are provided in the dict data.
+#     """
+#
+#     years = atm.makelist(years)
+#     onset = atm.makelist(onset)
+#     datafiles = atm.makelist(datafiles)
+#     daymin, daymax = min(onset) - npre, max(onset) + npost
+#
+#     if isinstance(plev, int) or isinstance(plev, float):
+#         pres = atm.pres_convert(plev, 'hPa', 'Pa')
+#     elif plev == 'LML' and 'PS' in data:
+#         pres = data['PS']
+#     else:
+#         pres = None
+#
+#     def get_var(data, varnm, plev=None):
+#         if plev is None:
+#             plev = ''
+#         elif plev == 'LML' and varnm == 'QV':
+#             varnm = 'Q'
+#         return data[varnm + str(plev)]
+#
+#     if var_type(varid) == 'calc':
+#         print('Computing ' + varid)
+#         if varid == 'THETA':
+#             var = atm.potential_temp(get_var(data, 'T', plev), pres)
+#         elif varid == 'THETA_E':
+#             var = atm.equiv_potential_temp(get_var(data, 'T', plev), pres,
+#                                            get_var(data, 'QV', plev))
+#         elif varid == 'DSE':
+#             var = atm.dry_static_energy(get_var(data, 'T', plev),
+#                                         get_var(data, 'H', plev))
+#         elif varid == 'MSE':
+#             var = atm.moist_static_energy(get_var(data, 'T', plev),
+#                                           get_var(data, 'H', plev),
+#                                           get_var(data, 'QV', plev))
+#         elif varid == 'VFLXMSE':
+#             Lv = atm.constants.Lv.values
+#             var = data['VFLXCPT'] + data['VFLXPHI'] + data['VFLXQV'] * Lv
+#             var.attrs['units'] = data['VFLXCPT'].attrs['units']
+#             var.attrs['long_name'] = 'Vertically integrated MSE meridional flux'
+#     else:
+#         with xray.open_dataset(datafiles[0]) as ds:
+#             if varid not in ds.data_vars:
+#                 varid = varid + str(plev)
+#             daynm_in = atm.get_coord(ds[varid], 'day', 'name')
+#         var = atm.combine_daily_years(varid, datafiles, years, yearname=yearnm,
+#                                       subset_dict={daynm_in : (daymin, daymax)})
+#         var = atm.squeeze(var)
+#
+#     # Convert precip and evap to mm/day
+#     if varid in ['precip', 'PRECTOT', 'EVAP']:
+#         var = atm.precip_convert(var, var.attrs['units'], 'mm/day')
+#
+#     # Align relative to onset day:
+#     if var_type(varid) == 'basic':
+#         daynm_in = atm.get_coord(var, 'day', 'name')
+#         if daynm_in !=  daynm:
+#             var = var.rename({daynm_in : daynm})
+#         if len(years) == 1:
+#             var = atm.expand_dims(var, yearnm, years[0], axis=0)
+#         if rel:
+#             print('Aligning data relative to onset day')
+#             var = daily_rel2onset(var, onset, npre, npost)
+#
+#     return var
+
+
+# ----------------------------------------------------------------------
+def get_daily_data(varid, plev, years, datafiles, data, daymin=1,
+                   daymax=366, yearnm='year'):
+    """Return daily data (basic variable or calculated variable).
 
     Data is read from datafiles if varnm is a basic variable.
     If varnm is a calculated variable (e.g. potential temperature),
@@ -364,9 +440,7 @@ def get_data_rel(varid, plev, years, datafiles, data, onset, npre, npost,
     """
 
     years = atm.makelist(years)
-    onset = atm.makelist(onset)
     datafiles = atm.makelist(datafiles)
-    daymin, daymax = min(onset) - npre, max(onset) + npost
 
     if isinstance(plev, int) or isinstance(plev, float):
         pres = atm.pres_convert(plev, 'hPa', 'Pa')
@@ -405,23 +479,71 @@ def get_data_rel(varid, plev, years, datafiles, data, onset, npre, npost,
         with xray.open_dataset(datafiles[0]) as ds:
             if varid not in ds.data_vars:
                 varid = varid + str(plev)
-            daynm_in = atm.get_coord(ds[varid], 'day', 'name')
         var = atm.combine_daily_years(varid, datafiles, years, yearname=yearnm,
-                                      subset_dict={daynm_in : (daymin, daymax)})
+                                      subset_dict={'day' : (daymin, daymax)})
         var = atm.squeeze(var)
+
+        # Make sure year dimension is included for single year
+        if len(years) == 1 and 'year' not in var.dims:
+            var = atm.expand_dims(var, yearnm, years[0], axis=0)
+
+        # Wrap years for extended day ranges
+        if daymin < 1 or daymax > 366:
+            var = wrapyear_all(var, daymin, daymax)
 
     # Convert precip and evap to mm/day
     if varid in ['precip', 'PRECTOT', 'EVAP']:
         var = atm.precip_convert(var, var.attrs['units'], 'mm/day')
 
-    # Align relative to onset day:
+    return var
+
+
+# ----------------------------------------------------------------------
+def get_data_rel(varid, plev, years, datafiles, data, onset, npre, npost):
+    """Return daily data aligned relative to onset/withdrawal day.
+    """
+
+    years = atm.makelist(years)
+    onset = atm.makelist(onset)
+    datafiles = atm.makelist(datafiles)
+
+    daymin = min(onset) - npre
+    daymax = max(onset) + npost
+
+    # For a single year, add extra year before/after, if necessary
+    wrap_single = False
+    years_in = years
+    if len(years) == 1:
+        filenm = datafiles[0]
+        year = years[0]
+        if daymin < 1:
+            wrap_single = True
+            file_pre = filenm.replace(str(year), str(year - 1))
+            if os.path.isfile(file_pre):
+                years_in = [year - 1] + years_in
+                datafiles = [file_pre] + datafiles
+        if daymax > len(atm.season_days('ANN', year)):
+            wrap_single = True
+            file_post = filenm.replace(str(year), str(year + 1))
+            if os.path.isfile(file_post):
+                years_in = years_in + [year + 1]
+                datafiles = datafiles + [file_post]
+
+    var = get_daily_data(varid, plev, years_in, datafiles, data, daymin=daymin,
+                         daymax=daymax)
+
+    # Get rid of extra years
+    if wrap_single:
+        var = atm.subset(var, {'year' : (years[0], years[0])})
+
+    # Make sure year dimension is included for single year
+    if len(years) == 1 and 'year' not in var.dims:
+        var = atm.expand_dims(var, 'year', years[0], axis=0)
+
+    # Align relative to onset day
+    # (not needed for calc variables since they're already in relday)
     if var_type(varid) == 'basic':
         print('Aligning data relative to onset day')
-        daynm_in = atm.get_coord(var, 'day', 'name')
-        if daynm_in !=  daynm:
-            var = var.rename({daynm_in : daynm})
-        if len(years) == 1:
-            var = atm.expand_dims(var, yearnm, years[0], axis=0)
         var = daily_rel2onset(var, onset, npre, npost)
 
     return var
