@@ -513,7 +513,7 @@ def get_data_rel(varid, plev, years, datafiles, data, onset, npre, npost):
     # For a single year, add extra year before/after, if necessary
     wrap_single = False
     years_in = years
-    if len(years) == 1:
+    if len(years) == 1 and var_type(varid) == 'basic':
         filenm = datafiles[0]
         year = years[0]
         if daymin < 1:
@@ -541,7 +541,7 @@ def get_data_rel(varid, plev, years, datafiles, data, onset, npre, npost):
         var = atm.expand_dims(var, 'year', years[0], axis=0)
 
     # Align relative to onset day
-    # (not needed for calc variables since they're already in relday)
+    # (not needed for calc variables since they're already aligned)
     if var_type(varid) == 'basic':
         print('Aligning data relative to onset day')
         var = daily_rel2onset(var, onset, npre, npost)
