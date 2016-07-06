@@ -35,7 +35,8 @@ lat_extract = {'U200' : 0, 'V200' : 15, 'U850' : 15, 'V850' : 15}
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 nroll = 5 # n-day rolling averages for smoothing daily timeseries
-npre, npost = 120, 200
+#ind_nm, npre, npost = 'onset', 120, 200
+ind_nm, npre, npost = 'retreat', 270, 89
 
 yearstr = '%d-%d.nc' % (min(years), max(years))
 filestr = datadir + version + '_index_%s_' + yearstr
@@ -60,6 +61,10 @@ else:
     ptsfile = ptsfile + yearstr
     pts_xroll, pts_yroll = 3, 3
 mfcbudget_file = datadir + version + '_mfc_budget_' + yearstr
+
+if ind_nm == 'retreat':
+    for nm in datafiles:
+        datafiles[nm] = datafiles[nm].replace('dailyrel', 'dailyrel_retreat')
 
 enso_nm = 'NINO3'
 #enso_nm = 'NINO3.4'
@@ -167,9 +172,9 @@ enso.columns = col_names
 
 tseries = xray.Dataset()
 tseries['MFC'] = utils.daily_rel2onset(index_all['CHP_MFC']['daily_ts'],
-                                       index['onset'], npre, npost)
+                                       index[ind_nm], npre, npost)
 tseries['CMFC'] = utils.daily_rel2onset(index_all['CHP_MFC']['tseries'],
-                                           index['onset'], npre, npost)
+                                           index[ind_nm], npre, npost)
 for nm in ['CMAP', 'GPCP', 'PRECTOT']:
     tseries[nm] = atm.mean_over_geobox(data[nm], lat1, lat2, lon1, lon2)
 
@@ -218,6 +223,15 @@ def add_labels(grp, labels, pos, fontsize, fontweight='bold'):
                      fontweight=fontweight)
             i += 1
 
+def skip_ticklabel(xticks):
+    xtick_labels = []
+    for i, n in enumerate(xticks):
+        if i % 2 == 0:
+            xtick_labels = xtick_labels +  ['']
+        else:
+            xtick_labels = xtick_labels + [n]
+    return xtick_labels
+
 def plot_mfc_budget(mfc_budget, index, year, legend=True,
                     legend_kw={'fontsize' : 9, 'loc' : 'upper left',
                                'handlelength' : 2.5},
@@ -251,12 +265,14 @@ def yrly_index(onset_all, grid=False,legend=True,
                legend_kw={'loc' : 'upper left', 'ncol' : 2}):
     """Plot onset day vs. year for different onset definitions."""
 
-    corr = onset_all.corr()[onset_nm]
+    #corr = onset_all.corr()[onset_nm]
     labels = {nm : nm for nm in onset_all.columns}
     labels['CHP_MFC'] = 'CHP'
     styles = {'CHP_MFC' : {'color' : 'k', 'linewidth' : 2},
               'OCI' : {'color' : 'r'}, 'HOWI' : {'color' : 'g'},
               'MOK' : {'color' : 'b'}}
+    styles['retreat'] = styles['CHP_MFC']
+    styles['length'] = styles['CHP_MFC']
     xticks = np.arange(1980, 2016, 5)
     xticklabels = [1980, '', 1990, '', 2000, '', 2010, '']
 
@@ -271,12 +287,17 @@ def yrly_index(onset_all, grid=False,legend=True,
     plt.ylabel('Day of Year')
 
 
-def daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp, grid=False,
-                  dashes=[6, 2], dlist=[15]):
+def daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp,
+                  ind_nm='onset', grid=False, dashes=[6, 2], dlist=[15]):
     """Plot dailyrel timeseries climatology"""
     xlims = (-npre, npost)
-    xticks = range(-npre, npost + 1, 30)
-    x0 = [0, index['length'].mean(dim='year')]
+    xticks = range(-npre, npost + 10, 30)
+    if ind_nm == 'onset':
+        x0 = [0, index['length'].mean(dim='year')]
+        xtick_labels = xticks
+    else:
+        x0 = [-index['length'].mean(dim='year'), 0]
+        xtick_labels = skip_ticklabel(xticks)
     keypairs = [(['MFC', pcp_nm], ['CMFC']), (['U850'], ['V850'])]
     opts = [('upper left', 'mm/day', 'mm'), ('upper left', 'm/s', 'm/s')]
     ylim_list = [(-3.5, 9), (-7, 15)]
@@ -301,6 +322,7 @@ def daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp, grid=False,
                      xlabel='Rel Day', y1_label=y1_label, y2_label=y2_label,
                      legend=legend, legend_kw=legend_kw, x0_axvlines=x0,
                      grid=grid)
+        plt.gca().set_xticklabels(xtick_labels)
         if dlist is not None:
             for d0 in dlist:
                 plt.axvline(d0, color='k', linestyle='--', dashes=dashes)
@@ -308,7 +330,7 @@ def daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp, grid=False,
 def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
                     xlims=(-120, 200), xticks=np.arange(-120, 201, 30),
                     ylims=(-60, 60), yticks=np.arange(-60, 61, 20),
-                    ssn_length=None, grid=False):
+                    dlist=None, grid=False):
     vals = var.values.T
     lat = atm.get_coord(var, 'lat')
     days = atm.get_coord(var, 'dayrel')
@@ -335,9 +357,9 @@ def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
     atm.ax_lims_ticks(xlims, xticks, ylims, yticks)
     plt.grid(grid)
     plt.title(title)
-    plt.axvline(0, color='k')
-    if ssn_length is not None:
-        plt.axvline(ssn_length, color='k')
+    if dlist is not None:
+        for d0 in dlist:
+            plt.axvline(d0, color='k')
     if grp is not None and grp.row == grp.ncol - 1:
         plt.xlabel('Rel Day')
     if grp is not None and grp.col == 0:
@@ -406,8 +428,7 @@ def plot_reg(pts_reg, nm, clev=0.2, xsample=1, ysample=1,
 # ----------------------------------------------------------------------
 # FIGURES
 
-# Daily MFC budget and CHP tseries fit in a single year
-plotyear = 2000
+# Timeseries plots - setup figure for subplots
 nrow, ncol = 2, 2
 fig_kw = {'figsize' : (figwidth, 0.7 * figwidth)}
 gridspec_kw = {'left' : 0.07, 'right' : 0.9, 'bottom' : 0.07, 'top' : 0.9,
@@ -415,17 +436,32 @@ gridspec_kw = {'left' : 0.07, 'right' : 0.9, 'bottom' : 0.07, 'top' : 0.9,
 legend = True
 legend_kw = {'loc' : 'upper left', 'framealpha' : 0.0}
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
-grp.next()
-plot_mfc_budget(mfc_budget, index, plotyear, dashes=dashes, legend=legend,
-                legend_kw=legend_kw)
+
+# Daily MFC budget and CHP tseries fit in a single year
+plotyear = 2000
+if ind_nm == 'onset':
+    grp.next()
+    plot_mfc_budget(mfc_budget, index, plotyear, dashes=dashes, legend=legend,
+                    legend_kw=legend_kw)
 
 # Plot yearly tseries
 grp.next()
-yrly_index(onset_all, legend=True)
+if ind_nm == 'onset':
+    yrly_index(onset_all, legend=True)
+else:
+    yrly_index(index['retreat'].to_dataframe(), legend=False)
+    grp.next()
+    yrly_index(index['length'].to_dataframe(), legend=False)
+    plt.ylabel('Number of days')
 
 # Plot daily tseries
 legend = True
-daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp)
+if ind_nm == 'onset':
+    dlist = [15]
+else:
+    dlist = None
+daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp, ind_nm=ind_nm,
+              dlist=dlist)
 
 # Add a-d labels
 labels = ['a', 'b', 'c', 'd']
@@ -434,7 +470,16 @@ add_labels(grp, labels, pos, labelsize)
 
 
 # Lat-day contour plots
-d0 = 15
+xticks = range(-npre, npost + 10, 30)
+if ind_nm == 'onset':
+    dlist = [0, index['length'].mean(dim='year')]
+    d0 = 15
+    xtick_labels = xticks
+else:
+    dlist = [-index['length'].mean(dim='year'), 0]
+    d0 = None
+    xtick_labels = skip_ticklabel(xticks)
+
 keys = [pcp_nm, 'U200', 'V200', 'U850']
 clevs = {pcp_nm : 1, 'U200' : 5, 'V200' : 1, 'U850' : 2}
 nrow, ncol = 2, 2
@@ -447,9 +492,11 @@ for key in keys:
     grp.next()
     var = atm.dim_mean(data[key], 'lon', lon1, lon2)
     contourf_latday(var, clev=clevs[key], title=key.upper(), grp=grp,
-                    ssn_length=index['length'].mean(dim='year'))
+                    dlist=dlist)
     if d0 is not None:
         plt.axvline(d0, color='k', linestyle='--', dashes=dashes)
+plt.xticks(xticks, xtick_labels)
+plt.xlim(-npre, npost)
 labels = ['a', 'b', 'c', 'd']
 x1, x2, y0 = -0.15, -0.05, 1.05
 pos = [(x1, y0), (x2, y0), (x1, y0), (x2, y0)]
@@ -457,7 +504,10 @@ add_labels(grp, labels, pos, labelsize)
 
 # Precip maps
 #days = [-30, -15, 0, 15, 30, 45, 60, 75, 90]
-days = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+if ind_nm == 'onset':
+    days = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+else:
+    days = [-45, -40, -35, -30, -25, -20, -15, -10, -5, 0, 5, 10]
 nrow, ncol = 4, 3
 cmax, cint = 12, 1
 fig_kw = {'figsize' : (figwidth, 0.8 * figwidth), 'sharex' : True,
@@ -467,11 +517,13 @@ grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 plot_maps(data[pcp_nm], days, grp, cmax=cmax, cint=cint)
 
 # Grid point indices
-nm = 'onset'
 cmap = 'spectral'
 stipple_clr = '0.3'
-label_locs = [(75, 10), (71, 10), (88, 15), (67, 17), (77, 21),
-              (75, 24), (95, 12)]
+if ind_nm == 'onset':
+    label_locs = [(75, 10), (71, 10), (88, 15), (67, 17), (77, 21),
+                  (75, 24), (95, 12)]
+else:
+    label_locs = [(95, 24), (85, 22), (75, 25), (76, 21), (88, 15)]
 clev_bar = 10
 clev_std = np.arange(0, 21, 1)
 clev_reg = np.arange(-1.2, 1.25, 0.2)
@@ -484,10 +536,10 @@ fig_kw = {'figsize' : (figwidth, 0.4 * figwidth)}
 gridspec_kw = {'left' : 0.1, 'wspace' : 0.3}
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 grp.next()
-pts_clim(index_pts, nm, clev_bar=clev_bar, clev_std=clev_std, cmap=cmap,
+pts_clim(index_pts, ind_nm, clev_bar=clev_bar, clev_std=clev_std, cmap=cmap,
          label_locs=label_locs)
 grp.next()
-plot_reg(pts_reg, nm, clev=clev_reg, xsample=xsample, ysample=ysample,
+plot_reg(pts_reg, ind_nm, clev=clev_reg, xsample=xsample, ysample=ysample,
          color=stipple_clr)
 add_labels(grp, ['a', 'b'], (-0.15, 1.05), labelsize)
 
