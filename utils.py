@@ -652,6 +652,7 @@ def plotyy(data1, data2=None, xname='dayrel', data1_styles=None,
         if 'linewidth' in y2_opts:
             y2_opts.pop('linewidth')
         atm.fmt_axlabels('y', y2_label, **y2_opts)
+        atm.ax_lims_ticks(xlims, xticks)
     axes = axes + [plt.gca()]
 
     if legend:
