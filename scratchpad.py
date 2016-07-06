@@ -9,6 +9,34 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import atmos as atm
+import indices
+
+# ----------------------------------------------------------------------
+# 7/6/2016 Extreme onset years
+
+version = 'merra2'
+onset_nm = 'CHP_MFC'
+years = np.arange(1980, 2016)
+datadir = atm.homedir() + 'datastore/%s/analysis/' % version
+yearstr = '%d-%d.nc' % (min(years), max(years))
+indfiles = {onset_nm : datadir + version + '_index_%s_' % onset_nm + yearstr}
+indfiles['MOK'] = atm.homedir() + 'dynamics/python/monsoon-onset/data/MOK.dat'
+
+index = {}
+index['MOK'] = indices.onset_MOK(indfiles['MOK'])
+index['MOK_SUB'] = index['MOK'].loc[years]
+with xray.open_dataset(indfiles['CHP_MFC']) as ds:
+    index[onset_nm] = ds['onset'].load().to_series()
+
+def extreme_years(ind, nstd=1):
+    """Return years more than nstd away from the mean"""
+    early = ind[ind - ind.mean() < -nstd * ind.std()]
+    late = ind[ind - ind.mean() > nstd * ind.std()]
+    return early, late
+
+early, late = {}, {}
+for nm in index:
+    early[nm], late[nm] = extreme_years(index[nm])
 
 
 # ----------------------------------------------------------------------
