@@ -35,8 +35,8 @@ lat_extract = {'U200' : 0, 'V200' : 15, 'U850' : 15, 'V850' : 15}
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 nroll = 5 # n-day rolling averages for smoothing daily timeseries
-#ind_nm, npre, npost = 'onset', 120, 200
-ind_nm, npre, npost = 'retreat', 270, 89
+ind_nm, npre, npost = 'onset', 120, 200
+#ind_nm, npre, npost = 'retreat', 270, 89
 
 yearstr = '%d-%d.nc' % (min(years), max(years))
 filestr = datadir + version + '_index_%s_' + yearstr
@@ -435,6 +435,7 @@ gridspec_kw = {'left' : 0.07, 'right' : 0.9, 'bottom' : 0.07, 'top' : 0.9,
                'wspace' : 0.5, 'hspace' : 0.35}
 legend = True
 legend_kw = {'loc' : 'upper left', 'framealpha' : 0.0}
+labelpos = (-0.2, 1.05)
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 
 # Daily MFC budget and CHP tseries fit in a single year
@@ -444,15 +445,23 @@ if ind_nm == 'onset':
     plot_mfc_budget(mfc_budget, index, plotyear, dashes=dashes, legend=legend,
                     legend_kw=legend_kw)
 
-# Plot yearly tseries
-grp.next()
-if ind_nm == 'onset':
+    # Plot yearly tseries
+    grp.next()
     yrly_index(onset_all, legend=True)
 else:
-    yrly_index(index['retreat'].to_dataframe(), legend=False)
-    grp.next()
-    yrly_index(index['length'].to_dataframe(), legend=False)
-    plt.ylabel('Number of days')
+    for i in [0, 1]:
+        grp.next()
+        plt.axis('off')
+    ax = plt.subplot(2, 1, 1)
+    df = index[['length', 'retreat', 'onset']].to_dataframe()
+    plt.boxplot(df.values, vert=False, labels=['Length', 'Retreat', 'Onset'])
+    plt.xlabel('Day of Year | Number of Days')
+    plt.xlim(120, 320)
+    plt.xticks(np.arange(120, 321, 20))
+    pos = ax.get_position()
+    pos2 = [pos.x0, pos.y0 + 0.05, pos.width, pos.height]
+    ax.set_position(pos2)
+    atm.text('a', (-0.16, 1.01), fontsize=labelsize, fontweight='bold')
 
 # Plot daily tseries
 legend = True
@@ -464,9 +473,14 @@ daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp, ind_nm=ind_nm,
               dlist=dlist)
 
 # Add a-d labels
-labels = ['a', 'b', 'c', 'd']
-pos = (-0.2, 1.05)
-add_labels(grp, labels, pos, labelsize)
+if ind_nm == 'onset':
+    labels = ['a', 'b', 'c', 'd']
+    add_labels(grp, labels, labelpos, labelsize)
+else:
+    labels = ['b', 'c']
+    for i in [0, 1]:
+        grp.subplot(1, i)
+        atm.text(labels[i], labelpos, fontsize=labelsize, fontweight='bold')
 
 
 # Lat-day contour plots
