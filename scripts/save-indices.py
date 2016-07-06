@@ -16,8 +16,8 @@ import utils
 
 # ----------------------------------------------------------------------
 version = 'merra2'
-#years = np.arange(1980, 2016)
-years = np.arange(1997, 2016) # GPCP
+years = np.arange(1980, 2016)
+#years = np.arange(1997, 2016) # GPCP
 
 datadir = atm.homedir() + 'eady/datastore/%s/daily/' % version
 savedir = atm.homedir() + 'eady/datastore/%s/analysis/' % version
@@ -41,8 +41,8 @@ yearstr = '%d-%d.nc' % (min(years), max(years))
 savefile = savedir + version + '_index_%s_' + yearstr
 
 # Large-scale indices to save (set to [] if only doing grid points)
-#onset_nms = ['CHP_MFC', 'HOWI', 'OCI', 'SJKE']
-onset_nms = []
+onset_nms = ['CHP_MFC', 'CHP_PCP', 'HOWI', 'OCI', 'SJKE']
+#onset_nms = []
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 
@@ -64,18 +64,29 @@ def save_index(index, onset_nm, savefile):
     print('Saving to ' + filenm)
     index.to_netcdf(filenm)
 
+def calc_chp(varnm, files, years, lat1, lat2, lon1, lon2, chp_opts):
+    var = atm.combine_daily_years(varnm, files, years, yearname='year')
+    varbar = atm.mean_over_geobox(var, lat1, lat2, lon1, lon2)
+    daymax = max(chp_opts['retreat_range'])
+    varbar = utils.wrapyear_all(varbar, daymin=1, daymax=daymax)
+    var_acc = np.cumsum(varbar, axis=1)
+    index = indices.onset_changepoint(var_acc, **chp_opts)
+    varbar.attrs = collections.OrderedDict({'units' : var.attrs['units']})
+    index['daily_ts'] = varbar
+    return index
+
 if 'CHP_MFC' in onset_nms:
     # Accumulated MFC changepoint (Cook & Buckley 2009)
     onset_nm = 'CHP_MFC'
-    mfc = atm.combine_daily_years('MFC', datafiles[onset_nm], years,
-                                  yearname='year')
-    mfcbar = atm.mean_over_geobox(mfc, lat1, lat2, lon1, lon2)
-    daymax = max(chp_opts['retreat_range'])
-    mfcbar = utils.wrapyear_all(mfcbar, daymin=1, daymax=daymax)
-    mfc_acc = np.cumsum(mfcbar, axis=1)
-    index = indices.onset_changepoint(mfc_acc, **chp_opts)
-    mfcbar.attrs = collections.OrderedDict({'units' : mfc.attrs['units']})
-    index['daily_ts'] = mfcbar
+    index = calc_chp('MFC', datafiles[onset_nm], years, lat1, lat2, lon1, lon2,
+                     chp_opts)
+    save_index(index, onset_nm, savefile)
+
+if 'CHP_PCP' in onset_nms:
+    # Accumulated precip changepoint (Cook & Buckley 2009)
+    onset_nm = 'CHP_PCP'
+    index = calc_chp('PRECTOT', datafiles[onset_nm], years, lat1, lat2, lon1,
+                     lon2, chp_opts)
     save_index(index, onset_nm, savefile)
 
 if 'HOWI' in onset_nms:
