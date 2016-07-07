@@ -54,7 +54,7 @@ xsample, ysample = 1, 1
 xroll, yroll = 4, 4
 
 # Options for large-scale and gridpoint CHP calcs
-chp_opts = {'onset_range' : (1, 250), 'retreat_range' : (201, 400)}
+chp_opts = {'onset_range' : (1, 250), 'retreat_range' : (200, 400)}
 
 # ----------------------------------------------------------------------
 # Calculate and save large-scale onset/retreat indices
