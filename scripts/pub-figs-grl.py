@@ -791,7 +791,7 @@ for nm in index1:
 # Fourier harmonics - annual + semi-annual
 
 kmax = 2
-nms = [pcp_nm, 'MFC', 'U850', 'V850']
+nms = [pcp_nm, 'U850', 'V850']
 days = np.arange(-138, 227)
 ts1 = ts.sel(dayrel=days)
 ts_sm = xray.Dataset()
