@@ -788,18 +788,19 @@ for nm in index1:
     early[nm], late[nm] = extreme_years(index1[nm])
 
 # ----------------------------------------------------------------------
-# Fourier harmonics - annual + semi-annual
+# Fourier harmonics
 
-kmax = 2
+kmax_list = np.arange(2, 21, 1)
 nms = [pcp_nm, 'U850', 'V850']
 days = np.arange(-138, 227)
 ts1 = ts.sel(dayrel=days)
-ts_sm = xray.Dataset()
-Rsq = {}
-for nm in nms:
-    vals, Rsq[nm] = atm.fourier_smooth(ts1[nm], kmax)
-    print nm, Rsq[nm]
-    ts_sm[nm] = xray.DataArray(vals, coords=ts1[nm].coords)
+ts_sm = {kmax : xray.Dataset() for kmax in kmax_list}
+Rsq = {kmax : {} for kmax in kmax_list}
+for kmax in kmax_list:
+    for nm in nms:
+        vals, Rsq[kmax][nm] = atm.fourier_smooth(ts1[nm], kmax)
+        print kmax, nm, Rsq[kmax][nm]
+        ts_sm[kmax][nm] = xray.DataArray(vals, coords=ts1[nm].coords)
 
 # Find days where smoothed values are closest to actual timeseries
 # values at days 0, 15
@@ -810,11 +811,13 @@ def closest_day(nm, ts1, ts_sm, d0, buf=20):
     day0 = int(sm['dayrel'][i0])
     return day0
 
+# Annual + semi-annual harmonics
+kmax = 2
 dlist = [0, 15]
 dclose = {nm : [] for nm in nms}
 for nm in nms:
     for d0 in dlist:
-        day0 = closest_day(nm, ts1, ts_sm, d0)
+        day0 = closest_day(nm, ts1, ts_sm[kmax], d0)
         dclose[nm] = dclose[nm] + [day0]
 
 xticks = np.arange(-120, 230, 30)
@@ -827,10 +830,39 @@ for i, nm in enumerate(nms):
     plt.subplot(2, 2, i + 1)
     plt.plot(days, ts1[nm], 'b')
     plt.plot(dlist, ts1[nm].sel(dayrel=dlist), 'b.', markersize=sz)
-    plt.plot(days, ts_sm[nm], 'r')
-    plt.plot(dlist2, ts_sm[nm].sel(dayrel=dlist2), 'r.', markersize=sz)
+    plt.plot(days, ts_sm[kmax][nm], 'r')
+    plt.plot(dlist2, ts_sm[kmax][nm].sel(dayrel=dlist2), 'r.', markersize=sz)
     plt.title(nm)
     plt.xticks(xticks)
     plt.grid()
-    s = 'Rsq = %.2f\nNum days = %d' % (Rsq[nm], dlist2[1] - dlist2[0])
+    s = 'Rsq = %.2f\nNum days = %d' % (Rsq[kmax][nm], dlist2[1] - dlist2[0])
     atm.text(s, (0.05, 0.85))
+
+# See which kmax is needed to minimize Rsq between tseries and Fourier
+# fit over days 0-15
+d1, d2 = 0, 15
+ts_sub = atm.subset(ts1, {'dayrel' : (d1, d2)})
+ts_sm_sub = {}
+for kmax in kmax_list:
+    ts_sm_sub[kmax] = atm.subset(ts_sm[kmax], {'dayrel' : (d1, d2)})
+
+def get_rss_sub(kmax, nm, ts_sub, ts_sm_sub):
+    var0 = ts_sub[nm].values
+    var1 = ts_sm_sub[kmax][nm].values
+    return np.sum(np.sqrt((var1 - var0)**2))
+
+rss_sub = {}
+for nm in nms:
+    rss_sub[nm] = [get_rss_sub(kmax, nm, ts_sub, ts_sm_sub)
+                   for kmax in kmax_list]
+
+plt.figure()
+plt.subplots_adjust(hspace=0.3)
+plt.suptitle('RSS over days %d-%d for truncated Fourier fits' % (d1, d2))
+for i, nm in enumerate(nms):
+    plt.subplot(2, 2, i + 1)
+    plt.plot(kmax_list, rss_sub[nm], 'k')
+    plt.xlabel('kmax')
+    plt.ylabel('RSS')
+    plt.title(nm)
+    plt.grid()
