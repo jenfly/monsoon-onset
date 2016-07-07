@@ -18,7 +18,8 @@ version = 'merra2'
 years = np.arange(1980, 2016)
 onset_nm = 'CHP_MFC'
 #ind_nm, npre, npost = 'onset', 120, 200
-ind_nm, npre, npost = 'retreat', 270, 100
+ind_nm, npre, npost = 'onset', 140, 230
+#ind_nm, npre, npost = 'retreat', 270, 100
 
 datadir = atm.homedir() + 'datastore/%s/daily/' % version
 savedir = atm.homedir() + 'eady/datastore/%s/analysis/' % version

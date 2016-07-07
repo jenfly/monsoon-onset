@@ -20,8 +20,8 @@ datadir = atm.homedir() + 'datastore/%s/analysis/' % version
 onset_nm = 'CHP_MFC'
 indfile = atm.homedir() + ('datastore/%s/analysis/%s_index_%s_%s.nc' %
                            (version, version, onset_nm, yearstr))
-#ind_nm, npre, npost = 'onset', 120, 200
-ind_nm, npre, npost = 'retreat', 270, 100
+ind_nm, npre, npost = 'onset', 140, 230
+#ind_nm, npre, npost = 'retreat', 270, 100
 
 pcp_nm = 'gpcp'
 years = np.arange(1997, 2016)
