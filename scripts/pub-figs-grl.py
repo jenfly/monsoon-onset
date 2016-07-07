@@ -454,7 +454,8 @@ else:
         plt.axis('off')
     ax = plt.subplot(2, 1, 1)
     df = index[['length', 'retreat', 'onset']].to_dataframe()
-    plt.boxplot(df.values, vert=False, labels=['Length', 'Retreat', 'Onset'])
+    plt.boxplot(df.values, vert=False, labels=['Length', 'Retreat', 'Onset'],
+                whis='range')
     plt.xlabel('Day of Year | Number of Days')
     plt.xlim(120, 320)
     plt.xticks(np.arange(120, 321, 20))
@@ -726,37 +727,61 @@ for year in years:
             ax.set_xlabel('')
             ax.set_xticklabels([])
     atm.text(year, (0.05, 0.9), fontsize=9)
+
 # ----------------------------------------------------------------------
-# nrow, ncol = 9, 4
-# fig_kw = {'figsize' : (8.5, 11), 'sharex' : True, 'sharey' : True}
-# gridspec_kw = {'left' : 0.06, 'right' : 0.97, 'bottom' : 0.06, 'top' : 0.98,
-#                'wspace' : 0.05, 'hspace' : 0.05}
-# grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
-# days = atm.get_coord(index['tseries'], 'day')
-# for y, year in enumerate(years):
-#     grp.next()
-#     plt.plot(days, index['tseries'][y], 'k')
-#     for x0 in [index['onset'][y], index['retreat'][y]]:
-#         plt.axvline(x0, color='k')
-#     atm.text(year, (0.05, 0.85), fontsize=9)
-# plt.xlim(0, 365)
-# plt.ylim(-350, 350)
-# xticks = np.arange(0, 365, 50)
-# xtick_labels = [0, '', 100, '', 200, '', 300, '']
-# plt.xticks(xticks, xtick_labels)
+# Correlation between CHP_MFC and CHP_PCP
+filestr = atm.homedir() + 'datastore/merra2/analysis/merra2_index_%s_' + yearstr
+files = {nm : filestr % nm for nm in ['CHP_MFC', 'CHP_PCP']}
+index1 = pd.DataFrame()
+for nm in files:
+    with xray.open_dataset(files[nm]) as ds:
+        for nm2 in ['onset', 'retreat']:
+            index1[nm2 + '_' + nm] = ds[nm2].load().to_series()
+        index1['length_' + nm] = index1['retreat_' + nm] - index1['onset_' + nm]
+
+years = index1.index
+xticks = np.arange(1980, 2015, 10)
+opts = {'CHP_MFC' : {}, 'CHP_PCP' : {'dashes' : [6, 2]}}
+plt.figure()
+for i, nm in enumerate(['onset', 'retreat', 'length']):
+    plt.subplot(2, 2, i + 1)
+    for nm2 in ['CHP_MFC', 'CHP_PCP']:
+        plt.plot(years, index1[nm + '_' + nm2], 'k', label=nm2, **opts[nm2])
+    plt.legend(fontsize=8, handlelength=3)
+    plt.title(nm.capitalize())
+    plt.xticks(xticks)
+
+print(index1.corr())
+keys = ['onset', 'retreat', 'length']
+plt.figure()
+plt.subplots_adjust(wspace=0.25, hspace=0.3, left=0.1, right=0.97, top=0.95)
+for i, key in enumerate(keys):
+    plt.subplot(2, 2, i + 1)
+    key1 = key + '_CHP_MFC'
+    key2 = key + '_CHP_PCP'
+    reg = atm.Linreg(index1[key1], index1[key2])
+    reg.plot(scatter_clr='k', scatter_sym='+', line_clr='k')
+    plt.xlabel(key1)
+    plt.ylabel(key2)
 
 
-# data1_styles = {'tseries' : 'k'}
-# y2_opts = {'color' : 'r', 'alpha' : 0.5, 'linewidth' : 1}
-# for y, year in enumerate(years):
-#     grp.next()
-#     x0 = [index['onset'][y], index['retreat'][y]]
-#     data2 = index.get('daily_ts')
-#     if data2 is not None:
-#         data2 = atm.rolling_mean(data2[y], nroll, center=True)
-#     utils.plotyy(index['tseries'][y], data2=data2, xname='day',
-#                  data1_styles=data1_styles, y2_opts=y2_opts,
-#                  xlims=None, xticks=None, ylims=None, yticks=None, y2_lims=None,
-#                  xlabel='', y1_label='', y2_label='', legend=False,
-#                  x0_axvlines=x0)
-#     atm.text(year, (0.05, 0.85), fontsize=9)
+# ----------------------------------------------------------------------
+# Extreme onset years
+
+index1 = {}
+index1['MOK'] = indices.onset_MOK(indfiles['MOK'])
+index1['MOK_SUB'] = index1['MOK'].loc[years]
+with xray.open_dataset(indfiles['CHP_MFC']) as ds:
+    index1[onset_nm] = ds['onset'].load().to_series()
+
+def extreme_years(ind, nstd=1):
+    """Return years more than nstd away from the mean"""
+    early = ind[ind - ind.mean() < -nstd * ind.std()]
+    late = ind[ind - ind.mean() > nstd * ind.std()]
+    return early, late
+
+early, late = {}, {}
+for nm in index1:
+    early[nm], late[nm] = extreme_years(index1[nm])
+
+# ----------------------------------------------------------------------
