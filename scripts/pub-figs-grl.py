@@ -170,13 +170,14 @@ enso.columns = col_names
 # ----------------------------------------------------------------------
 # Daily timeseries
 
-tseries = xray.Dataset()
-tseries['MFC'] = utils.daily_rel2onset(index_all['CHP_MFC']['daily_ts'],
-                                       index[ind_nm], npre, npost)
-tseries['CMFC'] = utils.daily_rel2onset(index_all['CHP_MFC']['tseries'],
-                                           index[ind_nm], npre, npost)
-for nm in ['CMAP', 'GPCP', 'PRECTOT']:
-    tseries[nm] = atm.mean_over_geobox(data[nm], lat1, lat2, lon1, lon2)
+ts = xray.Dataset()
+for nm in ['GPCP', 'PRECTOT']:
+    ts[nm] = atm.mean_over_geobox(data[nm], lat1, lat2, lon1, lon2)
+ts['MFC'] = utils.daily_rel2onset(index_all['CHP_MFC']['daily_ts'],
+                                  index[ind_nm], npre, npost)
+ts['CMFC'] = utils.daily_rel2onset(index_all['CHP_MFC']['tseries'],
+                                   index[ind_nm], npre, npost)
+
 
 # Extract variables at specified latitudes
 for nm, lat0 in lat_extract.iteritems():
@@ -187,14 +188,16 @@ for nm, lat0 in lat_extract.iteritems():
     key = nm
     lat_closest, _ = atm.find_closest(lat, lat0)
     print '%s %.2f %.2f' % (nm, lat0, lat_closest)
-    tseries[key] = atm.subset(var, {'lat' : (lat_closest, None)}, squeeze=True)
+    ts[key] = atm.subset(var, {'lat' : (lat_closest, None)}, squeeze=True)
 
 # Compute climatology and smooth with rolling mean
-if 'year' in tseries.dims:
-    tseries = tseries.mean(dim='year')
+if 'year' in ts.dims:
+    ts = ts.mean(dim='year')
 if nroll is not None:
-    for nm in tseries.data_vars:
-        tseries[nm] = atm.rolling_mean(tseries[nm], nroll, center=True)
+    for nm in ts.data_vars:
+        ts[nm] = atm.rolling_mean(ts[nm], nroll, center=True)
+tseries = atm.subset(ts, {'dayrel' : (-npre, npost)})
+
 
 # Smooth latitude-dayrel data with rolling mean
 for nm in data:
@@ -785,3 +788,49 @@ for nm in index1:
     early[nm], late[nm] = extreme_years(index1[nm])
 
 # ----------------------------------------------------------------------
+# Fourier harmonics - annual + semi-annual
+
+kmax = 2
+nms = [pcp_nm, 'MFC', 'U850', 'V850']
+days = np.arange(-138, 227)
+ts1 = ts.sel(dayrel=days)
+ts_sm = xray.Dataset()
+Rsq = {}
+for nm in nms:
+    vals, Rsq[nm] = atm.fourier_smooth(ts1[nm], kmax)
+    print nm, Rsq[nm]
+    ts_sm[nm] = xray.DataArray(vals, coords=ts1[nm].coords)
+
+# Find days where smoothed values are closest to actual timeseries
+# values at days 0, 15
+def closest_day(nm, ts1, ts_sm, d0, buf=20):
+    val0 = ts1[nm].sel(dayrel=d0).values
+    sm = atm.subset(ts_sm[nm], {'dayrel' : (d0 - buf, d0 + buf)})
+    i0 = int(np.argmin(abs(sm - val0)))
+    day0 = int(sm['dayrel'][i0])
+    return day0
+
+dlist = [0, 15]
+dclose = {nm : [] for nm in nms}
+for nm in nms:
+    for d0 in dlist:
+        day0 = closest_day(nm, ts1, ts_sm, d0)
+        dclose[nm] = dclose[nm] + [day0]
+
+xticks = np.arange(-120, 230, 30)
+sz = 10
+plt.figure()
+plt.suptitle('Fourier fit kmax = %d.  Delta = day %d to %d' %
+             (kmax, dlist[0], dlist[1]))
+for i, nm in enumerate(nms):
+    dlist2 = dclose[nm]
+    plt.subplot(2, 2, i + 1)
+    plt.plot(days, ts1[nm], 'b')
+    plt.plot(dlist, ts1[nm].sel(dayrel=dlist), 'b.', markersize=sz)
+    plt.plot(days, ts_sm[nm], 'r')
+    plt.plot(dlist2, ts_sm[nm].sel(dayrel=dlist2), 'r.', markersize=sz)
+    plt.title(nm)
+    plt.xticks(xticks)
+    plt.grid()
+    s = 'Rsq = %.2f\nNum days = %d' % (Rsq[nm], dlist2[1] - dlist2[0])
+    atm.text(s, (0.05, 0.85))
