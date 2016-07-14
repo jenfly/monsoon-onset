@@ -9,8 +9,65 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import atmos as atm
+import merra
 import indices
 
+# ----------------------------------------------------------------------
+# 7/13/2016 MERRA2 radiation data
+
+years = 1980
+months = 7
+#opts = {'vertical' : 'X', 'res' : 'N', 'time_kind' : 'T', 'kind' : 'RAD'}
+
+url_dict = merra.get_urls(years, months=months, version='merra2', varnm='SWGNT',
+                          monthly=True)
+
+weights = {'SWTNT' : 1.0, 'LWTUP' : -1.0, 'SWGNT' : -1.0, 'LWGNT' : -1.0}
+nms = weights.keys()
+
+def net_rad(rad, weights):
+    for i, nm in enumerate(weights):
+        if i == 0:
+            net = rad[nm] * weights[nm]
+        else:
+            net = net + rad[nm] * weights[nm]
+    return net
+
+url = url_dict.values()[0]
+with xray.open_dataset(url) as ds:
+    rad = atm.squeeze(ds[nms])
+    rad['NET'] = net_rad(rad, weights)
+
+url_dict2 = merra.get_urls(years, months=months, version='merra2',
+                           varnm='EFLUX', monthly=True)
+url2 = url_dict2.values()[0]
+with xray.open_dataset(url2) as ds:
+    Fnet = atm.squeeze(ds[['EFLUX', 'HFLUX']])
+
+Fnet['RAD'] = rad['NET']
+Fnet['TOT'] = Fnet['EFLUX'] + Fnet['HFLUX'] + Fnet['RAD']
+
+plt.figure()
+for i, nm in enumerate(Fnet.data_vars):
+    plt.subplot(2, 2, i + 1)
+    atm.pcolor_latlon(Fnet[nm])
+    plt.title(nm)
+
+h_nms = ['UFLXCPT', 'UFLXPHI', 'UFLXQV', 'VFLXCPT', 'VFLXPHI', 'VFLXQV']
+Lv = atm.constants.Lv.values
+urls = merra.get_urls(years, months=months, version='merra2', monthly=True,
+                      varnm='UFLXCPT')
+url3 = urls.values()[0]
+with xray.open_dataset(url3) as ds:
+    mse = atm.squeeze(ds[h_nms])
+for nm in ['UFLXQV', 'VFLXQV']:
+    key = nm.replace('QV', 'LQV')
+    mse[key] = mse[nm] * Lv
+    mse[key].attrs['units'] = mse[nm].attrs['units'].replace('kg', 'J')
+mse['UFLXTOT'] = mse['UFLXCPT'] + mse['UFLXPHI'] + mse['UFLXLQV']
+mse['VFLXTOT'] = mse['VFLXCPT'] + mse['VFLXPHI'] + mse['VFLXLQV']
+
+mse_div, mse_div_x, mse_div_y = atm.divergence_spherical_2d(mse['UFLXTOT'], mse['VFLXTOT'])
 # ----------------------------------------------------------------------
 # GPCP daily climatology
 
