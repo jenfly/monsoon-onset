@@ -812,31 +812,30 @@ def closest_day(nm, ts1, ts_sm, d0, buf=20):
     return day0
 
 # Annual + semi-annual harmonics
-kmax = 2
-dlist = [0, 15]
-dclose = {nm : [] for nm in nms}
-for nm in nms:
-    for d0 in dlist:
-        day0 = closest_day(nm, ts1, ts_sm[kmax], d0)
-        dclose[nm] = dclose[nm] + [day0]
-
 xticks = np.arange(-120, 230, 30)
 sz = 10
-plt.figure()
-plt.suptitle('Fourier fit kmax = %d.  Delta = day %d to %d' %
-             (kmax, dlist[0], dlist[1]))
-for i, nm in enumerate(nms):
-    dlist2 = dclose[nm]
-    plt.subplot(2, 2, i + 1)
-    plt.plot(days, ts1[nm], 'b')
-    plt.plot(dlist, ts1[nm].sel(dayrel=dlist), 'b.', markersize=sz)
-    plt.plot(days, ts_sm[kmax][nm], 'r')
-    plt.plot(dlist2, ts_sm[kmax][nm].sel(dayrel=dlist2), 'r.', markersize=sz)
-    plt.title(nm)
-    plt.xticks(xticks)
-    plt.grid()
-    s = 'Rsq = %.2f\nNum days = %d' % (Rsq[kmax][nm], dlist2[1] - dlist2[0])
-    atm.text(s, (0.05, 0.85))
+dlist = [0, 15]
+for kmax in [2, 4, 6, 7, 8, 9, 10]:
+    dclose = {nm : [] for nm in nms}
+    for nm in nms:
+        for d0 in dlist:
+            day0 = closest_day(nm, ts1, ts_sm[kmax], d0)
+            dclose[nm] = dclose[nm] + [day0]
+    plt.figure()
+    plt.suptitle('Fourier fit kmax = %d.  Delta = day %d to %d' %
+                 (kmax, dlist[0], dlist[1]))
+    for i, nm in enumerate(nms):
+        dlist2 = dclose[nm]
+        plt.subplot(2, 2, i + 1)
+        plt.plot(days, ts1[nm], 'b')
+        plt.plot(dlist, ts1[nm].sel(dayrel=dlist), 'b.', markersize=sz)
+        plt.plot(days, ts_sm[kmax][nm], 'r')
+        plt.plot(dlist2, ts_sm[kmax][nm].sel(dayrel=dlist2), 'r.', markersize=sz)
+        plt.title(nm)
+        plt.xticks(xticks)
+        plt.grid()
+        s = 'Rsq = %.2f\nNum days = %d' % (Rsq[kmax][nm], dlist2[1] - dlist2[0])
+        atm.text(s, (0.05, 0.85))
 
 # See which kmax is needed to minimize Rsq between tseries and Fourier
 # fit over days 0-15
