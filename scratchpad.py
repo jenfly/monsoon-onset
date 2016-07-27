@@ -19,8 +19,8 @@ years = 1980
 months = 7
 #opts = {'vertical' : 'X', 'res' : 'N', 'time_kind' : 'T', 'kind' : 'RAD'}
 
-url_dict = merra.get_urls(years, months=months, version='merra2', varnm='SWGNT',
-                          monthly=True)
+url_dict = merra.get_urls(years, months=months, version='merra2',
+                          varnm='SWGNT', monthly=True)
 
 weights = {'SWTNT' : 1.0, 'LWTUP' : -1.0, 'SWGNT' : -1.0, 'LWGNT' : -1.0}
 nms = weights.keys()
@@ -67,7 +67,51 @@ for nm in ['UFLXQV', 'VFLXQV']:
 mse['UFLXTOT'] = mse['UFLXCPT'] + mse['UFLXPHI'] + mse['UFLXLQV']
 mse['VFLXTOT'] = mse['VFLXCPT'] + mse['VFLXPHI'] + mse['VFLXLQV']
 
-mse_div, mse_div_x, mse_div_y = atm.divergence_spherical_2d(mse['UFLXTOT'], mse['VFLXTOT'])
+mse_div, mse_div_x, mse_div_y = atm.divergence_spherical_2d(mse['UFLXTOT'],
+                                                            mse['VFLXTOT'])
+
+var = atm.subset(mse['VFLXTOT'], {'lat' : (-80, 80)})
+dvar = atm.subset(mse_div_y, {'lat' : (-80, 80)})
+lon0 = 10
+val, ind = atm.find_closest(var.lon, lon0)
+var0, dvar0 = var[:, ind], dvar[:, ind]
+
+lat = var0.lat.values
+lat_rad = np.radians(lat)
+coslat = np.cos(lat_rad)
+a = atm.constants.radius_earth.values
+dy = np.gradient(lat_rad)
+
+plt.figure()
+plt.subplot(2, 2, 1)
+plt.plot(lat, var0)
+plt.subplot(2, 2, 2)
+plt.plot(lat, var0 * coslat)
+plt.subplot(2, 2, 3)
+plt.plot(lat, np.gradient(var0 * coslat, dy))
+plt.subplot(2, 2, 4)
+plt.plot(lat, np.gradient(var0 * coslat, dy) / (coslat*a))
+plt.plot(lat, dvar0, 'r')
+
+
+plt.figure()
+plt.subplot(2, 1, 1)
+plt.plot(var.lat, var0)
+plt.grid()
+plt.subplot(2, 1, 2)
+plt.plot(var.lat, dvar0)
+plt.grid()
+
+# v . grad(phi)
+nms2 = ['U', 'V', 'H']
+urls = merra.get_urls(years, months=months, version='merra2', monthly=True,
+                      varnm='U')
+url4 = urls.values()[0]
+with xray.open_dataset(url4) as ds:
+    phi_vars = atm.squeeze(ds[nms2])
+phi = phi_vars['H'] * atm.constants.g.values
+
+
 # ----------------------------------------------------------------------
 # GPCP daily climatology
 
