@@ -14,8 +14,7 @@ import merra
 import indices
 
 # ----------------------------------------------------------------------
-def wrapyear(data, data_prev, data_next, daymin, daymax, year=None,
-             year_prev=None):
+def wrapyear(data, data_prev, data_next, daymin, daymax, year=None):
     """Wrap daily data from previous and next years for extended day ranges.
     """
     daynm = atm.get_coord(data, 'day', 'name')
@@ -32,7 +31,7 @@ def wrapyear(data, data_prev, data_next, daymin, daymax, year=None,
 
     data, ndays = leap_adjust(data, year)
     if data_prev is not None:
-        data_prev, ndays_prev = leap_adjust(data_prev, year_prev)
+        data_prev, ndays_prev = leap_adjust(data_prev, year - 1)
         data_prev[daynm] = data_prev[daynm] - ndays_prev
         data_out = xray.concat([data_prev, data], dim=daynm)
     else:
@@ -67,8 +66,7 @@ def wrapyear_all(data, daymin, daymax):
         var = extract_year(data, year, years)
         var_prev = extract_year(data, year_prev, years)
         var_next = extract_year(data, year_next, years)
-        var_out = wrapyear(var, var_prev, var_next, daymin, daymax, year,
-                           year_prev)
+        var_out = wrapyear(var, var_prev, var_next, daymin, daymax, year)
         var_out = atm.expand_dims(var_out, 'year', year, axis=0)
         var_out = var_out.reindex_like(days)
         if y == 0:
