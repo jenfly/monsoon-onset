@@ -3,6 +3,7 @@ sys.path.append('/home/jwalker/dynamics/python/atmos-tools')
 sys.path.append('/home/jwalker/dynamics/python/atmos-read')
 sys.path.append('/home/jwalker/dynamics/python/monsoon-onset')
 
+import os
 import numpy as np
 import xray
 import pandas as pd
@@ -47,29 +48,39 @@ retreat = index['retreat'].values
 
 def get_data(datafile, year, d0, npre, npost):
     daymin, daymax = d0 - npre, d0 + npost
-    if daymin < 1:
-        file_pre = datafile.replace(str(year), str(year - 1))
+    ndays = len(atm.season_days('ANN', year))
+    file_pre = datafile.replace(str(year), str(year - 1))
+    file_post = datafile.replace(str(year), str(year + 1))
+    if daymin <1 and os.path.isfile(file_pre):
+        print('---Loading prev year ' + file_pre)
+        with xray.open_dataset(file_pre) as ds_pre:
+            ds_pre.load()
     else:
-        file_pre = None
-    if daymax > len(atm.season_days('ANN', year)):
-        file_post = datafile.replace(str(year), str(year + 1))
+        ds_pre = None
+    if daymax > ndays and os.path.isfile(file_post):
+        print('---Loading next year ' + file_post)
+        with xray.open_dataset(file_post) as ds_post:
+            ds_post.load()
     else:
-        file_post = None
-    
+        ds_post = None
+    print('Loading ' + datafile)
+    with xray.open_dataset(datafile) as ds:
+        data = utils.wrapyear(ds, ds_pre, ds_post, daymin, daymax, year=year)
+        data.attrs = ds.attrs
+    return data
 
 for plev in plevs:
     for y, year in enumerate(years):
         datafile = datafiles[plev][y]
         d_onset, d_retreat = onset[y], retreat[y]
-        d0 = index[ind_nm][y].values
+        d0 = int(index[ind_nm][y].values)
 
         ds_rel = xray.Dataset()
-        print('Loading ' + datafile)
-        with xray.open_dataset(datafile) as ds:
-            ds_rel.attrs = ds.attrs
-            for nm in ds.data_vars:
-                var = atm.expand_dims(ds[nm], 'year', year)
-                ds_rel[nm] = utils.daily_rel2onset(var, d_onset, npre, npost)
+        ds = get_data(datafile, year, d0, npre, npost)
+        ds_rel.attrs = ds.attrs
+        for nm in ds.data_vars:
+            var = atm.expand_dims(ds[nm], 'year', year)
+            ds_rel[nm] = utils.daily_rel2onset(var, d_onset, npre, npost)
         ds_rel.attrs['d_onset'] = d_onset
         ds_rel.attrs['d_retreat'] = d_retreat
         savefile = savefiles[plev][y]
