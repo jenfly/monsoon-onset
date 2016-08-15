@@ -238,7 +238,7 @@ def skip_ticklabel(xticks):
 def plot_mfc_budget(mfc_budget, index, year, legend=True,
                     legend_kw={'fontsize' : 9, 'loc' : 'upper left',
                                'handlelength' : 2.5},
-                    dashes=[6, 2], netprecip=False):
+                    dashes=[6, 2], netprecip=False, labelpad=1.5):
     ts = mfc_budget.sel(year=year)
     ind = index.sel(year=year)
     days = ts['day'].values
@@ -253,12 +253,13 @@ def plot_mfc_budget(mfc_budget, index, year, legend=True,
     plt.axvline(ind['onset'], color='k')
     plt.axvline(ind['retreat'], color='k')
     plt.xlabel('Day of Year')
-    plt.ylabel('mm/day')
+    plt.ylabel('mm day$^{-1}$', labelpad=labelpad)
     ax1 = plt.gca()
     ax2 = plt.twinx()
     plt.sca(ax2)
     plt.plot(days, ind['tseries'], 'r', alpha=0.6, linewidth=2, label='CMFC')
     atm.fmt_axlabels('y', 'mm', color='r', alpha=0.6)
+    plt.gca().set_ylabel('mm', labelpad=labelpad)
     if legend:
         atm.legend_2ax(ax1, ax2, **legend_kw)
     return ax1, ax2
@@ -291,10 +292,12 @@ def yrly_index(onset_all, grid=False,legend=True,
 
 
 def daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp,
-                  ind_nm='onset', grid=False, dashes=[6, 2], dlist=[15]):
+                  ind_nm='onset', grid=False, dashes=[6, 2], dlist=[15],
+                  labelpad=1.5):
     """Plot dailyrel timeseries climatology"""
     xlims = (-npre, npost)
     xticks = range(-npre, npost + 10, 30)
+    xlabel = 'Days Since ' + ind_nm.capitalize()
     if ind_nm == 'onset':
         x0 = [0, index['length'].mean(dim='year')]
         xtick_labels = xticks
@@ -302,7 +305,8 @@ def daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp,
         x0 = [-index['length'].mean(dim='year'), 0]
         xtick_labels = skip_ticklabel(xticks)
     keypairs = [(['MFC', pcp_nm], ['CMFC']), (['U850'], ['V850'])]
-    opts = [('upper left', 'mm/day', 'mm'), ('upper left', 'm/s', 'm/s')]
+    opts = [('upper left', 'mm day$^{-1}$', 'mm'),
+            ('upper left', '   m s$^{-1}$', '   m s$^{-1}$')]
     ylim_list = [(-3.5, 9), (-7, 15)]
     y2_opts={'color' : 'r', 'alpha' : 0.6}
     dashed = {'color' : 'k', 'linestyle' : '--', 'dashes' : dashes}
@@ -320,11 +324,13 @@ def daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp,
         else:
             data2 = None
         data1_styles = {nm : style for (nm, style) in zip(keys1, styles)}
-        utils.plotyy(data1, data2, xname='dayrel', data1_styles=data1_styles,
-                     y2_opts=y2_opts, xlims=xlims, xticks=xticks, ylims=ylims,
-                     xlabel='Rel Day', y1_label=y1_label, y2_label=y2_label,
-                     legend=legend, legend_kw=legend_kw, x0_axvlines=x0,
-                     grid=grid)
+        axs = utils.plotyy(data1, data2, xname='dayrel', data1_styles=data1_styles,
+                           y2_opts=y2_opts, xlims=xlims, xticks=xticks, ylims=ylims,
+                           xlabel=xlabel, y1_label=y1_label, y2_label=y2_label,
+                           legend=legend, legend_kw=legend_kw, x0_axvlines=x0,
+                           grid=grid)
+        for ax, label in zip(axs, [y1_label, y2_label]):
+            ax.set_ylabel(label, labelpad=labelpad)
         plt.gca().set_xticklabels(xtick_labels)
         if dlist is not None:
             for d0 in dlist:
@@ -333,7 +339,7 @@ def daily_tseries(tseries, index, pcp_nm, npre, npost, legend, grp,
 def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
                     xlims=(-120, 200), xticks=np.arange(-120, 201, 30),
                     ylims=(-60, 60), yticks=np.arange(-60, 61, 20),
-                    dlist=None, grid=False):
+                    dlist=None, grid=False, ind_nm='onset'):
     vals = var.values.T
     lat = atm.get_coord(var, 'lat')
     days = atm.get_coord(var, 'dayrel')
@@ -364,7 +370,7 @@ def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
         for d0 in dlist:
             plt.axvline(d0, color='k')
     if grp is not None and grp.row == grp.ncol - 1:
-        plt.xlabel('Rel Day')
+        plt.xlabel('Days Since ' + ind_nm.capitalize())
     if grp is not None and grp.col == 0:
         plt.ylabel('Latitude')
 
@@ -388,6 +394,11 @@ def plot_maps(var, days, grp, cmin=0, cmax=20, cint=1, axlims=(5, 35, 60, 100),
     #              shrink=0.8, ticks=cticks)
     atm.colorbar_multiplot(orientation='vertical', shrink=0.8, ticks=cticks)
     fix_axes(axlims)
+    xticks = [60, 70, 80, 90, 100]
+    xtick_labels = atm.latlon_labels(xticks, 'lon')
+    xtick_labels[1] = ''
+    xtick_labels[3] = ''
+    plt.xticks(xticks, xtick_labels)
 
 
 def pts_clim(index_pts, nm, clev_bar=10, clev_std=np.arange(0, 21, 1),
@@ -498,7 +509,7 @@ else:
     d0 = None
     xtick_labels = skip_ticklabel(xticks)
 
-keys = [pcp_nm, 'U200', 'V200', 'U850']
+keys = [pcp_nm, 'V200', 'U200', 'U850']
 clevs = {pcp_nm : 1, 'U200' : 5, 'V200' : 1, 'U850' : 2}
 nrow, ncol = 2, 2
 fig_kw = {'figsize' : (figwidth, 0.64 * figwidth), 'sharex' : True,
@@ -510,7 +521,7 @@ for key in keys:
     grp.next()
     var = atm.dim_mean(data[key], 'lon', lon1, lon2)
     contourf_latday(var, clev=clevs[key], title=key.upper(), grp=grp,
-                    dlist=dlist)
+                    dlist=dlist, ind_nm=ind_nm)
     if d0 is not None:
         plt.axvline(d0, color='k', linestyle='--', dashes=dashes)
 plt.xticks(xticks, xtick_labels)
@@ -521,6 +532,7 @@ pos = [(x1, y0), (x2, y0), (x1, y0), (x2, y0)]
 add_labels(grp, labels, pos, labelsize)
 
 # Precip maps
+axlims=(5, 35, 57, 103)
 #days = [-30, -15, 0, 15, 30, 45, 60, 75, 90]
 if ind_nm == 'onset':
     days = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
@@ -532,7 +544,13 @@ fig_kw = {'figsize' : (figwidth, 0.8 * figwidth), 'sharex' : True,
           'sharey' : True}
 gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'wspace' : 0.15, 'hspace' : 0.05}
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
-plot_maps(data[pcp_nm], days, grp, cmax=cmax, cint=cint)
+plot_maps(data[pcp_nm], days, grp, cmax=cmax, cint=cint, axlims=axlims)
+# -- Add MFC box to one subplot
+if ind_nm == 'onset':
+    x = [lon1, lon1, lon2, lon2, lon1]
+    y = [lat1, lat2, lat2, lat1, lat1]
+    grp.subplot(0, 0)
+    plt.plot(x, y, color='m', linewidth=2)
 
 # Grid point indices
 cmap = 'spectral'
