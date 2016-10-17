@@ -46,8 +46,9 @@ with xray.open_dataset(filenm) as ubudget:
 
 # Scaling factor for all terms in momentum budget
 scale = 1e-4
-ubudget.attrs['comp_units'] = '%.0e m/s2' % scale
 ubudget = ubudget / scale
+ubudget.attrs['comp_units'] = '%.0e m/s2' % scale
+
 
 # Read other lat-lon variables and smooth with rolling mean
 for nm in varnms:
@@ -135,10 +136,14 @@ for nm in v.data_vars:
 
 # Extract single pressure level for line plots
 print('Extracting single pressure level for plots')
+attrs = ubudget.attrs
+attrs['plev'] = plev_plot
 ubudget = atm.subset(ubudget, {pname: (plev_plot, plev_plot)}, squeeze=True)
 ubudget_sector_plevs = ubudget_sector.copy()
 ubudget_sector = atm.subset(ubudget_sector, {pname: (plev_plot, plev_plot)},
                             squeeze=True)
+ubudget.attrs = attrs
+ubudget_sector.attrs = attrs
 
 print('Finished loading/calculating data')
 

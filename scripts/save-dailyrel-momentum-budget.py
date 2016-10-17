@@ -24,7 +24,7 @@ ind_nm, npre, npost = 'onset', 140, 230
 #ind_nm, npre, npost = 'retreat', 270, 100
 
 datadir = atm.homedir() + 'datastore/%s/analysis/' % version
-savedir = atm.homedir() + 'eady/datastore/%s/analysis/' % version
+savedir = atm.homedir() + 'datastore/%s/analysis/' % version
 filestr = datadir + version + '_ubudget%d_ndays5_60E-100E_%d.nc'
 savestr = (savedir + version + '_ubudget%d_dailyrel_' + onset_nm +
            '_ndays5_60E-100E')
@@ -95,8 +95,7 @@ yearstr = '%d-%d' % (years.min(), years.max())
 for plev in plevs:
     relfiles = savefiles[plev]
     savefile = savestr % plev + '_' + yearstr + '.nc'
-    ds = atm.combine_daily_years(None, relfiles, years, yearname='year')
-    ds = ds.mean(dim='year')
+    ds = atm.mean_over_files(relfiles)
     ds.attrs['years'] = years
     print('Saving to ' + savefile)
     ds.to_netcdf(savefile)

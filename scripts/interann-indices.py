@@ -13,6 +13,7 @@ import indices
 import utils
 
 # ----------------------------------------------------------------------
+version = 'merra2'
 onset_nm = 'CHP_MFC'
 #onset_nm = 'HOWI'
 
@@ -20,12 +21,12 @@ enso_keys = ['ONI_MAM', 'ONI_JJA', 'MEI_MARAPR', 'MEI_JULAUG']
 plot_enso_ind = False
 
 years = np.arange(1979, 2015)
-datadir = atm.homedir() + 'datastore/merra/daily/'
+datadir = atm.homedir() + 'datastore/%s/daily/' % version
 datafiles = {}
-datafiles['HOWI'] = [datadir + 'merra_vimt_ps-300mb_%d.nc' % yr for yr in years]
-datafiles['MFC'] = [datadir + 'merra_MFC_40E-120E_90S-90N_%d.nc' % yr
+datafiles['HOWI'] = [datadir + version + '_vimt_ps-300mb_%d.nc' % yr for yr in years]
+datafiles['MFC'] = [datadir + version + '_MFC_40E-120E_90S-90N_%d.nc' % yr
                     for yr in years]
-datafiles['PCP'] = [datadir + 'merra_precip_%d.nc' % yr for yr in years]
+datafiles['PCP'] = [datadir + version + '_precip_%d.nc' % yr for yr in years]
 
 # Lat-lon box for MFC / precip
 lon1, lon2 = 60, 100
