@@ -37,6 +37,7 @@ lat1, lat2 = 10, 30
 nroll = 5 # n-day rolling averages for smoothing daily timeseries
 ind_nm, npre, npost = 'onset', 120, 200
 #ind_nm, npre, npost = 'retreat', 270, 89
+fracmin = 0.4 # Precip JJAS frac of total for gridpoint masking
 
 yearstr = '%d-%d.nc' % (min(years), max(years))
 filestr = datadir + version + '_index_%s_' + yearstr
@@ -123,7 +124,6 @@ def applymask(ds, mask_in):
     return ds
 
 if ptsmaskfile is not None:
-    fracmin = 0.5
     day1 = atm.mmdd_to_jday(6, 1)
     day2 = atm.mmdd_to_jday(9, 30)
     with xray.open_dataset(ptsmaskfile) as ds:
@@ -922,3 +922,19 @@ for nm1 in ['_LRS', '_JJAS']:
                                      suptitle=suptitle + ' (Detrended)')
         else:
             atm.scatter_matrix_pairs(df1, df2, suptitle=suptitle, fmts=fmts)
+
+# ----------------------------------------------------------------------
+# Masking on lat-lon maps
+days_jjas = atm.season_days('JJAS')
+pcp_jjas = pcp.sel(day=days_jjas).sum(dim='day')
+pcp_tot = pcp.sum(dim='day')
+pcp_frac = pcp_jjas / pcp_tot
+
+plt.figure()
+_, cs = atm.contour_latlon(pcp_frac, clev=np.arange(0, 1, 0.1),
+                           axlims=(0, 35, 58, 102))
+label_locs = [(80, 5), (75, 6), (72, 8), (72, 10), (70, 15), (70, 18),
+              (72, 25), (84, 5)]
+cs_opts = {'fmt' : '%.1f', 'fontsize' : 9, 'manual' : label_locs,
+           'inline_spacing' : 2}
+plt.clabel(cs, **cs_opts)
