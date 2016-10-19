@@ -300,12 +300,12 @@ def get_enso_indices(years,
 
 
 # ----------------------------------------------------------------------
-def get_strength_indices(years, mfc, precip, onset, retreat, yearnm='year',
-                         daynm='day', varnm1='MFC', varnm2='PCP'):
+def get_strength_indices(years, data_in, onset, retreat, yearnm='year',
+                         daynm='day'):
     """Return various indices of the monsoon strength.
 
-    Inputs mfc and precip are the unsmoothed daily values averaged over
-    the monsoon area.
+    Input variables in data_in dataset are the unsmoothed daily values 
+    averaged over the monsoon area.
     """
 
     ssn = xray.Dataset()
@@ -314,18 +314,13 @@ def get_strength_indices(years, mfc, precip, onset, retreat, yearnm='year',
     ssn['retreat'] = xray.DataArray(retreat, coords=coords)
     ssn['length'] = ssn['retreat'] - ssn['onset']
 
-    data_in = {}
-    if mfc is not None:
-        data_in[varnm1] = mfc
-    if precip is not None:
-        data_in[varnm2] = precip
 
-    for key in data_in:
+    for key in data_in.data_vars:
         for key2 in ['_JJAS_AVG', '_JJAS_TOT', '_LRS_AVG', '_LRS_TOT']:
             ssn[key + key2] = xray.DataArray(np.nan * np.ones(len(years)),
                                              coords=coords)
 
-    for key in data_in:
+    for key in data_in.data_vars:
         for y, year in enumerate(years):
             d1 = int(onset.values[y])
             d2 = int(retreat.values[y] - 1)
