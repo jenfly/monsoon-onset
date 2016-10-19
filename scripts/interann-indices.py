@@ -96,8 +96,9 @@ def line_plus_reg(years, ssn, key, clr):
 # Line plots of indices vs. year with trends
 
 plt.figure(figsize=(12, 10))
-clrs = ['b', 'g', 'r', 'c']
-keys = ['MFC_JJAS_', 'MFC_LRS_', 'PCP_JJAS_', 'PCP_LRS_']
+clrs = ['b', 'g', 'r', 'c', 'm', 'k']
+keys = ['MFC_JJAS_', 'MFC_LRS_', 'PCP_JJAS_', 'PCP_LRS_', 
+        'GPCP_JJAS_', 'GPCP_LRS_']
 for i, nm in enumerate(['TOT', 'AVG']):
     plt.subplot(2, 2, i + 1)
     for j, varnm in enumerate(keys):
