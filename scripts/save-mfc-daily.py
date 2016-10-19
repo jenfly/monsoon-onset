@@ -18,17 +18,17 @@ version = 'merra2'
 onset_nm = 'CHP_MFC'
 
 years = np.arange(1980, 2016)
-datadir = atm.homedir() + 'datastore/%s/daily/' % version
-datafiles = collections.OrderedDict()
-filestr = datadir + '%d/%s_%s_40E-120E_90S-90N_%d.nc'
-datafiles['MFC'] = [filestr % (yr, version, 'MFC', yr) for yr in years]
-datafiles['PCP'] = [filestr % (yr, version, 'PRECTOT', yr) for yr in years]
-
 years_gpcp = np.arange(1997, 2015)
+years_dict = {'MFC' : years, 'PCP' : years, 'EVAP' : years, 'GPCP' : years_gpcp}
+varnms = {'MFC' : 'MFC', 'PCP' : 'PRECTOT', 'EVAP' : 'EVAP', 'GPCP' : 'PREC'}
+datadir = atm.homedir() + 'datastore/%s/daily/' % version
+filestr = datadir + '%d/%s_%s_40E-120E_90S-90N_%d.nc'
+datafiles = collections.OrderedDict()
+for nm in ['MFC', 'PCP', 'EVAP']:
+    datafiles[nm] = [filestr % (yr, version, varnms[nm], yr) for yr in years]
 filestr2 = atm.homedir() + 'datastore/gpcp/gpcp_daily_%d.nc'
 datafiles['GPCP'] = [filestr2 % yr for yr in years_gpcp]
-years_dict = {'MFC' : years, 'PCP' : years, 'GPCP' : years_gpcp}
-varnms = {'MFC' : 'MFC', 'PCP' : 'PRECTOT', 'GPCP' : 'PREC'}
+
 
 savedir = atm.homedir() + 'eady/datastore/merra2/analysis/'
 savefile = savedir + 'merra2_gpcp_mfc_box_daily.nc'
@@ -58,5 +58,4 @@ for nm in datafiles:
     data[nm] = var
 
 # Save to file
-data.to_netcdf(savefile)    
-
+data.to_netcdf(savefile)

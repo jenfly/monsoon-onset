@@ -887,12 +887,12 @@ for i, nm in enumerate(nms):
 # ----------------------------------------------------------------------
 # Calculate seasonal precip - totals and average daily rate
 
-pcpfile = (atm.homedir() + 'datastore/merra2/analysis/' + 
+pcpfile = (atm.homedir() + 'datastore/merra2/analysis/' +
            'merra2_gpcp_mfc_box_daily.nc')
 with xray.open_dataset(pcpfile) as pcpts:
     pcpts.load()
-    
-ssn = utils.get_strength_indices(years, pcpts, index['onset'], 
+
+ssn = utils.get_strength_indices(years, pcpts, index['onset'],
                                  index['retreat'])
 
 def detrend(df):
@@ -909,15 +909,16 @@ i_detrend = True
 
 # Cumulative and average rainfall over monsoon season
 df1 = ssn[['onset', 'retreat', 'length']]
-nms = ['MFC_JJAS', 'MFC_LRS', 'PCP_JJAS', 'PCP_LRS', 'GPCP_JJAS', 'GPCP_LRS']
+nms = ['MFC', 'PCP', 'GPCP', 'EVAP']
 suptitle = 'Season Totals (%s Monsoon Onset/Retreat)' % onset_nm
-fmts={'line_width': 1, 'annotation_pos': (0.05, 0.65), 'pmax_bold': 0.05, 
+fmts={'line_width': 1, 'annotation_pos': (0.05, 0.7), 'pmax_bold': 0.05,
      'scatter_size': 3, 'scatter_clr': 'k', 'scatter_sym': '+', 'line_clr': 'k'}
-for key in ['_TOT', '_AVG']:
-    keys = [nm + key for nm in nms]
-    df2 = ssn[keys]
-    if i_detrend:
-        atm.scatter_matrix_pairs(detrend(df1), detrend(df2), fmts=fmts,
-                                 suptitle=suptitle + ' (Detrended)')
-    else:
-        atm.scatter_matrix_pairs(df1, df2, suptitle=suptitle, fmts=fmts)
+for nm1 in ['_LRS', '_JJAS']:
+    for key in ['_TOT', '_AVG']:
+        keys = [nm + nm1 + key for nm in nms]
+        df2 = ssn[keys]
+        if i_detrend:
+            atm.scatter_matrix_pairs(detrend(df1), detrend(df2), fmts=fmts,
+                                     suptitle=suptitle + ' (Detrended)')
+        else:
+            atm.scatter_matrix_pairs(df1, df2, suptitle=suptitle, fmts=fmts)
