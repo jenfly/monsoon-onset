@@ -15,18 +15,21 @@ import utils
 # ----------------------------------------------------------------------
 version = 'merra2'
 onset_nm = 'CHP_MFC'
-#onset_nm = 'HOWI'
 
-enso_keys = ['ONI_MAM', 'ONI_JJA', 'MEI_MARAPR', 'MEI_JULAUG']
-plot_enso_ind = False
-
-years = np.arange(1979, 2015)
+years = np.arange(1980, 2016)
 datadir = atm.homedir() + 'datastore/%s/daily/' % version
 datafiles = {}
-datafiles['HOWI'] = [datadir + version + '_vimt_ps-300mb_%d.nc' % yr for yr in years]
-datafiles['MFC'] = [datadir + version + '_MFC_40E-120E_90S-90N_%d.nc' % yr
-                    for yr in years]
-datafiles['PCP'] = [datadir + version + '_precip_%d.nc' % yr for yr in years]
+filestr = datadir + '%d/%s_%s_40E-120E_90S-90N_%d.nc'
+datafiles['MFC'] = [filestr % (yr, version, 'MFC', yr) for yr in years]
+datafiles['PCP'] = [filestr % (yr, version, 'PRECTOT', yr) for yr in years]
+
+enso_nm = 'NINO3'
+#enso_nm = 'NINO3.4'
+ensodir = atm.homedir() + 'dynamics/python/data/ENSO/'
+ensofile = ensodir + ('enso_sst_monthly_%s.csv' %
+                      enso_nm.lower().replace('.', '').replace('+', ''))
+enso_keys = ['MAM', 'JJA']
+plot_enso_ind = False
 
 # Lat-lon box for MFC / precip
 lon1, lon2 = 60, 100
@@ -52,8 +55,18 @@ index = utils.get_onset_indices(onset_nm, files, years, data)
 index = index[['onset', 'retreat']].to_dataframe()
 index['length'] = index['retreat'] - index['onset']
 
-# ENSO
-enso = utils.get_enso_indices(years, enso_keys)
+# ENSO indices
+enso = pd.read_csv(ensofile, index_col=0)
+enso = enso.loc[years]
+for key in enso_keys:
+    if key not in enso.columns:
+        months = atm.season_months(key)
+        month_names = [(atm.month_str(m)).capitalize() for m in months]
+        enso[key] = enso[month_names].mean(axis=1)
+enso = enso[enso_keys]
+col_names = [enso_nm + ' ' + nm for nm in enso.columns]
+enso.columns = col_names
+
 
 # Monsoon strength
 mfc = tseries['MFC_UNSM']
