@@ -8,6 +8,7 @@ import xray
 import matplotlib.pyplot as plt
 import collections
 import os
+import json
 
 import atmos as atm
 import merra
@@ -304,7 +305,7 @@ def get_strength_indices(years, data_in, onset, retreat, yearnm='year',
                          daynm='day'):
     """Return various indices of the monsoon strength.
 
-    Input variables in data_in dataset are the unsmoothed daily values 
+    Input variables in data_in dataset are the unsmoothed daily values
     averaged over the monsoon area.
     """
 
@@ -899,3 +900,22 @@ def v_components(ubudget, scale=None, eqbuf=5.0):
     v['RESID'] = v['TOT'] - v['MMC'] - v['PGF'] - v['EDDY']
 
     return v
+
+
+# ----------------------------------------------------------------------
+def kerala_boundaries(filenm='data/india_state.geojson'):
+    """Return x, y vectors of coordinates for Kerala region boundaries."""
+    with open(filenm) as f:
+        data = json.load(f)
+
+    i_region, i_poly = 17, 44
+    poly = data['features'][i_region]['geometry']['coordinates'][i_poly][0]
+    arr = np.array(poly)
+    x, y = arr[:, 0], arr[:, 1]
+
+    # Cut out wonky bits
+    i1, i2 = 8305, 19200
+    x = np.concatenate((x[:i1], x[i2:]))
+    y = np.concatenate((y[:i1], y[i2:]))
+
+    return x, y
