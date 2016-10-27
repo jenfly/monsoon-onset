@@ -13,6 +13,27 @@ import merra
 import indices
 
 # ----------------------------------------------------------------------
+# 10/20/2016 Read India state boundaries from geojson file
+filenm = 'data/india_state.geojson'
+with open(filenm) as f:
+    data = json.load(f)
+
+i_region, i_poly = 17, 44
+poly = data['features'][i_region]['geometry']['coordinates'][i_poly][0]
+arr = np.array(poly)
+x, y = arr[:, 0], arr[:, 1]
+
+# Cut out wonky bits
+i1, i2 = 8305, 19200
+x = np.concatenate((x[:i1], x[i2:]))
+y = np.concatenate((y[:i1], y[i2:]))
+
+plt.figure()
+atm.init_latlon(5, 20, 70, 85, resolution='l')
+plt.plot(x, y)
+
+
+# ----------------------------------------------------------------------
 # 7/13/2016 MERRA2 radiation data
 
 years = 1980
