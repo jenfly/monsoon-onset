@@ -37,7 +37,7 @@ lat1, lat2 = 10, 30
 nroll = 5 # n-day rolling averages for smoothing daily timeseries
 ind_nm, npre, npost = 'onset', 120, 200
 #ind_nm, npre, npost = 'retreat', 270, 89
-fracmin = 0.4 # Precip JJAS frac of total for gridpoint masking
+fracmin = 0.5 # Precip JJAS frac of total for gridpoint masking
 
 yearstr = '%d-%d.nc' % (min(years), max(years))
 filestr = datadir + version + '_index_%s_' + yearstr
@@ -400,9 +400,16 @@ def plot_maps(var, days, grp, cmin=0, cmax=20, cint=1, axlims=(5, 35, 60, 100),
     xtick_labels[3] = ''
     plt.xticks(xticks, xtick_labels)
 
+def plot_kerala(color='b', linewidth=1):
+    """Plot the boundaries of the Kerala region"""
+    datadir = atm.homedir() + 'dynamics/python/monsoon-onset/data/'
+    filenm = datadir + 'india_state.geojson'
+    x, y = utils.kerala_boundaries(filenm)
+    plt.plot(x, y, color, linewidth=linewidth)
+
 
 def pts_clim(index_pts, nm, clev_bar=10, clev_std=np.arange(0, 21, 1),
-             axlims=(5, 32, 60, 100), cmap='spectral', res='c',
+             axlims=(5, 32, 60, 100), cmap='spectral', res='l',
              label_locs=None, inline_spacing=2):
     """Plot climatological mean and standard deviation of grid point indices."""
     varbar = index_pts[nm].mean(dim='year')
@@ -419,24 +426,28 @@ def pts_clim(index_pts, nm, clev_bar=10, clev_std=np.arange(0, 21, 1),
     if label_locs is not None:
         cs_opts['manual'] = label_locs
     plt.clabel(cs, **cs_opts)
+    plot_kerala()
     fix_axes(axlims)
 
 # Plot regression
 def plot_reg(pts_reg, nm, clev=0.2, xsample=1, ysample=1,
              axlims=(5, 32, 60, 100), cline=None, color='0.3', alpha=1.0,
-             markersize=2):
+             markersize=2, res='l'):
     """Plot regression of grid point indices onto large-scale index."""
     var = pts_reg[nm]['m']
     mask = pts_reg[nm]['pts_mask']
     xname = atm.get_coord(mask, 'lon', 'name')
     yname = atm.get_coord(mask, 'lat', 'name')
-    atm.contourf_latlon(var, clev=clev, axlims=axlims, extend='both')
+    lat1, lat2, lon1, lon2 = axlims
+    m = atm.init_latlon(lat1, lat2, lon1, lon2, resolution=res)
+    atm.contourf_latlon(var, m=m, clev=clev, axlims=axlims, extend='both')
     atm.stipple_pts(mask, xname=xname, yname=yname, xsample=xsample,
                     ysample=ysample, color=color, alpha=alpha,
                     markersize=markersize)
     if cline is not None:
         atm.contour_latlon(var, clev=[cline], axlims=axlims, colors='b',
                            linewidths=2)
+    plot_kerala()
     fix_axes(axlims)
 
 # ----------------------------------------------------------------------
@@ -904,37 +915,74 @@ def detrend(df):
         df_detrend[col] = df[col] - reg.predict(x)
     return df_detrend
 
-
-i_detrend = True
-
 # Cumulative and average rainfall over monsoon season
+i_detrend = True
 df1 = ssn[['onset', 'retreat', 'length']]
+if i_detrend:
+    df1 = detrend(df1)
 nms = ['MFC', 'PCP', 'GPCP', 'EVAP']
-suptitle = 'Season Totals (%s Monsoon Onset/Retreat)' % onset_nm
+suptitle = 'Season Totals'
+if i_detrend:
+    suptitle = suptitle + ' (Detrended)'
+figsize = (7, 7)
 fmts={'line_width': 1, 'annotation_pos': (0.05, 0.7), 'pmax_bold': 0.05,
      'scatter_size': 3, 'scatter_clr': 'k', 'scatter_sym': '+', 'line_clr': 'k'}
-for nm1 in ['_LRS', '_JJAS']:
+subplot_fmts={'right': 0.98, 'bottom': 0.05, 'top': 0.95, 'wspace': 0.1,
+              'hspace': 0.1, 'left': 0.12}
+for nm1 in ['_LRS']:
     for key in ['_TOT', '_AVG']:
         keys = [nm + nm1 + key for nm in nms]
         df2 = ssn[keys]
+        newcols = {nm : nm.replace('_LRS', '') for nm in df2.columns}
+        df2 = df2.rename(columns=newcols)
         if i_detrend:
-            atm.scatter_matrix_pairs(detrend(df1), detrend(df2), fmts=fmts,
-                                     suptitle=suptitle + ' (Detrended)')
-        else:
-            atm.scatter_matrix_pairs(df1, df2, suptitle=suptitle, fmts=fmts)
+            df2 = detrend(df2)
+        atm.scatter_matrix_pairs(df1, df2, figsize=figsize, fmts=fmts,
+                                 suptitle=suptitle, subplot_fmts=subplot_fmts)
+        if key == '_AVG':
+            plt.suptitle(suptitle.replace('Totals', 'Averages'))
+        for i in range(9):
+            plt.subplot(4, 3, i + 1)
+            ax = plt.gca()
+            ax.set_xticklabels([])
+
+
+# # Daily timeseries of GPCP years
+# yrs_gpcp = range(1997, 2015)
+# days = pcpts['day']
+# nroll = 5
+# fig_kw = {'figsize' : (8, 11), 'sharex' : True, 'sharey' : True}
+# gs_kw = {'left' : 0.05, 'right' : 0.95, 'hspace' : 0.05, 'wspace' : 0.05}
+# nrow, ncol = 3, 3
+# grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gs_kw)
+# for yr in yrs_gpcp:
+#     grp.next()
+#     ts = atm.rolling_mean(pcpts['GPCP'].sel(year=yr), nroll)
+#     plt.plot(days, ts, 'k')
+#     plt.axvline(ssn['onset'].loc[yr])
+#     plt.axvline(ssn['retreat'].loc[yr])
+#     plt.title(yr)
+#     plt.xlim(0, 366)
+
+# ts = pcpts['GPCP'].sel(year=yrs_gpcp)
+# d_onset = ssn['onset'].loc[yrs_gpcp].values
+# ssn_length = ssn['length'].loc[yrs_gpcp].values
+# tsrel = utils.daily_rel2onset(ts, d_onset, npre=120, npost=165)
+# ts_acc = np.cumsum(tsrel.sel(dayrel=range(0,166)), axis=1)
+
 
 # ----------------------------------------------------------------------
 # Masking on lat-lon maps
-days_jjas = atm.season_days('JJAS')
-pcp_jjas = pcp.sel(day=days_jjas).sum(dim='day')
-pcp_tot = pcp.sum(dim='day')
-pcp_frac = pcp_jjas / pcp_tot
 
-plt.figure()
-_, cs = atm.contour_latlon(pcp_frac, clev=np.arange(0, 1, 0.1),
-                           axlims=(0, 35, 58, 102))
+plt.figure(figsize=(5, 4))
+m = atm.init_latlon(0, 35, 58, 102, resolution='l', coastlines=False,
+                    fillcontinents=True)
+m.drawcoastlines(linewidth=0.5, color='0.5')
+plot_kerala(linewidth=1)
+_, cs = atm.contour_latlon(pcp_frac, m=m, clev=np.arange(0, 1, 0.1), linewidths=1.5,
+                           axlims=(0, 35, 58, 102), colors='k')
 label_locs = [(80, 5), (75, 6), (72, 8), (72, 10), (70, 15), (70, 18),
-              (72, 25), (84, 5)]
+              (72, 25), (84, 5), (60, 5), (65, 3), (95, 18)]
 cs_opts = {'fmt' : '%.1f', 'fontsize' : 9, 'manual' : label_locs,
            'inline_spacing' : 2}
 plt.clabel(cs, **cs_opts)
