@@ -20,7 +20,7 @@ years = np.arange(1980, 2016)
 #years = np.arange(1997, 2016) # GPCP
 
 datadir = atm.homedir() + 'eady/datastore/%s/daily/' % version
-savedir = atm.homedir() + 'eady/datastore/%s/analysis/' % version
+savedir = atm.homedir() + 'eady/datastore/%s/analysis/nosmooth/' % version
 datafiles = {}
 filestr = datadir + '%d/' + version + '_%s%s_%d.nc'
 subset1 = '_40E-120E_90S-90N'
@@ -35,14 +35,14 @@ datafiles['CHP_PCP'] = [filestr % (y, precname, '', y) for y in years]
 datafiles['CHP_CMAP'] = [atm.homedir() + 'eady/datastore/cmap/' +
                      'cmap.enhanced.precip.pentad.mean.nc' for y in years]
 datafiles['CHP_GPCP'] = [atm.homedir() + 'eady/datastore/gpcp/' +
-                         'gpcp_daily_%d.nc' % yr for yr in years]
+                         'gpcp_daily_%d.nc' % yr for yr in range(1997, 2016)]
 
 yearstr = '%d-%d.nc' % (min(years), max(years))
 savefile = savedir + version + '_index_%s_' + yearstr
 
 # Large-scale indices to save (set to [] if only doing grid points)
-onset_nms = ['CHP_MFC', 'CHP_PCP', 'HOWI', 'OCI', 'SJKE']
-#onset_nms = []
+#onset_nms = ['CHP_MFC', 'CHP_PCP', 'HOWI', 'OCI', 'SJKE']
+onset_nms = []
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 
@@ -51,7 +51,8 @@ pts_nm = 'CHP_GPCP'
 #pts_nm = 'CHP_PCP' # Set to None to omit
 pts_subset = {'lon' : (55, 105), 'lat' : (-3, 40)}
 xsample, ysample = 1, 1
-xroll, yroll = 4, 4
+#xroll, yroll = 4, 4
+xroll, yroll = None, None
 
 # Options for large-scale and gridpoint CHP calcs
 chp_opts = {'onset_range' : (1, 250), 'retreat_range' : (200, 400)}
