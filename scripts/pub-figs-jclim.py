@@ -57,7 +57,7 @@ with xray.open_dataset(indfile) as index:
     index.load()
 index['length'] = index['retreat'] - index['onset']
 
-# Dailyrel climatology
+# Dailyrel climatology -- lat-lon data
 keys_dict = {'PRECTOT' : 'PRECTOT', 'CMAP' : 'precip', 'GPCP' : 'PREC',
              'U200' : 'U', 'U850' : 'U', 'V200' : 'V', 'V850' : 'V',
              'THETA_E_LML' : 'THETA_E', 'TLML' : 'T', 'QLML' : 'Q',
@@ -69,7 +69,6 @@ for nm in datafiles:
         if 'year' in ds.dims:
             ds = ds.mean(dim='year')
         data[nm] = ds[keys_dict[nm]].load()
-
 
 # ----------------------------------------------------------------------
 # Daily timeseries
