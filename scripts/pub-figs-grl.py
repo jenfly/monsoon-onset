@@ -918,17 +918,16 @@ def detrend(df):
 # Cumulative and average rainfall over monsoon season
 i_detrend = True
 df1 = ssn[['onset', 'retreat', 'length']]
+for nm in df1.columns:
+    df1 = df1.rename(columns={nm : nm.upper()})
 if i_detrend:
     df1 = detrend(df1)
 nms = ['MFC', 'PCP', 'GPCP', 'EVAP']
-suptitle = 'Season Totals'
-if i_detrend:
-    suptitle = suptitle + ' (Detrended)'
 figsize = (7, 7)
 fmts={'line_width': 1, 'annotation_pos': (0.05, 0.7), 'pmax_bold': 0.05,
      'scatter_size': 3, 'scatter_clr': 'k', 'scatter_sym': '+', 'line_clr': 'k'}
 subplot_fmts={'right': 0.98, 'bottom': 0.05, 'top': 0.95, 'wspace': 0.1,
-              'hspace': 0.1, 'left': 0.12}
+              'hspace': 0.15, 'left': 0.12}
 for nm1 in ['_LRS']:
     for key in ['_TOT', '_AVG']:
         keys = [nm + nm1 + key for nm in nms]
@@ -938,9 +937,7 @@ for nm1 in ['_LRS']:
         if i_detrend:
             df2 = detrend(df2)
         atm.scatter_matrix_pairs(df1, df2, figsize=figsize, fmts=fmts,
-                                 suptitle=suptitle, subplot_fmts=subplot_fmts)
-        if key == '_AVG':
-            plt.suptitle(suptitle.replace('Totals', 'Averages'))
+                                 subplot_fmts=subplot_fmts)
         for i in range(9):
             plt.subplot(4, 3, i + 1)
             ax = plt.gca()
@@ -979,6 +976,9 @@ m = atm.init_latlon(0, 35, 58, 102, resolution='l', coastlines=False,
                     fillcontinents=True)
 m.drawcoastlines(linewidth=0.5, color='0.5')
 plot_kerala(linewidth=1)
+x = [lon1, lon1, lon2, lon2, lon1]
+y = [lat1, lat2, lat2, lat1, lat1]
+plt.plot(x, y, color='m', linewidth=2)
 _, cs = atm.contour_latlon(pcp_frac, m=m, clev=np.arange(0, 1, 0.1), linewidths=1.5,
                            axlims=(0, 35, 58, 102), colors='k')
 label_locs = [(80, 5), (75, 6), (72, 8), (72, 10), (70, 15), (70, 18),
