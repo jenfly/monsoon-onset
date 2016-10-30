@@ -5,6 +5,7 @@ fram
 figs
 log
 data
+troubleshooting
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
