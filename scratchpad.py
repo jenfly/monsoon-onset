@@ -13,6 +13,54 @@ import merra
 import indices
 
 # ----------------------------------------------------------------------
+# 10/30/2016 Temporary ubudget climatologies with problem years removed
+version = 'merra2'
+years = range(1980, 1984) + [1985] + range(1987, 1995) + [1996]
+years = years + range(1998, 2008) + range(2009, 2012) + [2014]
+
+onset_nm = 'CHP_MFC'
+plevs = [1000,925,850,775,700,600,500,400,300,250,200,150,100,70,50,30,20]
+
+datadir = atm.homedir() + 'datastore/%s/analysis/' % version
+savedir = atm.homedir() + 'eady/datastore/%s/analysis/ubudget_temp/' % version
+filestr = (version + '_ubudget%d_dailyrel_' + onset_nm +
+           '_ndays5_60E-100E')
+datafiles = {}
+for plev in plevs:
+    datafiles[plev] = [datadir + filestr % plev + '_%d.nc' % yr for yr in years]
+
+# Compute climatologies and save
+yearstr = '_%d-%d_excl.nc' % (min(years), max(years))
+for plev in plevs:
+    relfiles = datafiles[plev]
+    savefile = savedir + filestr % plev + yearstr
+    ds = atm.mean_over_files(relfiles)
+    ds.attrs['years'] = years
+    print('Saving to ' + savefile)
+    ds.to_netcdf(savefile)
+
+#************************ TEMPORARY TROUBLESHOOTING ******************
+# filestr = ('/home/jwalker/datastore/merra2/analysis/merra2_ubudget%d_' +
+#            'dailyrel_CHP_MFC_ndays5_60E-100E_%d.nc')
+#
+# for year in years:
+#     with open('troubleshooting_%d.txt' % year, 'w') as f1:
+#         for plev in plevs:
+#             filenm = filestr % (plev, year)
+#             print(filenm)
+#             f1.write('------------------------------------------\n')
+#             f1.write(filenm + '\n')
+#             f1.write('Year %d, pressure level %.0f' % (year, plev))
+#             with xray.open_dataset(filenm) as ds:
+#                 vals = ds.max()
+#             biggest = vals.to_array().values.max()
+#             f1.write('%.e\n' % biggest)
+#             if biggest > 10:
+#                 for nm in vals.data_vars:
+#                     f1.write('%s\t%.e\n' % (nm, vals[nm]))
+
+
+# ----------------------------------------------------------------------
 # 10/20/2016 Read India state boundaries from geojson file
 filenm = 'data/india_state.geojson'
 with open(filenm) as f:
