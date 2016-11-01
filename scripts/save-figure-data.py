@@ -29,8 +29,7 @@ compdays = [0, 15] # Days for lat-lon composites
 
 datafiles = {}
 datafiles['index'] = datadir + version + '_index_%s_%s.nc' % (onset_nm,  yearstr)
-datafiles['ubudget'] = (savedir + 'merra2_ubudget_sector_dailyrel_' + onset_nm +
-                        '_ndays%d_' % ndays + lonstr + '_1980-2014_excl.nc')
+datafiles['ubudget'] = savedir + 'merra2_ubudget_1980-2014_excl.nc'
 datafiles['ps'] = atm.homedir() + 'dynamics/python/atmos-tools/data/topo/ncep2_ps.nc'
 datafiles['GPCP'] = datadir + 'gpcp_dailyrel_' + onset_nm + '_1997-2015.nc'
 
@@ -45,11 +44,9 @@ datafiles['latlon'] = {nm : filestr % nm for nm in nms_latlon}
 
 
 savefiles = {}
-savestr = (savedir + version + '_%s_' + 'ndays%d_%dE-%dE_%s.nc'
-                                         % (ndays, lon1, lon2, yearstr))
-for nm in ['sector_latp', 'hov', 'psi_comp', 'tseries']:
+savestr = savedir + version + '_%s_' + yearstr + '.nc'
+for nm in ['latp', 'hov', 'latlon', 'tseries', 'psi_comp']:
     savefiles[nm] = savestr % nm
-savefiles['latlon'] = savedir + version + '_latlon_ndays%d_%s.nc' % (ndays, yearstr)
 savefiles['gpcp'] = savedir + 'gpcp_dailyrel_1997-2015.nc'
 
 # ----------------------------------------------------------------------
@@ -85,8 +82,8 @@ lon = np.arange(0, 357.5, 0.5)
 ps = atm.get_ps_clim(lat, lon, datafiles['ps'])
 data_latp['PS'] = atm.dim_mean(ps, 'lon', lon1, lon2)
 
-print('Saving to ' + savefiles['sector_latp'])
-data_latp.to_netcdf(savefiles['sector_latp'])
+print('Saving to ' + savefiles['latp'])
+data_latp.to_netcdf(savefiles['latp'])
 
 # ----------------------------------------------------------------------
 # Hovmoller data
@@ -173,6 +170,9 @@ ts = xray.Dataset()
 ts['MFC'] = utils.daily_rel2onset(index['daily_ts'],index['onset'], npre, npost)
 ts['CMFC'] = utils.daily_rel2onset(index['tseries'],index['onset'], npre, npost)
 ts = atm.dim_mean(ts, 'year')
+for nm in ts.data_vars:
+    ts[nm] = atm.rolling_mean(ts[nm], ndays, center=True)
+
 ts['GPCP'] = atm.subset(data_gpcp['PCP_BOX'], {'dayrel' : (-npre, npost)})
 
 # Extract timeseries at each latitude
