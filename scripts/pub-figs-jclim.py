@@ -24,86 +24,45 @@ dashes = [6, 2]
 
 # ----------------------------------------------------------------------
 version = 'merra2'
-years = np.arange(1980, 2016)
-datadir = atm.homedir() + 'datastore/%s/analysis/' % version
-onset_nm = 'CHP_MFC'
+yearstr = '1980-2015'
+datadir = atm.homedir() + 'datastore/%s/figure_data/' % version
 pcp_nm = 'GPCP'
-varnms = ['U200', 'V200', 'T200', 'U850', 'V850', 'TLML', 'QLML',
-          'THETA_E_LML']
-lat_extract = {'U200' : 0, 'V200' : 15, 'T200' : 30,
-               'U850' : 15, 'V850' : 15}
+ind_nm = 'onset'
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
-nroll = 5 # n-day rolling averages for smoothing daily timeseries
-ind_nm, npre, npost = 'onset', 120, 200
-#ind_nm, npre, npost = 'retreat', 270, 89
+npre, npost =  120, 200
 
-yearstr = '%d-%d.nc' % (min(years), max(years))
-indfile = datadir + version + '_index_%s_%s' % (onset_nm, yearstr)
-
-filestr = datadir + version + '_%s_dailyrel_' + onset_nm + '_' + yearstr
-datafiles = {nm : filestr % nm for nm in varnms}
-datafiles['GPCP'] = datadir + 'gpcp_dailyrel_' + onset_nm + '_1997-2015.nc'
-
-if ind_nm == 'retreat':
-    for nm in datafiles:
-        datafiles[nm] = datafiles[nm].replace('dailyrel', 'dailyrel_retreat')
+datafiles = {}
+datafiles['ubudget'] = datadir + 'merra2_ubudget_1980-2014_excl.nc'
+filestr = datadir + version + '_%s_' + yearstr + '.nc'
+for nm in ['latp', 'hov', 'latlon', 'tseries', 'psi_comp']:
+    datafiles[nm] = filestr % nm
+datafiles['gpcp'] = datadir + 'gpcp_dailyrel_1997-2015.nc'
+datafiles['index'] = filestr % 'index_CHP_MFC'
 
 # ----------------------------------------------------------------------
 # Read data
 
-# Large-scale onset/retreat indices
-with xray.open_dataset(indfile) as index:
-    index.load()
-index['length'] = index['retreat'] - index['onset']
-
-# Dailyrel climatology -- lat-lon data
-keys_dict = {'PRECTOT' : 'PRECTOT', 'CMAP' : 'precip', 'GPCP' : 'PREC',
-             'U200' : 'U', 'U850' : 'U', 'V200' : 'V', 'V850' : 'V',
-             'THETA_E_LML' : 'THETA_E', 'TLML' : 'T', 'QLML' : 'Q',
-             'T200' : 'T'}
 data = {}
 for nm in datafiles:
     print('Loading ' + datafiles[nm])
     with xray.open_dataset(datafiles[nm]) as ds:
-        if 'year' in ds.dims:
-            ds = ds.mean(dim='year')
-        data[nm] = ds[keys_dict[nm]].load()
+        data[nm] = ds.load()
+
+tseries = data['tseries']
+index = data['index']
+index['length'] = index['retreat'] - index['onset']
+
+data_hov = {nm : data['hov'][nm] for nm in data['hov'].data_vars}
+data_hov['GPCP'] = data['gpcp']['PCP_SECTOR']
 
 # ----------------------------------------------------------------------
-# Daily timeseries
+# Plotting functions and other utilities
 
-ts = xray.Dataset()
-ts[pcp_nm] = atm.mean_over_geobox(data[pcp_nm], lat1, lat2, lon1, lon2)
-ts['MFC'] = utils.daily_rel2onset(index['daily_ts'], index[ind_nm], npre,npost)
-ts['CMFC'] = utils.daily_rel2onset(index['tseries'], index[ind_nm], npre,npost)
-ts = ts.mean(dim='year')
-
-# Extract variables at specified latitudes
-for nm, lat0 in lat_extract.iteritems():
-    var = atm.dim_mean(data[nm], 'lon', lon1, lon2)
-    lat = atm.get_coord(var, 'lat')
-    lat0_str = atm.latlon_labels(lat0, 'lat', deg_symbol=False)
-    # key = nm + '_' + lat0_str
-    key = nm
-    lat_closest, _ = atm.find_closest(lat, lat0)
-    print '%s %.2f %.2f' % (nm, lat0, lat_closest)
-    ts[key] = atm.subset(var, {'lat' : (lat_closest, None)}, squeeze=True)
-
-# Smooth with rolling mean
-if nroll is not None:
-    for nm in ts.data_vars:
-        ts[nm] = atm.rolling_mean(ts[nm], nroll, center=True)
-tseries = atm.subset(ts, {'dayrel' : (-npre, npost)})
-
-
-# Smooth latitude-dayrel data with rolling mean
-for nm in data:
-    daydim = atm.get_coord(data[nm], 'dayrel', 'dim')
-    data[nm] = atm.rolling_mean(data[nm], nroll, axis=daydim, center=True)
-
-# ----------------------------------------------------------------------
-# Plotting functions
+def get_varnm(nm):
+    varnms = {'U200' : 'U', 'V200' : 'V', 'T200' : 'T', 'TLML' : 'T',
+              'QLML' : 'Q', 'THETA_E_LML' : 'THETA_E'}
+    return varnms.get(nm)
 
 def fix_axes(axlims):
     plt.gca().set_ylim(axlims[:2])
@@ -182,10 +141,14 @@ def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
     vals = var.values.T
     lat = atm.get_coord(var, 'lat')
     days = atm.get_coord(var, 'dayrel')
-    if var.min() >= 0:
-        cmap, extend, symmetric = 'PuBuGn', 'max', False
+    if var.min < 0:
+        extend, symmetric = 'both', True
     else:
-        cmap, extend, symmetric = 'RdBu_r', 'both', True
+        extend, symmetric = 'max', False
+    if var.name.startswith('PCP'):
+        cmap = 'PuBuGn'
+    else:
+        cmap = 'RdBu_r'
     if clev == None:
         cint = atm.cinterval(vals, n_pref=nc_pref, symmetric=symmetric)
         clev = atm.clevels(vals, cint, symmetric=symmetric)
@@ -216,7 +179,7 @@ def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
 # ----------------------------------------------------------------------
 # FIGURES
 
-# Timeseries plots - setup figure for subplots
+# Overview map and timeseries plots - setup figure for subplots
 nrow, ncol = 2, 2
 fig_kw = {'figsize' : (figwidth, 0.7 * figwidth)}
 gridspec_kw = {'left' : 0.07, 'right' : 0.9, 'bottom' : 0.07, 'top' : 0.9,
@@ -226,19 +189,30 @@ legend_kw = {'loc' : 'upper left', 'framealpha' : 0.0}
 labelpos = (-0.2, 1.05)
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 
+# Overview map
+grp.next()
+m = atm.init_latlon(0, 35, 58, 102, resolution='l', coastlines=False,
+                    fillcontinents=True)
+m.drawcoastlines(linewidth=0.5, color='0.5')
+#plot_kerala(linewidth=1)
+x = [lon1, lon1, lon2, lon2, lon1]
+y = [lat1, lat2, lat2, lat1, lat1]
+plt.plot(x, y, color='b', linewidth=2)
+
+
 # Plot daily tseries
 legend = True
-if ind_nm == 'onset':
-    dlist = [15]
-else:
-    dlist = None
+dlist = [15]
 opts = []
 opts.append({'keys1' : ['MFC', pcp_nm], 'keys2' : ['CMFC'],
              'units1' : 'mm day$^{-1}$', 'units2' : 'mm',
              'ylims' : (-3.5, 9), 'legend_loc' : 'upper left' })
-opts.append({'keys1' : ['U850'], 'keys2' : ['V850'],
+opts.append({'keys1' : ['U200_0N'], 'keys2' : ['V200_15N'],
              'units1' : '   m s$^{-1}$', 'units2' :  '   m s$^{-1}$',
-             'ylims' : (-7, 15), 'legend_loc' : 'upper left' })
+             'ylims' : (-20, 0), 'legend_loc' : 'lower left' })
+opts.append({'keys1' : ['T200_30N'], 'keys2' : ['T200_30S'],
+             'units1' : '   K', 'units2' :  '   K',
+             'ylims' : (218, 227), 'legend_loc' : 'upper left' })
 for opt in opts:
     grp.next()
     daily_tseries(tseries, index, pcp_nm, npre, npost, grp, legend=legend,
@@ -259,8 +233,9 @@ else:
     d0 = None
     xtick_labels = skip_ticklabel(xticks)
 
-keys = [pcp_nm, 'V200', 'U200', 'U850']
-clevs = {pcp_nm : 1, 'U200' : 5, 'V200' : 1, 'U850' : 2}
+keys = [pcp_nm, 'U200', 'PSI500', 'T200', 'THETA_E_LML', 'TLML', 'QLML']
+clevs = {pcp_nm : 1, 'U200' : 5, 'V200' : 1, 'PSI500' : 5, 'T200' : 1,
+         'THETA_E_LML' : 1, 'TLML' : 1, 'QLML' : 5e-4}
 nrow, ncol = 2, 2
 fig_kw = {'figsize' : (figwidth, 0.64 * figwidth), 'sharex' : True,
           'sharey' : True}
@@ -269,7 +244,7 @@ gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'bottom' : 0.07, 'top' : 0.94,
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 for key in keys:
     grp.next()
-    var = atm.dim_mean(data[key], 'lon', lon1, lon2)
+    var = data_hov[key]
     contourf_latday(var, clev=clevs[key], title=key.upper(), grp=grp,
                     dlist=dlist, ind_nm=ind_nm)
     if d0 is not None:
