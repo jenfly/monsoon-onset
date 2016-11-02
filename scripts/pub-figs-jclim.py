@@ -39,14 +39,19 @@ for nm in ['latp', 'hov', 'latlon', 'tseries', 'psi_comp']:
     datafiles[nm] = filestr % nm
 datafiles['gpcp'] = datadir + 'gpcp_dailyrel_1997-2015.nc'
 datafiles['index'] = filestr % 'index_CHP_MFC'
+datafiles['mld'] = atm.homedir() + 'datastore/mld/ifremer_mld_DT02_c1m_reg2.0.nc'
 
 # ----------------------------------------------------------------------
 # Read data
 
 data = {}
 for nm in datafiles:
+    if nm == 'mld':
+        decode_times = False
+    else:
+        decode_times = True
     print('Loading ' + datafiles[nm])
-    with xray.open_dataset(datafiles[nm]) as ds:
+    with xray.open_dataset(datafiles[nm], decode_times=decode_times) as ds:
         data[nm] = ds.load()
 
 tseries = data['tseries']
@@ -55,6 +60,7 @@ index['length'] = index['retreat'] - index['onset']
 
 data_hov = {nm : data['hov'][nm] for nm in data['hov'].data_vars}
 data_hov['GPCP'] = data['gpcp']['PCP_SECTOR']
+data_latp = data['latp']
 
 # ----------------------------------------------------------------------
 # Plotting functions and other utilities
@@ -74,14 +80,17 @@ def add_labels(grp, labels, pos, fontsize, fontweight='bold'):
     try:
         n = len(pos[0])
     except TypeError:
-        pos = [pos] * (grp.nrow * grp.ncol)
-    i = 0
-    for row in range(grp.nrow):
-        for col in range(grp.ncol):
-            grp.subplot(row, col)
-            atm.text(labels[i], pos[i], fontsize=fontsize,
-                     fontweight=fontweight)
-            i += 1
+        pos = [pos] * len(labels)
+    row, col = 0, 0
+    for i in range(len(labels)):
+        grp.subplot(row, col)
+        atm.text(labels[i], pos[i], fontsize=fontsize,
+                 fontweight=fontweight)
+        col += 1
+        if col == grp.ncol:
+            col = 0
+            row += 1
+
 
 def skip_ticklabel(xticks):
     xtick_labels = []
@@ -93,14 +102,47 @@ def skip_ticklabel(xticks):
     return xtick_labels
 
 
+def get_mld(ds):
+    mld = ds['mld']
+    missval = mld.attrs['mask_value']
+    vals = mld.values
+    vals = np.ma.masked_array(vals, vals==missval)
+    vals = np.ma.filled(vals, np.nan)
+    months = range(1, 13)
+    lat = atm.get_coord(mld, 'lat')
+    lon = atm.get_coord(mld, 'lon')
+    coords = {'month' : months, 'lat' : lat, 'lon' : lon}
+    mld = xray.DataArray(vals, dims=['month', 'lat', 'lon'], coords=coords)
+    mld.values = vals
+    return mld
+
+def mld_map(mld, m=None, month=5, cmap='hot_r', climits=(0, 70),
+            cticks=range(0, 71, 10)):
+    cb_kwargs = {'ticks' : cticks, 'extend' : 'max'}
+    _, _, cb = atm.pcolor_latlon(mld.sel(month=month), m=m, cmap=cmap,
+                                 cb_kwargs=cb_kwargs)
+    plt.clim(climits)
+
+
+def precip_frac(pcp_frac, m=None):
+    _, cs = atm.contour_latlon(pcp_frac, m=m, clev=np.arange(0, 1, 0.1),
+                               linewidths=1.5, colors='k',
+                               axlims=(0, 35, 58, 102))
+    label_locs = [(80, 5), (75, 6), (72, 8), (72, 10), (70, 15), (70, 18),
+                  (72, 25), (84, 5), (60, 5), (65, 3), (95, 18)]
+    cs_opts = {'fmt' : '%.1f', 'fontsize' : 9, 'manual' : label_locs,
+               'inline_spacing' : 2}
+    plt.clabel(cs, **cs_opts)
+
+
+
 def daily_tseries(tseries, index, pcp_nm, npre, npost, grp, keys1=None,
                   keys2=None, units1=None, units2=None, ylims=None,
                   legend_loc=None, ind_nm='onset', grid=False, dashes=[6, 2],
-                  dlist=[15], labelpad=1.5, legend=True):
+                  dlist=[15], labelpad=1.5, legend=True, xlabel=''):
     """Plot dailyrel timeseries climatology"""
     xlims = (-npre, npost)
     xticks = range(-npre, npost + 10, 30)
-    xlabel = 'Days Since ' + ind_nm.capitalize()
     if ind_nm == 'onset':
         x0 = [0, index['length'].mean(dim='year')]
         xtick_labels = xticks
@@ -134,21 +176,73 @@ def daily_tseries(tseries, index, pcp_nm, npre, npost, grp, keys1=None,
             plt.axvline(d0, color='k', linestyle='--', dashes=dashes)
 
 
-def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
+def latpres(data_latp, day, ps, xlims=(-60, 60), xticks=range(-60, 61, 15),
+            title=None, clev_u=5, clev_psi=5, u_clr='m', u_kw={'alpha' : 0.35},
+            psi_kw={'alpha' : 0.7}):
+    """Plot lat-pres contours of streamfunction and zonal wind.
+    """
+    xmin, xmax = xlims
+    axlims = (xmin, xmax, 0, 1000)
+    latp_data = atm.subset(data_latp, {'dayrel' : (day, day)}, squeeze=True)
+    u = latp_data['U']
+    psi = latp_data['PSI']
+
+    atm.contour_latpres(u, clev=clev_u, topo=ps, colors=u_clr,
+                        contour_kw=u_kw, axlims=axlims)
+    atm.contour_latpres(psi, clev=clev_psi, omitzero=True, axlims=axlims,
+                        contour_kw=psi_kw)
+
+    plt.xticks(xticks, xticks)
+    plt.grid()
+    if title is not None:
+        plt.title(title)
+
+
+def get_latmax(var):
+    # Temporary - take subset to avoid wonky data at end of timeseries
+    var = atm.subset(var.copy(), {'dayrel' : (-120, 170)})
+    # ------------------------------------------
+    lat = atm.get_coord(var, 'lat')
+    coords={'dayrel': var['dayrel']}
+    latdim = atm.get_coord(var, 'lat', 'dim')
+    latmax = lat[np.nanargmax(var, axis=latdim)]
+    latmax = xray.DataArray(latmax, dims=['dayrel'], coords=coords)
+    return latmax
+
+def annotate_latmax(var, ax=None, nroll=None, annotate=True):
+    latmax = get_latmax(var)
+    days = atm.get_coord(latmax, 'dayrel')
+    if ax is None:
+        ax = plt.gca()
+    if nroll is not None:
+        latmax = atm.rolling_mean(latmax, nroll, center=True)
+    latmax_0 = latmax.sel(dayrel=0)
+    ax.plot(days, latmax, 'k', linewidth=2, label='Latitude of Max')
+    if annotate:
+        ax.legend(loc='lower right', fontsize=10)
+        s = atm.latlon_labels(latmax_0, latlon='lat', fmt='%.1f')
+        ax.annotate(s, xy=(0, latmax_0), xycoords='data',
+                    xytext=(-40, 20), textcoords='offset points',
+                    arrowprops=dict(arrowstyle="->"))
+    return latmax
+
+def contourf_latday(var, clev=None, title='', cticks=None, climits=None,
+                    nc_pref=40, grp=None,
                     xlims=(-120, 200), xticks=np.arange(-120, 201, 30),
                     ylims=(-60, 60), yticks=np.arange(-60, 61, 20),
                     dlist=None, grid=False, ind_nm='onset'):
+    var = atm.subset(var, {'lat' : ylims})
     vals = var.values.T
     lat = atm.get_coord(var, 'lat')
     days = atm.get_coord(var, 'dayrel')
-    if var.min < 0:
-        extend, symmetric = 'both', True
+    if var.min() < 0:
+        symmetric = True
     else:
-        extend, symmetric = 'max', False
+        symmetric = False
     if var.name.startswith('PCP'):
-        cmap = 'PuBuGn'
+        cmap, extend = 'PuBuGn', 'max'
     else:
-        cmap = 'RdBu_r'
+        cmap, extend = 'RdBu_r', 'both'
     if clev == None:
         cint = atm.cinterval(vals, n_pref=nc_pref, symmetric=symmetric)
         clev = atm.clevels(vals, cint, symmetric=symmetric)
@@ -157,50 +251,53 @@ def contourf_latday(var, clev=None, title='', nc_pref=40, grp=None,
             clev = np.arange(0, 10 + clev/2.0, clev)
         else:
             clev = atm.clevels(vals, clev, symmetric=symmetric)
-    cticks_dict = {'PRECTOT' : np.arange(0, 13, 2),
-                   'PREC' : np.arange(0, 11, 2),
-                   'T200' : np.arange(-208, 227, 2),
-                   'U200' : np.arange(-60, 61, 10),
-                   'PSI500' : np.arange(-800, 801, 200)}
-    cticks = cticks_dict.get(var.name)
+
     plt.contourf(days, lat, vals, clev, cmap=cmap, extend=extend)
     plt.colorbar(ticks=cticks)
+    plt.clim(climits)
     atm.ax_lims_ticks(xlims, xticks, ylims, yticks)
     plt.grid(grid)
     plt.title(title)
     if dlist is not None:
         for d0 in dlist:
             plt.axvline(d0, color='k')
-    if grp is not None and grp.row == grp.ncol - 1:
+    if grp is not None and grp.row == grp.nrow - 1:
         plt.xlabel('Days Since ' + ind_nm.capitalize())
     if grp is not None and grp.col == 0:
         plt.ylabel('Latitude')
 
-# ----------------------------------------------------------------------
+# ======================================================================
 # FIGURES
+# ======================================================================
 
-# Overview map and timeseries plots - setup figure for subplots
-nrow, ncol = 2, 2
-fig_kw = {'figsize' : (figwidth, 0.7 * figwidth)}
-gridspec_kw = {'left' : 0.07, 'right' : 0.9, 'bottom' : 0.07, 'top' : 0.9,
-               'wspace' : 0.5, 'hspace' : 0.35}
-legend = True
-legend_kw = {'loc' : 'upper left', 'framealpha' : 0.0}
-labelpos = (-0.2, 1.05)
-grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
-
-# Overview map
-grp.next()
+# Overview map with mixed layer depths and precip frac
+mld = get_mld(data['mld'])
+fig_kw = {'figsize' : (0.5 * figwidth, 0.35 * figwidth)}
+gridspec_kw = {'left' : 0.1, 'right' : 0.95, 'bottom' : 0.1, 'top' : 0.95}
+plt.subplots(1, 1, gridspec_kw=gridspec_kw, **fig_kw)
 m = atm.init_latlon(0, 35, 58, 102, resolution='l', coastlines=False,
                     fillcontinents=True)
 m.drawcoastlines(linewidth=0.5, color='0.5')
-#plot_kerala(linewidth=1)
+
+# Mixed layer depths
+mld_map(mld, m=m, month=5, cmap='hot_r', climits=(0, 60))
+
+# JJAS fraction of annual precip
+precip_frac(data['gpcp']['FRAC_JJAS'], m=m)
+
+# SASM domain
 x = [lon1, lon1, lon2, lon2, lon1]
 y = [lat1, lat2, lat2, lat1, lat1]
 plt.plot(x, y, color='b', linewidth=2)
 
-
-# Plot daily tseries
+# ----------------------------------------------------------------------
+# Daily tseries
+nrow, ncol = 3, 1
+fig_kw = {'figsize' : (0.5*figwidth, 0.8 * figwidth), 'sharex' : True}
+gridspec_kw = {'left' : 0.16, 'right' : 0.84, 'bottom' : 0.07, 'top' : 0.96,
+               'wspace' : 0.5, 'hspace' : 0.15}
+legend = True
+legend_kw = {'loc' : 'upper left', 'framealpha' : 0.0}
 legend = True
 dlist = [15]
 opts = []
@@ -213,16 +310,45 @@ opts.append({'keys1' : ['U200_0N'], 'keys2' : ['V200_15N'],
 opts.append({'keys1' : ['T200_30N'], 'keys2' : ['T200_30S'],
              'units1' : '   K', 'units2' :  '   K',
              'ylims' : (218, 227), 'legend_loc' : 'upper left' })
+
+grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 for opt in opts:
     grp.next()
+    if grp.row < grp.nrow - 1:
+        xlabel = ''
+    else:
+        xlabel = 'Days Since Onset'
     daily_tseries(tseries, index, pcp_nm, npre, npost, grp, legend=legend,
-                  ind_nm=ind_nm, dlist=dlist, **opt)
+                  ind_nm=ind_nm, dlist=dlist, xlabel=xlabel, **opt)
 
 # Add a-d labels
-labels = ['a', 'b', 'c', 'd']
+labelpos = (-0.2, 1.05)
+labels = ['a', 'b', 'c']
 add_labels(grp, labels, labelpos, labelsize)
 
-# Lat-day contour plots
+# ----------------------------------------------------------------------
+# Lat-pres contour plots of streamfunction, U
+
+nrow, ncol = 2, 2
+advance_by = 'row'
+fig_kw = {'figsize' : (figwidth, 0.7*figwidth), 'sharex' : 'col', 'sharey' : 'row'}
+gridspec_kw = {'left' : 0.1, 'right' : 0.96, 'wspace' : 0.06, 'hspace' : 0.2,
+               'bottom' : 0.08, 'top' : 0.95}
+plotdays = [-15, 0, 15, 30]
+xlims, xticks = (-35, 35), range(-30, 31, 10)
+grp = atm.FigGroup(nrow, ncol,fig_kw=fig_kw, gridspec_kw=gridspec_kw)
+for day in plotdays:
+    grp.next()
+    title = 'Day %d' % day
+    latpres(data_latp, day, ps=data_latp['PS'], xlims=xlims, xticks=xticks)
+    plt.title(title, fontsize=11)
+    if grp.row < grp.nrow - 1:
+        plt.xlabel('')
+    if grp.col > 0:
+        plt.ylabel('')
+
+# ----------------------------------------------------------------------
+# Hovmoller plots (lat-day)
 xticks = range(-npre, npost + 10, 30)
 if ind_nm == 'onset':
     dlist = [0, index['length'].mean(dim='year')]
@@ -233,11 +359,22 @@ else:
     d0 = None
     xtick_labels = skip_ticklabel(xticks)
 
-keys = [pcp_nm, 'U200', 'PSI500', 'T200', 'THETA_E_LML', 'TLML', 'QLML']
+keys = [pcp_nm, 'PSI500', 'U200', 'T200', 'THETA_E_LML']
 clevs = {pcp_nm : 1, 'U200' : 5, 'V200' : 1, 'PSI500' : 5, 'T200' : 1,
-         'THETA_E_LML' : 1, 'TLML' : 1, 'QLML' : 5e-4}
-nrow, ncol = 2, 2
-fig_kw = {'figsize' : (figwidth, 0.64 * figwidth), 'sharex' : True,
+         'THETA_E_LML' : 5, 'TLML' : 1, 'QLML' : 5e-4, 'U850' : 1}
+cticks_dict = {pcp_nm : np.arange(0, 13, 2),
+               'T200' : np.arange(208, 227, 2),
+               'U200' : np.arange(-80, 81, 10),
+               'U850' : np.arange(-20, 21, 4),
+               'PSI500' : np.arange(-80, 81, 20),
+               'THETA_E_LML' : np.arange(240, 361, 20)}
+clim_dict = {pcp_nm : (0, 10), 'U200' : (-50, 50),
+             'PSI500' : (-80, 80), 'T200' : (210, 226),
+             'THETA_E_LML' : (260, 350), 'U850' : (-18, 18)}
+plot_latmax = False
+
+nrow, ncol = 3, 2
+fig_kw = {'figsize' : (figwidth, 0.9 * figwidth), 'sharex' : True,
           'sharey' : True}
 gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'bottom' : 0.07, 'top' : 0.94,
                'wspace' : 0.05}
@@ -245,13 +382,36 @@ grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 for key in keys:
     grp.next()
     var = data_hov[key]
-    contourf_latday(var, clev=clevs[key], title=key.upper(), grp=grp,
+    clev = clevs.get(key)
+    cticks = cticks_dict.get(key)
+    climits = clim_dict.get(key)
+    print(key, clev, climits, cticks)
+    contourf_latday(var, clev=clev, cticks=cticks, climits=climits,
+                    title=key.upper(), grp=grp,
                     dlist=dlist, ind_nm=ind_nm)
     if d0 is not None:
         plt.axvline(d0, color='k', linestyle='--', dashes=dashes)
+    if plot_latmax and key.startswith('THETA_E'):
+        latmax = annotate_latmax(var, nroll=None)
+
 plt.xticks(xticks, xtick_labels)
 plt.xlim(-npre, npost)
-labels = ['a', 'b', 'c', 'd']
+labels = ['a', 'b', 'c', 'd', 'e']
 x1, x2, y0 = -0.15, -0.05, 1.05
-pos = [(x1, y0), (x2, y0), (x1, y0), (x2, y0)]
+pos = [(x1, y0), (x2, y0), (x1, y0), (x2, y0), (x1, y0), (x2, y0)]
 add_labels(grp, labels, pos, labelsize)
+
+# Hide axes on empty plot
+ax = grp.axes[nrow - 1 , ncol - 1]
+ax.axis('off')
+plt.draw()
+
+# ----------------------------------------------------------------------
+# D0--D15 Lat-lon and sector line plots
+
+data_latlon = {nm : data['latlon'][nm] for nm in data['latlon'].data_vars}
+data_latlon['GPCP'] = data['gpcp']['PCP']
+
+clim_dict = {'GPCP' : (0, 20), 'U200' : (-50, 50), 'T200' : (213, 227),
+             'TLML' : (260, 315), 'QLML' : (0, 0.022),
+             'THETA_E_LML' : (270, 360)}

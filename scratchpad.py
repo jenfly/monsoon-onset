@@ -13,6 +13,76 @@ import merra
 import indices
 
 # ----------------------------------------------------------------------
+# 11/1/2016 MSE budget terms from monthly data
+
+years = range(1980, 1983)
+months = range(1, 13)
+lon1, lon2 = 60, 100
+datadir = '/home/jwalker/datastore/merra2/monthly/'
+filestr = datadir + 'MERRA2_100.tavgM_2d_rad_Nx.%d%02d.nc4'
+datafiles = {yr : [filestr % (yr, m) for m in months] for yr in years}
+
+def net_rad(rad, weights):
+    for i, nm in enumerate(weights):
+        if i == 0:
+            net = rad[nm] * weights[nm]
+        else:
+            net = net + rad[nm] * weights[nm]
+    net.attrs['long_name'] = 'net_longwave_and_shortwave_into_column'
+    return net
+
+def get_year(files, year, months=range(1,13)):
+    weights = {'SWTNT' : 1.0, 'LWTUP' : -1.0, 'SWGNT' : -1.0, 'LWGNT' : -1.0}
+    nms = weights.keys()
+
+    for i, filenm in enumerate(files):
+        month = months[i]
+        print('Loading ' + filenm)
+        with xray.open_dataset(filenm) as ds:
+            rad = atm.squeeze(ds[nms])
+            # Change 'time' dimension to 'month' and add 'year' dimension
+            for nm in rad.data_vars:
+                rad[nm] = atm.expand_dims(rad[nm], 'month', month, axis=0)
+                rad[nm] = atm.expand_dims(rad[nm], 'year', year, axis=0)
+            rad['NETRAD'] = net_rad(rad, weights)
+        if i == 0:
+            data = rad
+        else:
+            data = xray.concat([data, rad], dim='month')
+    return data
+
+for i, year in enumerate(years):
+    files = datafiles[year]
+    ds = get_year(files, year)
+    if i == 0:
+        data = ds
+    else:
+        data = xray.concat([data, ds], dim='year')
+
+
+# Mean along sector and within 2 degrees of equator
+latmin, latmax = -2, 2
+data_eq = atm.dim_mean(data, 'lon', lon1, lon2)
+data_eq = atm.dim_mean(data_eq, 'lat', latmin, latmax)
+
+plotyear = 1980
+plt.figure(figsize=(6, 8))
+plt.suptitle('%d-%dE RAD (W/m2) at equator' % (lon1, lon2))
+plt.subplot(2, 1, 1)
+for nm in data_eq.data_vars:
+    plt.plot(months, data_eq[nm].sel(year=plotyear), label=nm)
+plt.legend(fontsize=8)
+plt.title(plotyear)
+plt.subplot(2, 1, 2)
+for year in years:
+    plt.plot(months, data_eq['NETRAD'].sel(year=year), label=year)
+plt.plot(months, data_eq['NETRAD'].mean(dim='year'), 'k', linewidth=2,
+         label='CLIM')
+plt.legend(fontsize=8)
+plt.title('NETRAD')
+plt.xlabel('Month')
+
+# ----------------------------------------------------------------------
 # 10/30/2016 Temporary ubudget climatologies with problem years removed
 version = 'merra2'
 years = range(1980, 1984) + [1985] + range(1987, 1995) + [1996]

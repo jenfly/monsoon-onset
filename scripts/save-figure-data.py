@@ -31,7 +31,8 @@ datafiles = {}
 datafiles['index'] = datadir + version + '_index_%s_%s.nc' % (onset_nm,  yearstr)
 datafiles['ubudget'] = savedir + 'merra2_ubudget_1980-2014_excl.nc'
 datafiles['ps'] = atm.homedir() + 'dynamics/python/atmos-tools/data/topo/ncep2_ps.nc'
-datafiles['GPCP'] = datadir + 'gpcp_dailyrel_' + onset_nm + '_1997-2015.nc'
+datafiles['gpcp_dailyrel'] = datadir + 'gpcp_dailyrel_' + onset_nm + '_1997-2015.nc'
+datafiles['gpcp_daily'] = atm.homedir() + 'datastore/gpcp/gpcp_daily_1997-2014.nc'
 
 # Sector mean data
 filestr = datadir + version + '_%s' + '_dailyrel_%s_%s.nc' % (onset_nm, yearstr)
@@ -39,8 +40,14 @@ nms_sector = ['U', 'V']
 datafiles['sector'] = {nm : filestr % (nm + '_sector_' + lonstr) for nm in nms_sector}
 
 # Lat-lon data
-nms_latlon = ['U200', 'V200', 'T200', 'TLML', 'QLML', 'THETA_E_LML']
+nms_latlon = ['U200', 'V200', 'T200', 'TLML', 'QLML', 'THETA_E_LML',
+              'U850', 'V850']
 datafiles['latlon'] = {nm : filestr % nm for nm in nms_latlon}
+
+# theta_eb in individual years, for latmax calcs
+# yrs_theta = range(1980, 2004) + range(2005, 2016) # Remove wonky year 2004
+# filestr2 = filestr.replace(yearstr, '%d')
+# datafiles['theta_eb'] = [filestr2 % ('THETA_E_LML', yr) for yr in yrs_theta]
 
 
 savefiles = {}
@@ -89,8 +96,9 @@ data_latp.to_netcdf(savefiles['latp'])
 # Hovmoller data
 
 def get_varnm(nm):
-    varnms = {'U200' : 'U', 'V200' : 'V', 'T200' : 'T', 'TLML' : 'T',
-              'QLML' : 'Q', 'THETA_E_LML' : 'THETA_E'}
+    varnms = {'U200' : 'U', 'U850' : 'U', 'V200' : 'V', 'V850' : 'V',
+              'T200' : 'T', 'TLML' : 'T', 'QLML' : 'Q',
+              'THETA_E_LML' : 'THETA_E'}
     return varnms.get(nm)
 
 # Read data, compute sector mean, smooth with nday rolling average
@@ -134,10 +142,50 @@ print('Saving to ' + savefiles['latlon'])
 data_latlon.to_netcdf(savefiles['latlon'])
 
 # ----------------------------------------------------------------------
+# Latitude of maximum theta_eb (sector mean) in each year
+#
+# def theta_eb_latmax(var):
+#     lat = atm.get_coord(var, 'lat')
+#     coords={'year' : var['year'], 'dayrel': var['dayrel']}
+#     latdim = atm.get_coord(var, 'lat', 'dim')
+#     latmax = lat[np.nanargmax(var, axis=latdim)]
+#     latmax = xray.DataArray(latmax, dims=['year', 'dayrel'], coords=coords)
+#     return latmax
+#
+# def process_theta_eb(filenm, lon1, lon2, ndays):
+#     print('Loading ' + filenm)
+#     with xray.open_dataset(filenm) as ds:
+#         theta_eb = atm.subset(ds['THETA_E'], {'lat' : (-30, 30)})
+#         theta_eb = atm.dim_mean(theta_eb, 'lon', lon1, lon2)
+#
+#     daydim = atm.get_coord(theta_eb, coord_name='dayrel', return_type='dim')
+#     theta_eb = atm.rolling_mean(theta_eb, ndays, axis=daydim, center=True)
+#
+#     # Temporary - take subset to avoid wonky data at end of timeseries
+#     theta_eb = atm.subset(theta_eb, {'dayrel' : (-120, 160)})
+#     # ------------------------------------------
+#
+#     latmax = theta_eb_latmax(theta_eb)
+#     ds = xray.Dataset({'THETA_EB' : theta_eb, 'LATMAX' : latmax})
+#     return ds
+#
+# for filenm, year in zip(datafiles['theta_eb'], years):
+#     ds = process_theta_eb(filenm, lon1, lon2, ndays)
+#     if year == years[0]:
+#         data_latmax = ds
+#     else:
+#         data_latmax = xray.concat([data_latmax, ds], dim='year')
+#
+# data_latmax = data_latmax.mean(dim='year')
+#
+# print('Saving to ' + savefiles['theta_eb_latmax'])
+# data_latmax.to_netcdf(savefiles['theta_eb_latmax'])
+
+# ----------------------------------------------------------------------
 # GPCP lat-lon, Hovmoller data, and average over box tseries
 
-print('Loading ' + datafiles['GPCP'])
-with xray.open_dataset(datafiles['GPCP']) as ds:
+print('Loading ' + datafiles['gpcp_dailyrel'])
+with xray.open_dataset(datafiles['gpcp_dailyrel']) as ds:
     var = atm.dim_mean(ds['PREC'], 'year')
     var.load()
 
@@ -151,8 +199,21 @@ data_gpcp['PCP_BOX'].attrs = attrs
 
 # Smooth with nday rolling mean
 for nm in data_gpcp.data_vars:
-    data_gpcp[nm] = atm.rolling_mean(data_gpcp[nm], ndays, axis=daydim,
+    var = data_gpcp[nm]
+    daydim = atm.get_coord(var, coord_name='dayrel', return_type='dim')
+    data_gpcp[nm] = atm.rolling_mean(var, ndays, axis=daydim,
                                      center=True)
+
+# Add JJAS mean precip and fraction of annual total
+print('Loading ' + datafiles['gpcp_daily'])
+with xray.open_dataset(datafiles['gpcp_daily']) as ds:
+    pcp = ds['PREC'].load()
+day1 = atm.mmdd_to_jday(6, 1)
+day2 = atm.mmdd_to_jday(9, 30)
+pcp_ssn = atm.subset(pcp, {'day' : (day1, day2)})
+pcp_frac = pcp_ssn.sum(dim='day') / pcp.sum(dim='day')
+data_gpcp['PCP_JJAS'] = pcp_ssn.mean(dim='day')
+data_gpcp['FRAC_JJAS'] = pcp_frac
 
 print('Saving to ' + savefiles['gpcp'])
 data_gpcp.to_netcdf(savefiles['gpcp'])
