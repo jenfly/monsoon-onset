@@ -13,6 +13,35 @@ import merra
 import indices
 
 # ----------------------------------------------------------------------
+# 11/2/2016 Using pydap and xray to try reading MERRA2_100
+
+from pydap_auth import install_basic_client
+ 
+install_basic_client()
+
+from pydap.client import open_url
+
+url = ('http://goldsmr4.sci.gsfc.nasa.gov/opendap/MERRA2/M2T1NXSLV.5.12.4/' +
+        '2016/06/MERRA2_400.tavg1_2d_slv_Nx.20160601.nc4')
+ds = open_url(url)
+
+
+###################
+
+from pydap_cas import install_cas_client
+install_cas_client()
+
+from pydap.client import open_url
+import xarray
+
+url = ('http://jenfly29:Mozart1981@goldsmr5.sci.gsfc.nasa.gov/opendap/' +
+    'MERRA2/M2I3NPASM.5.12.4/1986/01/MERRA2_100.inst3_3d_asm_Np.19860101.nc4')
+
+ds1 = open_url(url)    # Works but data isn't in xarray format
+ds2 = xarray.open_dataset(url, engine='pydap')    # Error message, see attached
+
+
+# ----------------------------------------------------------------------
 # 11/1/2016 MSE budget terms from monthly data
 
 years = range(1980, 1983)
