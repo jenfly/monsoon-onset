@@ -124,10 +124,19 @@ def get_mld(ds):
     return mld
 
 def mld_map(mld, m=None, month=5, cmap='hot_r', climits=(0, 70),
-            cticks=range(0, 71, 10)):
+            cticks=range(0, 71, 10), clevs=None):
     cb_kwargs = {'ticks' : cticks, 'extend' : 'max'}
-    _, _, cb = atm.pcolor_latlon(mld.sel(month=month), m=m, cmap=cmap,
-                                 cb_kwargs=cb_kwargs)
+    if min(climits) > 0 :
+        cb_kwargs['extend'] = 'both'
+    if clevs is None:
+        # pcolormesh plot
+        atm.pcolor_latlon(mld.sel(month=month), m=m, cmap=cmap,
+                          cb_kwargs=cb_kwargs)
+    else:
+        # Contour plot
+        atm.contourf_latlon(mld.sel(month=month), clev=clevs, m=m,
+                            cmap=cmap, extend=cb_kwargs['extend'],
+                            cb_kwargs=cb_kwargs)
     plt.clim(climits)
 
 
@@ -287,7 +296,12 @@ m = atm.init_latlon(0, 35, 58, 102, resolution='l', coastlines=False,
 m.drawcoastlines(linewidth=0.5, color='0.5')
 
 # Mixed layer depths
-mld_map(mld, m=m, month=5, cmap='hot_r', climits=(0, 60))
+clevs = None
+#clevs = np.arange(0, 71, 2.5)
+climits = (10, 70)
+cticks = np.arange(10, 71, 10)
+mld_map(mld, m=m, month=5, cmap='hot_r', clevs=clevs, climits=climits,
+        cticks=cticks)
 
 # JJAS fraction of annual precip
 precip_frac(data['gpcp']['FRAC_JJAS'], m=m)
