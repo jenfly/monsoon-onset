@@ -46,6 +46,7 @@ def consolidate(ds):
     groups['EMFC'] = ['EMFC_TR', 'EMFC_ST']
     groups['COR'] = ['COR_AVG', 'COR_ST']
     groups['ADV+COR'] = ['ADV_AVG', 'COR_AVG']
+    groups['DMDY'] = ['ADV_AVG_AVG_Y', 'COR_AVG']
     groups['SUM'] = ['ADV_AVG', 'ADV_CRS', 'EMFC', 'COR', 'PGF_ST', 'ANA']
 
     print('Consolidating ubudget terms')
@@ -54,6 +55,7 @@ def consolidate(ds):
         ds[key] = ds[nms[0]]
         for nm in nms[1:]:
             ds[key] = ds[key] + ds[nm]
+        ds[key].attrs['group'] = nms
 
     return ds
 
