@@ -30,6 +30,7 @@ pcp_nm = 'GPCP'
 ind_nm = 'onset'
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
+plev_ubudget = 200
 npre, npost =  120, 200
 
 datafiles = {}
@@ -61,6 +62,12 @@ index['length'] = index['retreat'] - index['onset']
 data_hov = {nm : data['hov'][nm] for nm in data['hov'].data_vars}
 data_hov['GPCP'] = data['gpcp']['PCP_SECTOR']
 data_latp = data['latp']
+
+subset_dict = {'plev' : (plev_ubudget, plev_ubudget)}
+ubudget = atm.subset(data['ubudget'], subset_dict, squeeze=True)
+for nm in ['U', 'V']:
+    ubudget[nm] = atm.squeeze(data_latp[nm].sel(lev=plev_ubudget))
+
 
 # ----------------------------------------------------------------------
 # Plotting functions and other utilities
@@ -360,16 +367,16 @@ else:
     xtick_labels = skip_ticklabel(xticks)
 
 keys = [pcp_nm, 'PSI500', 'U200', 'T200', 'THETA_E_LML']
-clevs = {pcp_nm : 1, 'U200' : 5, 'V200' : 1, 'PSI500' : 5, 'T200' : 1,
-         'THETA_E_LML' : 5, 'TLML' : 1, 'QLML' : 5e-4, 'U850' : 1}
+clevs = {pcp_nm : 1, 'U200' : 5, 'V200' : 1, 'PSI500' : 5, 'T200' : 0.5,
+         'THETA_E_LML' : 2.5, 'TLML' : 1, 'QLML' : 5e-4, 'U850' : 1}
 cticks_dict = {pcp_nm : np.arange(0, 13, 2),
-               'T200' : np.arange(208, 227, 2),
-               'U200' : np.arange(-80, 81, 10),
+               'T200' : np.arange(208, 229, 4),
+               'U200' : np.arange(-80, 81, 20),
                'U850' : np.arange(-20, 21, 4),
                'PSI500' : np.arange(-80, 81, 20),
                'THETA_E_LML' : np.arange(240, 361, 20)}
 clim_dict = {pcp_nm : (0, 10), 'U200' : (-50, 50),
-             'PSI500' : (-80, 80), 'T200' : (210, 226),
+             'PSI500' : (-80, 80), 'T200' : (208, 227),
              'THETA_E_LML' : (260, 350), 'U850' : (-18, 18)}
 plot_latmax = False
 
@@ -415,3 +422,129 @@ data_latlon['GPCP'] = data['gpcp']['PCP']
 clim_dict = {'GPCP' : (0, 20), 'U200' : (-50, 50), 'T200' : (213, 227),
              'TLML' : (260, 315), 'QLML' : (0, 0.022),
              'THETA_E_LML' : (270, 360)}
+
+
+# ----------------------------------------------------------------------
+# Ubudget components at 200 hPa
+
+def lineplot(ubudget_sector, keys, day, style, xlims=(-60, 60),
+             xticks=range(-60, 61, 15), title=None, ylabel=None, legend=True,
+             legend_kw={'fontsize' : 8, 'loc' : 'lower center', 'ncol' : 2,
+                        'handlelength' : 2.5}):
+    """Plot ubudget terms and winds vs latitude."""
+    subset_dict = {'dayrel' : (day, day), 'lat': xlims}
+    data = atm.subset(ubudget_sector[keys], subset_dict, squeeze=True)
+    data = data.to_dataframe()
+    data.plot(ax=plt.gca(), style=style, legend=False)
+    plt.xlim(xlims)
+    plt.xticks(xticks, xticks)
+    plt.xlabel('Latitude')
+    plt.grid()
+    if legend:
+        plt.legend(**legend_kw)
+    if ylabel is not None:
+        plt.ylabel(ylabel)
+    if title is not None:
+        plt.title(title)
+
+style = {'ADV_AVG' : 'b', 'COR_AVG' : 'b--', 'ADV+COR' : 'r', 'DMDY' : 'r',
+         'PGF_ST' : 'k', 'ADV_CRS' : 'g',  'ADV_AVST' : 'g--',
+         'ADV_STAV' : 'g-.', 'EMFC' : 'm', 'EMFC_TR' : 'm--', 'EMFC_ST' : 'm-.',
+         'SUM' : 'k--', 'ACCEL' : 'c', 'ANA' : 'y', 'U' : 'k', 'V' : 'k--'}
+
+keys_dict = collections.OrderedDict()
+keys_dict['ubudget'] = ['ADV_AVG', 'COR_AVG', 'DMDY', 'PGF_ST',
+                        'ADV_CRS', 'EMFC']
+keys_dict['winds'] = ['U', 'V']
+keys_dict['eddies'] = ['EMFC_TR', 'EMFC_ST', 'EMFC', 'ADV_CRS']
+
+ylabels = {}
+units = '$10^{-4}$ m s$^{-2}$'
+ylabels['ubudget'] = units
+ylabels['eddies'] = ylabels['ubudget']
+ylabels['winds'] = 'm/s'
+
+plotdays = [-30, 0, 30]
+nrow, ncol = 4, 3
+advance_by = 'row'
+fig_kw = {'figsize' : (11, 9), 'sharex' : 'col', 'sharey' : 'row'}
+gridspec_kw = {'left' : 0.08, 'right' : 0.99, 'wspace' : 0.09, 'hspace' : 0.1,
+               'bottom' : 0.05, 'top' : 0.92, 'height_ratios' : [1, 0.6, 1, 1]}
+legend_kw={'fontsize' : 8, 'loc' : 'upper center', 'ncol' : 2,
+           'handlelength' : 2.5}
+suptitle = '%d-%d E U and $\psi$ contours, ubudget at 200 hPa' % (lon1, lon2)
+tropics = False
+if tropics:
+    xlims, xticks = (-35, 35), range(-30, 31, 10)
+else:
+    xlims, xticks = (-60, 60), range(-60, 61, 15)
+
+grp = atm.FigGroup(nrow, ncol, advance_by, fig_kw=fig_kw,
+                   gridspec_kw=gridspec_kw, suptitle=suptitle)
+for day in plotdays:
+    grp.next()
+    if grp.row == 0:
+        title = 'Day %d' % day
+    else:
+        title = None
+    latpres(data_latp, day, data_latp['PS'], title=title, xlims=xlims, xticks=xticks)
+    for nm in ['winds', 'ubudget', 'eddies']:
+        grp.next()
+        if grp.col == 0:
+            legend = True
+        else:
+            legend = False
+        keys = keys_dict[nm]
+        lineplot(ubudget, keys, day, style, xlims=xlims,
+                 xticks=xticks, legend=legend, legend_kw=legend_kw,
+                 ylabel=ylabels[nm])
+
+# ----------------------------------------------------------------------
+# Streamfunction decomposition
+
+def psi_latpres(psi, ps, cint=10, xlims=(-60, 60), xticks=range(-60, 61, 15),
+                title='', u=None):
+    xmin, xmax = xlims
+    axlims = (xmin, xmax, 0, 1000)
+    if u is not None:
+        atm.contour_latpres(u, clev=[0], colors='m', omitzero=False,
+                            axlims=axlims)
+    atm.contour_latpres(psi, clev=cint, topo=ps, omitzero=True, axlims=axlims)
+    plt.xticks(xticks, xticks)
+    plt.grid()
+    plt.title(title, fontsize=10)
+
+
+#plotdays = [-30, 0, 30]
+plotdays = [-15, 0, 15]
+keys = ['TOT', 'MMC', 'EDDY']
+xlims, xticks = (-35, 35), range(-30, 31, 10)
+cint = 5
+nrow, ncol = len(keys), len(plotdays)
+advance_by = 'col'
+fig_kw = {'figsize' : (11, 7), 'sharex' : True, 'sharey' : True}
+gridspec_kw = {'left' : 0.08, 'right' : 0.99, 'wspace' : 0.06, 'hspace' : 0.08,
+               'bottom' : 0.08, 'top' : 0.9}
+suptitle = '%d-%dE $\psi$ components' % (lon1, lon2)
+grp = atm.FigGroup(nrow, ncol, advance_by, fig_kw=fig_kw,
+                   gridspec_kw=gridspec_kw, suptitle=suptitle)
+for key in keys:
+    for day in plotdays:
+        grp.next()
+        if grp.row == 0:
+            title = 'Day %d' % day
+            u = data_latp['U'].sel(dayrel=day)
+        else:
+            title = ''
+            u = None
+        if key == 'TOT':
+            psi = data_latp['PSI'].sel(dayrel=day)
+        else:
+            psi = data['psi_comp'][key].sel(dayrel=day)
+        psi_latpres(psi, data_latp['PS'], cint, xlims, xticks, title=title,
+                    u=u)
+        if grp.col > 0:
+            plt.ylabel('')
+        if grp.row < grp.nrow - 1:
+            plt.xlabel('')
+        atm.text(key, (0.05, 0.88))
