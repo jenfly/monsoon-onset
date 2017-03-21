@@ -6,6 +6,7 @@ figs
 log
 data
 troubleshooting
+.idea
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
