@@ -12,6 +12,129 @@ import atmos as atm
 import merra
 import indices
 
+
+# ----------------------------------------------------------------------
+# JJAS precip and fraction of annual totals
+
+datadir = atm.homedir() + 'datastore/merra2/figure_data/'
+filenm = datadir + 'gpcp_dailyrel_1997-2015.nc'
+with xray.open_dataset(filenm) as ds:
+    pcp_jjas = ds['PCP_JJAS'].load()
+    pcp_frac = ds['FRAC_JJAS'].load()
+
+axlims = (-20, 35, 50, 115)
+xticks = range(40, 121, 10)
+clev = np.arange(0, 10.5, 1)
+plt.figure(figsize=(8, 6))
+m = atm.contourf_latlon(pcp_jjas, clev=clev, axlims=axlims, cmap='PuBuGn',
+                        extend='max')
+plt.xticks(xticks, atm.latlon_labels(xticks, 'lon'))
+atm.contour_latlon(pcp_frac, clev=[0.5], m=m, colors='m', linewidths=1)
+atm.geobox(10, 30, 60, 100, m=m, color='b')
+plt.xlim(axlims[2], axlims[3])
+
+
+# ----------------------------------------------------------------------
+# Map of monsoon region
+
+m = atm.init_latlon(-50, 50, 40, 120, coastlines=False)
+m.shadedrelief(scale=0.3)
+yticks = range(-45, 46, 15)
+xticks = range(40, 121, 20)
+plt.xticks(xticks, atm.latlon_labels(xticks, 'lon'))
+plt.yticks(yticks, atm.latlon_labels(yticks, 'lat'))
+
+atm.geobox(10, 30, 60, 100, m=m, color='k')
+plt.savefig('figs/map_box.png', dpi=200)
+# ----------------------------------------------------------------------
+# Animation of precip and 850 mb winds
+
+datadir = atm.homedir() + 'datastore/merra2/analysis/'
+
+files = {'PREC' : datadir + 'gpcp_dailyrel_CHP_MFC_1997-2015.nc'}
+for nm in ['U', 'V']:
+    files[nm] = datadir + 'merra2_%s850_dailyrel_CHP_MFC_1980-2015.nc' % nm
+
+ndays = 10
+data = {}
+for nm in files:
+    filenm = files[nm]
+    print('Loading ' + filenm)
+    with xray.open_dataset(filenm) as ds:
+        var = ds[nm].load()
+        if 'year' in var:
+            var = var.mean(dim='year')
+        daydim = atm.get_coord(var, 'dayrel', 'dim')
+        data[nm] = atm.rolling_mean(var, ndays, axis=daydim)
+
+
+def animate(data, day, axlims=(-30, 45, 40, 120), dx=5, dy=5, climits=(-5, 15),
+            cmap='BuPu', d0=138, clev=np.arange(5, 15.5, 1),
+            cticks=np.arange(5, 16, 2.5)):
+    lat1, lat2, lon1, lon2 = axlims
+    subset_dict = {'lat' : (lat1, lat2), 'lon' : (lon1, lon2)}
+    xticks = range(40, 121, 20)
+    mm, dd = atm.jday_to_mmdd(day + d0)
+    title = (atm.month_str(mm)).capitalize() + ' %d' % dd
+
+    u = atm.subset(data['U'].sel(dayrel=day), subset_dict)
+    v = atm.subset(data['V'].sel(dayrel=day), subset_dict)
+    u = u[::dy, ::dx]
+    v = v[::dy, ::dx]
+    #spd = np.sqrt(u**2 + v**2)
+    pcp = data['PREC'].sel(dayrel=day)
+    lat = atm.get_coord(u, 'lat')
+    lon = atm.get_coord(u, 'lon')
+
+    plt.clf()
+    m = atm.init_latlon(lat1, lat2, lon1, lon2, coastlines=False)
+    m.drawcoastlines(color='k', linewidth=0.5)
+    m.shadedrelief(scale=0.3)
+    atm.contourf_latlon(pcp, clev=clev, axlims=axlims, m=m, cmap=cmap,
+                        extend='max', cb_kwargs={'ticks' : cticks})
+    #atm.pcolor_latlon(pcp, axlims=axlims, cmap=cmap, cb_kwargs={'extend' : 'max'})
+    plt.xticks(xticks, atm.latlon_labels(xticks, 'lon'))
+    plt.clim(climits)
+    #plt.quiver(lon, lat, u, v, linewidths=spd.values.ravel())
+    plt.quiver(lon, lat, u, v)
+    plt.title(title)
+    plt.draw()
+
+# Need to scale arrows in quiver plot so that they are consistent across
+# different days
+
+days = range(-90, 201, 1)
+for i, day in enumerate(days):
+    animate(data, day)
+    filenm = 'figs/anim/frame%03d.png' % i
+    print('Saving to ' + filenm)
+    plt.savefig(filenm)
+
+# ----------------------------------------------------------------------
+years = np.arange(1980, 1999)
+datadir = atm.homedir() + 'datastore/merra2/dailyrad/'
+files = [datadir + 'merra2_RAD_%d.nc4' % yr for yr in years]
+
+ ds = atm.mean_over_files(files)
+
+
+# ----------------------------------------------------------------------
+from pydap.client import open_url
+
+authfile = atm.homedir() + '.netrc'
+
+with open(authfile) as f:
+    lines = f.readlines()
+
+username = lines[1].split()[1]
+password = lines[2].split()[1]
+
+url = ('https://%s:%s@' % (username, password) +
+       'goldsmr5.sci.gsfc.nasa.gov/opendap/MERRA2/M2I3NPASM.5.12.4/'
+       '1986/01/MERRA2_100.inst3_3d_asm_Np.19860101.nc4.nc4')
+
+ds = open_url(url)
+
 # ----------------------------------------------------------------------
 # 11/2/2016 Using pydap and xray to try reading MERRA2_100
 
@@ -22,7 +145,7 @@ install_basic_client()
 from pydap.client import open_url
 
 url = ('http://goldsmr4.sci.gsfc.nasa.gov/opendap/MERRA2/M2T1NXSLV.5.12.4/' +
-        '2016/06/MERRA2_400.tavg1_2d_slv_Nx.20160601.nc4')
+        '2016/06/MERRA2_400.tavg1_2d_slv_Nx.20160601.nc4.nc4')
 ds = open_url(url)
 
 
@@ -35,7 +158,7 @@ from pydap.client import open_url
 import xarray
 
 url = ('http://jenfly29:Mozart1981@goldsmr5.sci.gsfc.nasa.gov/opendap/' +
-    'MERRA2/M2I3NPASM.5.12.4/1986/01/MERRA2_100.inst3_3d_asm_Np.19860101.nc4')
+    'MERRA2/M2I3NPASM.5.12.4/1986/01/MERRA2_100.inst3_3d_asm_Np.19860101.nc4.nc4')
 
 ds1 = open_url(url)    # Works but data isn't in xarray format
 ds2 = xarray.open_dataset(url, engine='pydap')    # Error message, see attached

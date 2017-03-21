@@ -26,12 +26,16 @@ savedir = atm.homedir() + 'eady/datastore/%s/analysis/' % version
 yearstr = '%d-%d' % (min(years), max(years))
 indfile = savedir + version + '_index_%s_%s.nc' % (onset_nm, yearstr)
 
-varnms = ['PRECTOT', 'U200', 'V200',  'T200', 'H200', 'OMEGA500',
-          'U850', 'V850', 'T850', 'H850', 'QV850', 'TLML', 'QLML', 'PS',
-          'THETA_LML', 'THETA_E_LML', 'EFLUX', 'EVAP', 'HFLUX',
-          'VFLXCPT', 'VFLXPHI', 'VFLXQV', 'VFLXMSE',
-          'UFLXCPT', 'UFLXPHI', 'UFLXQV']
-sector_varnms = ['U', 'V', 'OMEGA', 'T', 'H', 'QV']
+varnms = ['LWTUP', 'SWGNT', 'LWGNT', 'SWTNT']
+sector_varnms = []
+
+#varnms = ['PRECTOT', 'U200', 'V200',  'T200', 'H200', 'OMEGA500',
+#          'U850', 'V850', 'T850', 'H850', 'QV850', 'TLML', 'QLML', 'PS',
+#          'THETA_LML', 'THETA_E_LML', 'EFLUX', 'EVAP', 'HFLUX',
+#          'VFLXCPT', 'VFLXPHI', 'VFLXQV', 'VFLXMSE',
+#          'UFLXCPT', 'UFLXPHI', 'UFLXQV']
+#
+#sector_varnms = ['U', 'V', 'OMEGA', 'T', 'H', 'QV']
 
 # ----------------------------------------------------------------------
 # List of data files
@@ -40,6 +44,9 @@ def yrlyfile(version, datadir, varnm, year, subset1='40E-120E_90S-90N',
              subset2=''):
     if varnm.startswith('THETA'):
         filenm = None
+    elif varnm in ['LWTUP', 'SWGNT', 'LWGNT', 'SWTNT']:
+        filenm = datadir + version + '_RAD_%d.nc' % year
+        filenm = filenm.replace('daily', 'dailyrad').replace('.nc', '.nc4')
     else:
         filenm = datadir + '%d/%s_%s_%s_%s%d.nc'
         filenm = filenm % (year, version, varnm, subset1, subset2, year)

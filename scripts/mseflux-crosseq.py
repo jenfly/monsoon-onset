@@ -16,18 +16,19 @@ mpl.rcParams['font.size'] = 11
 
 # ----------------------------------------------------------------------
 onset_nm = 'CHP_MFC'
-years = np.arange(1979, 2015)
-datadir = atm.homedir() + 'datastore/merra/analysis/'
+version = 'merra2'
+years = np.arange(1980, 2016)
+datadir = atm.homedir() + 'datastore/%s/analysis/' % version
 varnms = ['VFLXMSE', 'VFLXCPT', 'VFLXPHI', 'VFLXLQV']
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
-eqlat1, eqlat2 = -2, 2
-nroll = 7
+eqlat1, eqlat2 = -5, 5
+nroll = 5
 scale, units, sector_units = 1e-9, '$10^9$W/m', 'PW'
 
 relfiles = {}
 yearstr = '%d-%d' % (min(years), max(years))
-filestr = datadir + 'merra_%s_dailyrel_%s_%s.nc'
+filestr = datadir + version + '_%s_dailyrel_%s_%s.nc'
 for nm in varnms:
     if nm == 'VFLXLQV':
         nm0 = 'VFLXQV'
@@ -76,6 +77,22 @@ for lonrange in lonranges:
         eq_int[key] = atm.dim_mean(data_eq[nm], 'lon', lon1, lon2) * dist
 # Convert to PW
 eq_int = eq_int * 1e-15 / scale
+
+
+# Sector mean
+databar = atm.dim_mean(data, 'lon', lon1, lon2)
+
+plotdays = [-90, -60, -30, 0, 30, 60, 90, 120]
+colors = ['r', 'r', 'r', 'b', 'b', 'b', 'b', 'b']
+alphas = [0.6, 0.4, 0.2, 0.2, 0.4, 0.6, 0.8, 1]
+plt.figure()
+for day, col, alpha in zip(plotdays, colors, alphas):
+    plt.plot(lat, databar['VMSE'].sel(dayrel=day), col,
+             alpha=alpha, label=day)
+plt.xlim(-30, 30)
+plt.ylim(-4, 4)
+plt.legend()
+plt.grid()
 
 # ----------------------------------------------------------------------
 # Longitude-day contour plot

@@ -38,6 +38,7 @@ eqlat1, eqlat2 = -5, 5
 plev_ubudget = 200
 npre, npost =  120, 200
 
+
 datafiles = {}
 datafiles['ubudget'] = datadir + 'merra2_ubudget_1980-2014_excl.nc'
 filestr = datadir + version + '_%s_' + yearstr + '.nc'
@@ -46,6 +47,8 @@ for nm in ['latp', 'hov', 'latlon', 'tseries', 'psi_comp', 'ebudget']:
 datafiles['gpcp'] = datadir + 'gpcp_dailyrel_1997-2015.nc'
 datafiles['index'] = filestr % 'index_CHP_MFC'
 datafiles['mld'] = atm.homedir() + 'datastore/mld/ifremer_mld_DT02_c1m_reg2.0.nc'
+mfcbudget_file = datadir + 'merra2_mfc_budget_1980-2015.nc'
+nroll_mfcbudget = 5
 
 # ----------------------------------------------------------------------
 # Read data
@@ -106,6 +109,14 @@ ebudget_eq_sector = atm.dim_mean(ebudget_eq, 'lon', lon1, lon2)
 
 ps = data_latp['PS'] / 100
 
+# MFC budget
+with xray.open_dataset(mfcbudget_file) as mfc_budget:
+    mfc_budget.load()
+mfc_budget = mfc_budget.rename({'DWDT' : 'dw/dt'})
+mfc_budget['P-E'] = mfc_budget['PRECTOT'] - mfc_budget['EVAP']
+for nm in mfc_budget.data_vars:
+    mfc_budget[nm] = atm.rolling_mean(mfc_budget[nm], nroll_mfcbudget, center=True)
+
 # ----------------------------------------------------------------------
 # Plotting functions and other utilities
 
@@ -116,7 +127,7 @@ def get_varnm(nm):
 
 def get_colormap(nm):
     if nm.startswith('PCP') or nm == 'GPCP':
-        cmap = 'PuBuGn'
+        cmap = 'hot_r'
     else:
         cmap = 'RdBu_r'
     return cmap
@@ -153,47 +164,35 @@ def skip_ticklabel(xticks):
     return xtick_labels
 
 
-def get_mld(ds):
-    mld = ds['mld']
-    missval = mld.attrs['mask_value']
-    vals = mld.values
-    vals = np.ma.masked_array(vals, vals==missval)
-    vals = np.ma.filled(vals, np.nan)
-    months = range(1, 13)
-    lat = atm.get_coord(mld, 'lat')
-    lon = atm.get_coord(mld, 'lon')
-    coords = {'month' : months, 'lat' : lat, 'lon' : lon}
-    mld = xray.DataArray(vals, dims=['month', 'lat', 'lon'], coords=coords)
-    mld.values = vals
-    return mld
 
-def mld_map(mld, m=None, month=5, cmap='hot_r', climits=(0, 70),
-            cticks=range(0, 71, 10), clevs=None):
-    cb_kwargs = {'ticks' : cticks, 'extend' : 'max'}
-    if min(climits) > 0 :
-        cb_kwargs['extend'] = 'both'
-    if clevs is None:
-        # pcolormesh plot
-        atm.pcolor_latlon(mld.sel(month=month), m=m, cmap=cmap,
-                          cb_kwargs=cb_kwargs)
-    else:
-        # Contour plot
-        atm.contourf_latlon(mld.sel(month=month), clev=clevs, m=m,
-                            cmap=cmap, extend=cb_kwargs['extend'],
-                            cb_kwargs=cb_kwargs)
-    plt.clim(climits)
-
-
-def precip_frac(pcp_frac, m=None):
-    _, cs = atm.contour_latlon(pcp_frac, m=m, clev=np.arange(0, 1, 0.1),
-                               linewidths=1.5, colors='k',
-                               axlims=(0, 35, 58, 102))
-    label_locs = [(80, 5), (75, 6), (72, 8), (72, 10), (70, 15), (70, 18),
-                  (72, 25), (84, 5), (60, 5), (65, 3), (95, 18)]
-    cs_opts = {'fmt' : '%.1f', 'fontsize' : 9, 'manual' : label_locs,
-               'inline_spacing' : 2}
-    plt.clabel(cs, **cs_opts)
-
+def plot_mfc_budget(mfc_budget, index, year, legend=True,
+                    legend_kw={'fontsize' : 9, 'loc' : 'upper left',
+                               'handlelength' : 2.5},
+                    dashes=[6, 2], netprecip=False, labelpad=1.5):
+    ts = mfc_budget.sel(year=year)
+    ind = index.sel(year=year)
+    days = ts['day'].values
+    styles = {'PRECTOT' : {'color' : 'k', 'linestyle' : '--', 'dashes' : dashes},
+              'EVAP' : {'color' : 'k'},
+              'MFC' : {'color' : 'k', 'linewidth' : 2},
+              'dw/dt' : {'color' : '0.7', 'linewidth' : 2}}
+    if netprecip:
+        styles['P-E'] = {'color' : 'b', 'linewidth' : 2}
+    for nm in styles:
+        plt.plot(days, ts[nm], label=nm, **styles[nm])
+    plt.axvline(ind['onset'], color='k')
+    plt.axvline(ind['retreat'], color='k')
+    plt.xlabel('Day of Year')
+    plt.ylabel('mm day$^{-1}$', labelpad=labelpad)
+    ax1 = plt.gca()
+    ax2 = plt.twinx()
+    plt.sca(ax2)
+    plt.plot(days, ind['tseries'], 'r', alpha=0.6, linewidth=2, label='CMFC')
+    atm.fmt_axlabels('y', 'mm', color='r', alpha=0.6)
+    plt.gca().set_ylabel('mm', labelpad=labelpad)
+    if legend:
+        atm.legend_2ax(ax1, ax2, **legend_kw)
+    return ax1, ax2
 
 
 def daily_tseries(tseries, index, pcp_nm, npre, npost, grp, keys1=None,
@@ -330,7 +329,8 @@ def contourf_latday(var, clev=None, title='', cticks=None, climits=None,
 
 def latlon_and_sector(var, vardiff, lon1, lon2, grp, clim=None,
                       clim_diff=None, axlims=(-60, 60, 40, 120),
-                      dashes=[6, 2], xticks=range(40, 121, 20)):
+                      dashes=[6, 2], xticks=range(40, 121, 20),
+                      lg_fontsize=12, lg_loc='upper left'):
     subset_dict = {'lat' : (axlims[0], axlims[1]),
                    'lon' : (axlims[2], axlims[3])}
     xtick_labels = atm.latlon_labels(xticks, 'lon')
@@ -376,7 +376,7 @@ def latlon_and_sector(var, vardiff, lon1, lon2, grp, clim=None,
     latnm = atm.get_coord(varbar, 'lat', 'name')
     xticks = np.arange(axlims[0], axlims[1] + 1, 20)
     xlims = axlims[:2]
-    legend_kw = {'handlelength': 2, 'fontsize': 7, 'ncol' : 3}
+    legend_kw = {'handlelength': 2, 'fontsize': lg_fontsize, 'loc' : lg_loc}
     dashed = {'color' : 'k', 'linestyle' : '--', 'dashes' : dashes}
     styles = ['k', dashed]
 
@@ -435,37 +435,48 @@ def psi_decomposition(psi, ps, cint=10, xlims=(-60, 60),
 # FIGURES
 # ======================================================================
 
-# Overview map with mixed layer depths and precip frac
-mld = get_mld(data['mld'])
-fig_kw = {'figsize' : (0.5 * figwidth, 0.35 * figwidth)}
-gridspec_kw = {'left' : 0.1, 'right' : 0.95, 'bottom' : 0.1, 'top' : 0.95}
-plt.subplots(1, 1, gridspec_kw=gridspec_kw, **fig_kw)
-m = atm.init_latlon(0, 35, 58, 102, resolution='l', coastlines=False,
-                    fillcontinents=True)
-m.drawcoastlines(linewidth=0.5, color='0.5')
+# ----------------------------------------------------------------------
+# MFC budget and tseries fits for CHP onset/retreat indices
+plotyear = 2000
+figsize = (0.6 * figwidth, 0.4 * figwidth)
 
-# Mixed layer depths
-clevs = None
-#clevs = np.arange(0, 71, 2.5)
-climits = (10, 70)
-cticks = np.arange(10, 71, 10)
-mld_map(mld, m=m, month=5, cmap='hot_r', clevs=clevs, climits=climits,
-        cticks=cticks)
+ind = index.sel(year=plotyear)
+mfc = ind['daily_ts']
+cmfc = ind['tseries']
+fit_onset = ind['tseries_fit_onset']
+fit_retreat = ind['tseries_fit_retreat']
+days = ind['day']
 
-# JJAS fraction of annual precip
-precip_frac(data['gpcp']['FRAC_JJAS'], m=m)
+plt.figure(figsize=figsize)
+plt.plot(days, mfc, 'k', linewidth=2)
+plt.xlabel('Day of Year')
+plt.ylabel('mm day$^{-1}$')
 
-# SASM domain
-x = [lon1, lon1, lon2, lon2, lon1]
-y = [lat1, lat2, lat2, lat1, lat1]
-plt.plot(x, y, color='b', linewidth=2)
+plt.figure(figsize=figsize)
+plt.plot(days, cmfc, 'r', linewidth=2)
+plt.xlabel('Day of Year')
+plt.ylabel('mm')
+
+plt.figure(figsize=figsize)
+plt.plot(days, cmfc, 'r', linewidth=2)
+plt.plot(days, fit_onset, 'b', days, fit_retreat, 'k')
+plt.axvline(250, color='b', linewidth=0.5)
+plt.axvline(200, color='k', linewidth=0.5)
+plt.xlabel('Day of Year')
+plt.ylabel('mm')
+
+legend_kw = {'loc' : 'upper left', 'framealpha' : 0.0}
+plt.figure(figsize=figsize)
+plot_mfc_budget(mfc_budget, index, plotyear, dashes=dashes, legend=True,
+                    legend_kw=legend_kw)
 
 # ----------------------------------------------------------------------
 # Daily tseries
-nrow, ncol = 3, 1
-fig_kw = {'figsize' : (0.5*figwidth, 0.8 * figwidth), 'sharex' : True}
-gridspec_kw = {'left' : 0.16, 'right' : 0.84, 'bottom' : 0.07, 'top' : 0.96,
-               'wspace' : 0.5, 'hspace' : 0.15}
+
+nrow, ncol = 2, 2
+fig_kw = {'figsize' : (figwidth, 0.7 * figwidth)}
+gridspec_kw = {'left' : 0.07, 'right' : 0.9, 'bottom' : 0.07, 'top' : 0.94,
+               'wspace' : 0.5, 'hspace' : 0.39}
 legend = True
 legend_kw = {'loc' : 'upper left', 'framealpha' : 0.0}
 legend = True
@@ -474,12 +485,9 @@ opts = []
 opts.append({'keys1' : ['MFC', pcp_nm], 'keys2' : ['CMFC'],
              'units1' : 'mm day$^{-1}$', 'units2' : 'mm',
              'ylims' : (-3.5, 9), 'legend_loc' : 'upper left' })
-# opts.append({'keys1' : ['U200_0N'], 'keys2' : ['V200_15N'],
-#              'units1' : '   m s$^{-1}$', 'units2' :  '   m s$^{-1}$',
-#              'ylims' : (-20, 0), 'legend_loc' : 'lower left' })
-opts.append({'keys1' : ['U200_0N'], 'keys2' : ['PSI500_0N'],
-             'units1' : '   m s$^{-1}$', 'units2' :  '  10$^9$ kg s$^{-1}$',
-             'ylims' : (-20, 0), 'legend_loc' : 'lower left' })
+opts.append({'keys1' : ['U850_15N'], 'keys2' : ['V850_15N'],
+             'units1' : '   m s$^{-1}$', 'units2' :  '   m s$^{-1}$',
+             'ylims' : (-8, 15), 'legend_loc' : 'upper left' })
 opts.append({'keys1' : ['T200_30N'], 'keys2' : ['T200_30S'],
              'units1' : '   K', 'units2' :  '   K',
              'ylims' : (218, 227), 'legend_loc' : 'upper left' })
@@ -487,17 +495,10 @@ opts.append({'keys1' : ['T200_30N'], 'keys2' : ['T200_30S'],
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 for opt in opts:
     grp.next()
-    if grp.row < grp.nrow - 1:
-        xlabel = ''
-    else:
-        xlabel = 'Days Since Onset'
+    xlabel = 'Days Since Onset'
     daily_tseries(tseries, index, pcp_nm, npre, npost, grp, legend=legend,
                   ind_nm=ind_nm, dlist=dlist, xlabel=xlabel, **opt)
 
-# Add a-d labels
-labelpos = (-0.2, 1.05)
-labels = ['a', 'b', 'c']
-add_labels(grp, labels, labelpos, labelsize)
 
 # ----------------------------------------------------------------------
 # Lat-pres contour plots of streamfunction, U
@@ -532,14 +533,16 @@ else:
     d0 = None
     xtick_labels = skip_ticklabel(xticks)
 
-keys = [pcp_nm, 'PSI500', 'U200', 'T200', 'THETA_E_LML']
+keys = [pcp_nm, 'PSI500', 'U200', 'U850', 'U200', pcp_nm,  'T200',
+        'THETA_E_LML']
+nms_dict = {'PSI500' : '$\psi$500', 'THETA_E_LML' : r'${\theta}_{eb}$'}
 clevs = {pcp_nm : 1, 'U200' : 5, 'V200' : 1, 'PSI500' : 5, 'T200' : 0.5,
          'THETA_E_LML' : 2.5, 'TLML' : 1, 'QLML' : 5e-4, 'U850' : 1,
          'MSE_LML' : 2}
 cticks_dict = {pcp_nm : np.arange(0, 13, 2),
                'T200' : np.arange(208, 229, 4),
                'U200' : np.arange(-80, 81, 20),
-               'U850' : np.arange(-20, 21, 4),
+               'U850' : np.arange(-15, 16, 5),
                'PSI500' : np.arange(-80, 81, 20),
                'THETA_E_LML' : np.arange(240, 361, 20),
                'MSE_LML' : np.arange(240, 361, 20)}
@@ -549,11 +552,12 @@ clim_dict = {pcp_nm : (0, 10), 'U200' : (-50, 50),
              'MSE_LML' : (245, 350)}
 plot_latmax = False
 
-nrow, ncol = 3, 2
-fig_kw = {'figsize' : (figwidth, 0.9 * figwidth), 'sharex' : True,
+nrow, ncol = 2, 2
+fig_kw = {'figsize' : (figwidth, 0.64 * figwidth), 'sharex' : True,
           'sharey' : True}
 gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'bottom' : 0.07, 'top' : 0.94,
                'wspace' : 0.05}
+
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 for key in keys:
     grp.next()
@@ -561,43 +565,36 @@ for key in keys:
     clev = clevs.get(key)
     cticks = cticks_dict.get(key)
     climits = clim_dict.get(key)
+    if key in nms_dict:
+        title = nms_dict[key]
+    else:
+        title = key.upper()
     print(key, clev, climits, cticks)
     contourf_latday(var, clev=clev, cticks=cticks, climits=climits,
-                    title=key.upper(), grp=grp,
+                    title=title, grp=grp,
                     dlist=dlist, ind_nm=ind_nm)
     if d0 is not None:
         plt.axvline(d0, color='k', linestyle='--', dashes=dashes)
     if plot_latmax and key.startswith('THETA_E'):
         latmax = annotate_latmax(var, nroll=None)
+    plt.xticks(xticks, xtick_labels)
+    plt.xlim(-npre, npost)
 
-plt.xticks(xticks, xtick_labels)
-plt.xlim(-npre, npost)
-labels = ['a', 'b', 'c', 'd', 'e']
-x1, x2, y0 = -0.15, -0.05, 1.05
-pos = [(x1, y0), (x2, y0), (x1, y0), (x2, y0), (x1, y0), (x2, y0)]
-add_labels(grp, labels, pos, labelsize)
-
-# Hide axes on empty plot
-ax = grp.axes[nrow - 1 , ncol - 1]
-ax.axis('off')
-plt.draw()
 
 # ----------------------------------------------------------------------
 # D0--D15 Lat-lon and sector line plots
 
-nms_list = [['GPCP', 'U200', 'T200'], ['THETA_E_LML', 'TLML']]
+nms_list = [['U200', 'T200'], ['THETA_E_LML', 'TLML']]
 
 clim_dict = {'GPCP' : (0, 12), 'U200' : (-50, 50), 'T200' : (213, 227),
              'TLML' : (260, 315), 'QLML' : (0, 0.022),
              'THETA_E_LML' : (270, 360)}
+lg_loc = {'U200' : 'lower left', 'T200' : 'upper left', 'TLML' : 'upper left',
+          'THETA_E_LML' : 'upper left'}
 
 ncol = 3
 gridspec_kw = {'left' : 0.12, 'right' : 0.9, 'bottom' : 0.09, 'top' : 0.93,
                'wspace' : 0.45, 'hspace' : 0.15, 'width_ratios' : [1, 1, 1.5]}
-
-x1, x2, y0 = -0.6, -0.25, 1.05
-labelpos = [(x1, y0), (x2, y0), (x2, y0)] * 3
-labels = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']
 
 for nms in nms_list:
     nrow = len(nms)
@@ -609,8 +606,9 @@ for nms in nms_list:
     grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
     for nm in nms:
         latlon_and_sector(data_latlon[nm], data_diff[nm], lon1, lon2, grp,
-                          clim=clim_dict[nm], clim_diff=None, dashes=dashes)
-    add_labels(grp, labels[:3*nrow], labelpos[:3*nrow], labelsize)
+                          clim=clim_dict[nm], clim_diff=None, dashes=dashes,
+                          lg_loc=lg_loc[nm])
+
 
 
 # ----------------------------------------------------------------------
@@ -635,7 +633,7 @@ ylabels['winds'] = 'm s$^{-1}$'
 
 ylims = {'ubudget' : (-8, 8), 'winds' : (-20, 50)}
 
-plotdays = [-45, -30, -15, 0, 15, 30]
+plotdays = [-30, 0, 30]
 nrow, ncol = 2, 3
 advance_by = 'row'
 fig_kw = {'figsize' : (figwidth, 0.5 * figwidth),

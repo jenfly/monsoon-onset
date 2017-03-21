@@ -13,9 +13,16 @@ import atmos as atm
 import indices
 import utils
 
-style = atm.homedir() + 'dynamics/python/mpl-styles/grl_article.mplstyle'
+# Format for article publication or presentation slides
+pres = True
+if pres:
+    figwidth = 12
+    style = atm.homedir() + 'dynamics/python/mpl-styles/presentation.mplstyle'
+else:
+    figwidth = 7.48
+    style = atm.homedir() + 'dynamics/python/mpl-styles/grl_article.mplstyle'
+
 plt.style.use(style)
-figwidth = 7.48
 fontsize = mpl.rcParams['font.size']
 labelsize = fontsize + 3
 dashes = [6, 2]
