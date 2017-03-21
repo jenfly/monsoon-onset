@@ -993,3 +993,20 @@ label_locs = [(80, 5), (75, 6), (72, 8), (72, 10), (70, 15), (70, 18),
 cs_opts = {'fmt' : '%.1f', 'fontsize' : 9, 'manual' : label_locs,
            'inline_spacing' : 2}
 plt.clabel(cs, **cs_opts)
+
+# ------------------------------------------------------------------------
+# Figure for AGU presentation
+plt.figure(figsize=(8, 6))
+m = atm.init_latlon(0, 35, 58, 102, resolution='l')
+atm.contourf_latlon(pcp_frac, clev=np.arange(0, 1.1, 0.1), m=m,
+                            axlims=(0, 35, 58, 102), cmap='PuBuGn')
+_, cs = atm.contour_latlon(pcp_frac, m=m, clev=[0.5], linewidths=2, colors='k',
+                           axlims=(0, 35, 58, 102))
+label_locs = [(72, 8)]
+cs_opts = {'fmt' : '%.1f', 'fontsize' : fontsize, 'manual' : label_locs,
+           'inline_spacing' : 2}
+plt.clabel(cs, **cs_opts)
+plot_kerala(linewidth=1)
+x = [lon1, lon1, lon2, lon2, lon1]
+y = [lat1, lat2, lat2, lat1, lat1]
+plt.plot(x, y, color='m', linewidth=2)

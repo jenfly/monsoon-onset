@@ -237,7 +237,11 @@ def daily_tseries(tseries, index, pcp_nm, npre, npost, grp, keys1=None,
 
 def latpres(data_latp, day, ps, xlims=(-60, 60), xticks=range(-60, 61, 15),
             title=None, clev_u=5, clev_psi=5, u_clr='#EE82EE', u_kw={},
+<<<<<<< HEAD
             psi_kw={}):
+=======
+            psi_kw={}, title_fontsize=14):
+>>>>>>> 135ba4b6b8b232f5b98b59eefdb1b21018d3f0bd
     """Plot lat-pres contours of streamfunction and zonal wind.
     """
     xmin, xmax = xlims
@@ -254,7 +258,11 @@ def latpres(data_latp, day, ps, xlims=(-60, 60), xticks=range(-60, 61, 15),
     plt.xticks(xticks, xticks)
     #plt.grid()
     if title is not None:
+<<<<<<< HEAD
         plt.title(title)
+=======
+        plt.title(title, fontsize=title_fontsize)
+>>>>>>> 135ba4b6b8b232f5b98b59eefdb1b21018d3f0bd
 
 
 def get_latmax(var):
@@ -321,10 +329,19 @@ def contourf_latday(var, clev=None, title='', cticks=None, climits=None,
     if dlist is not None:
         for d0 in dlist:
             plt.axvline(d0, color='k')
+<<<<<<< HEAD
     if grp is not None and grp.row == grp.nrow - 1:
         plt.xlabel('Days Since ' + ind_nm.capitalize())
     if grp is not None and grp.col == 0:
         plt.ylabel('Latitude')
+=======
+    # if grp is not None and grp.row == grp.nrow - 1:
+    #     plt.xlabel('Days Since ' + ind_nm.capitalize())
+    # if grp is not None and grp.col == 0:
+    #     plt.ylabel('Latitude')
+    plt.xlabel('Days Since ' + ind_nm.capitalize())
+    plt.ylabel('Latitude')
+>>>>>>> 135ba4b6b8b232f5b98b59eefdb1b21018d3f0bd
 
 
 def latlon_and_sector(var, vardiff, lon1, lon2, grp, clim=None,
@@ -419,7 +436,11 @@ def ubudget_lineplot(ubudget_sector, keys, day, style, xlims=(-60, 60),
 
 def psi_decomposition(psi, ps, cint=10, xlims=(-60, 60),
                       xticks=range(-60, 61, 15), title='', u=None,
+<<<<<<< HEAD
                       u_clr='#EE82EE'):
+=======
+                      u_clr='#EE82EE', title_fontsize=14):
+>>>>>>> 135ba4b6b8b232f5b98b59eefdb1b21018d3f0bd
     xmin, xmax = xlims
     axlims = (xmin, xmax, 0, 1000)
     if u is not None:
@@ -428,7 +449,11 @@ def psi_decomposition(psi, ps, cint=10, xlims=(-60, 60),
     atm.contour_latpres(psi, clev=cint, topo=ps, omitzero=True, axlims=axlims)
     plt.xticks(xticks, xticks)
     #plt.grid()
+<<<<<<< HEAD
     plt.title(title, fontsize=10)
+=======
+    plt.title(title, fontsize=title_fontsize)
+>>>>>>> 135ba4b6b8b232f5b98b59eefdb1b21018d3f0bd
 
 
 # ======================================================================
@@ -457,6 +482,7 @@ plt.plot(days, cmfc, 'r', linewidth=2)
 plt.xlabel('Day of Year')
 plt.ylabel('mm')
 
+<<<<<<< HEAD
 plt.figure(figsize=figsize)
 plt.plot(days, cmfc, 'r', linewidth=2)
 plt.plot(days, fit_onset, 'b', days, fit_retreat, 'k')
@@ -464,6 +490,19 @@ plt.axvline(250, color='b', linewidth=0.5)
 plt.axvline(200, color='k', linewidth=0.5)
 plt.xlabel('Day of Year')
 plt.ylabel('mm')
+=======
+ts_list = [fit_onset, fit_retreat]
+ind_list = [ind['onset'], ind['retreat']]
+for ts, d0, color in zip(ts_list, ind_list, ['b', 'b']):
+    plt.figure(figsize=figsize)
+    plt.plot(days, cmfc, 'r', linewidth=2)
+    plt.plot(days, ts, color, linewidth=2)
+    plt.axvline(d0, color=color)
+    plt.xlabel('Day of Year')
+    plt.ylabel('mm')
+atm.savefigs('figs/tsfit', 'png', dpi=200)
+print('Done!')
+>>>>>>> 135ba4b6b8b232f5b98b59eefdb1b21018d3f0bd
 
 legend_kw = {'loc' : 'upper left', 'framealpha' : 0.0}
 plt.figure(figsize=figsize)
@@ -515,7 +554,11 @@ for day in plotdays:
     grp.next()
     title = 'Day %d' % day
     latpres(data_latp, day, ps=ps, xlims=xlims, xticks=xticks)
+<<<<<<< HEAD
     plt.title(title, fontsize=11)
+=======
+    plt.title(title, fontsize=14)
+>>>>>>> 135ba4b6b8b232f5b98b59eefdb1b21018d3f0bd
     if grp.row < grp.nrow - 1:
         plt.xlabel('')
     if grp.col > 0:
@@ -533,7 +576,11 @@ else:
     d0 = None
     xtick_labels = skip_ticklabel(xticks)
 
+<<<<<<< HEAD
 keys = [pcp_nm, 'PSI500', 'U200', 'U850', 'U200', pcp_nm,  'T200',
+=======
+keys = [pcp_nm, 'PSI500', 'U850', 'U200',  'U200',  'T200', pcp_nm,
+>>>>>>> 135ba4b6b8b232f5b98b59eefdb1b21018d3f0bd
         'THETA_E_LML']
 nms_dict = {'PSI500' : '$\psi$500', 'THETA_E_LML' : r'${\theta}_{eb}$'}
 clevs = {pcp_nm : 1, 'U200' : 5, 'V200' : 1, 'PSI500' : 5, 'T200' : 0.5,
@@ -553,10 +600,16 @@ clim_dict = {pcp_nm : (0, 10), 'U200' : (-50, 50),
 plot_latmax = False
 
 nrow, ncol = 2, 2
+<<<<<<< HEAD
 fig_kw = {'figsize' : (figwidth, 0.64 * figwidth), 'sharex' : True,
           'sharey' : True}
 gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'bottom' : 0.07, 'top' : 0.94,
                'wspace' : 0.05}
+=======
+fig_kw = {'figsize' : (figwidth, 0.64 * figwidth)}
+gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'bottom' : 0.07, 'top' : 0.94,
+               'wspace' : 0.2, 'hspace' : 0.4}
+>>>>>>> 135ba4b6b8b232f5b98b59eefdb1b21018d3f0bd
 
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
 for key in keys:
@@ -670,7 +723,13 @@ for day in plotdays:
 
 plotdays = [-30, 0, 30]
 #plotdays = [-15, 0, 15]
+<<<<<<< HEAD
 keys = ['TOT', 'MMC', 'EDDY']
+=======
+#keys = ['TOT', 'MMC', 'EDDY', 'PGF', 'RESID']
+keys = ['TOT', 'MMC', 'EDDY', 'PGF']
+#keys = ['TOT', 'MMC', 'EDDY']
+>>>>>>> 135ba4b6b8b232f5b98b59eefdb1b21018d3f0bd
 xlims, xticks = (-35, 35), range(-30, 31, 10)
 cint = 5
 nrow, ncol = len(keys), len(plotdays)
@@ -743,7 +802,11 @@ for nm in ['VMSE', 'VCPT', 'VPHI', 'VLQV']:
     grp.next()
     var = atm.subset(vmse_eq[nm], {'lon' : lonrange})
     contour_londay(var, grp=grp)
+<<<<<<< HEAD
     plt.title(nm, fontsize=11)
+=======
+    plt.title(nm, fontsize=14)
+>>>>>>> 135ba4b6b8b232f5b98b59eefdb1b21018d3f0bd
 plt.gca().invert_yaxis()
 
 labels = ['a', 'b', 'c', 'd']
@@ -778,27 +841,49 @@ eq_int = eq_int / 1e6
 
 days = atm.get_coord(eq_int, 'dayrel')
 nms = ['VMSE', 'VCPT', 'VPHI', 'VLQV']
+<<<<<<< HEAD
+=======
+nms_dict = {'VMSE' : r'$vh$', 'VCPT' : r'$vC_pT$', 'VPHI' : r'$vgz$', 'VLQV' : r'$vL_vq_v$'}
+>>>>>>> 135ba4b6b8b232f5b98b59eefdb1b21018d3f0bd
 colors = {'40-60E' : 'r', '60-100E' : 'b'}
 styles = {'VMSE' : {'linewidth' : 2}, 'VPHI' : {'linestyle' : 'dotted'},
           'VCPT' : {'linestyle' : 'dashed', 'dashes' : dashes},
           'VLQV' : {'linestyle' : 'solid'}}
+<<<<<<< HEAD
 lonranges = ['40-60E', '60-100E']
 #lonranges = eq_int.attrs['lonranges']
 
 plt.figure(figsize=(0.7*figwidth, 0.4 * figwidth))
+=======
+#lonranges = ['40-60E', '60-100E']
+lonranges = ['60-100E']
+#lonranges = eq_int.attrs['lonranges']
+
+plt.figure(figsize=(0.7*figwidth, 0.45 * figwidth))
+>>>>>>> 135ba4b6b8b232f5b98b59eefdb1b21018d3f0bd
 for lonrange in lonranges:
     for nm in nms:
         style = styles[nm]
         style['color'] = colors[lonrange]
         key = nm + '_' + lonrange
+<<<<<<< HEAD
         plt.plot(days, eq_int[key], label=key, **style)
 #plt.legend(loc='upper left', ncol=1, handlelength=3)
+=======
+        plt.plot(days, eq_int[key], label=nms_dict[nm], **style)
+plt.legend(loc='lower left', ncol=1, handlelength=3, fontsize=14)
+>>>>>>> 135ba4b6b8b232f5b98b59eefdb1b21018d3f0bd
 #plt.grid()
 plt.xticks(np.arange(-120, 211, 30))
 plt.xlim(-120, 210)
 plt.axvline(0, color='0.5')
 plt.xlabel('Days Since Onset')
+<<<<<<< HEAD
 plt.ylabel('<V*MSE> (PW)')
+=======
+plt.ylabel('Flux (PW)')
+plt.title('Cross-Equatorial MSE Fluxes')
+>>>>>>> 135ba4b6b8b232f5b98b59eefdb1b21018d3f0bd
 
 
 # nrow, ncol = 1, 2
