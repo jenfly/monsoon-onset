@@ -919,3 +919,42 @@ def kerala_boundaries(filenm='data/india_state.geojson'):
     y = np.concatenate((y[:i1], y[i2:]))
 
     return x, y
+
+
+# ----------------------------------------------------------------------
+def find_zeros_1d(x, y, xmin=None, xmax=None, interp=0.1, return_type='all'):
+    """Find x-coordinate of zero(s) of y between xmin and xmax.
+
+    Parameter return_type determines what to return if more than one
+    zero crossing: 'all', 'min', or 'max'.
+    """
+    if xmin is None:
+        xmin = np.nanmin(x)
+    if xmax is None:
+        xmax = np.nanmax(x)
+    xi = np.arange(xmin, xmax + interp/2.0, interp)
+    yi = np.interp(xi, x, y)
+    # Find zero crossings
+    ind = ((yi[1:] * yi[:-1]) < 0)
+    ind = np.concatenate((ind, [False]))
+    if ind.sum() == 0:
+        return np.nan
+    xzero = xi[ind]
+    if return_type.lower() == 'min':
+        xzero = np.min(xzero)
+    if return_type.lower() == 'max':
+        xzero = np.max(xzero)
+    return xzero
+
+
+# ----------------------------------------------------------------------
+def precip_centroid(precip, lat=None, latmin=-20, latmax=20, N=10):
+    """Return the centroid defined as:
+    integral[lat * (cos(lat)*precip)^N] / integral[(cos(lat)*precip)^N]
+    where the integral is dlat from latmin to latmax
+    """
+    if lat is None:
+        lat = atm.get_coord(precip, 'lat')
+    latrad = np.radians(lat)
+    coslat = np.cos(latrad)
+    

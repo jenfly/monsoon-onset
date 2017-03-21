@@ -33,6 +33,12 @@ savefile_ubudget = datafiles[0].replace('%d' % plevs[0], '_sector')
 # ----------------------------------------------------------------------
 # Read ubudget data and save
 
+def biggify(small, big):
+    vals = atm.biggify(small, big, tile=True)
+    var = xray.DataArray(vals, coords=big.coords, dims=big.dims)
+    return var
+
+
 def consolidate(ds):
     # Consolidate terms in ubudget
     groups = collections.OrderedDict()
@@ -50,11 +56,21 @@ def consolidate(ds):
     groups['SUM'] = ['ADV_AVG', 'ADV_CRS', 'EMFC', 'COR', 'PGF_ST', 'ANA']
 
     print('Consolidating ubudget terms')
+    big = ds['PGF_ST']
+    
     for key in groups:
+        print(key)
         nms = groups[key]
-        ds[key] = ds[nms[0]]
+        ds[key] = biggify(ds[nms[0]], big)
+        
         for nm in nms[1:]:
-            ds[key] = ds[key] + ds[nm]
+            #ds[key] = ds[key] + ds[nm]
+            
+            # Need to use xray.concat() and .sum() to handle NaNs properly
+            var0 = biggify(ds[nm], big)
+            var = xray.concat((ds[key], var0), dim='concat_dim')
+            ds[key] = var.sum(dim='concat_dim')
+            
         ds[key].attrs['group'] = nms
 
     return ds

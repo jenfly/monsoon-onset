@@ -44,15 +44,17 @@ nms_latlon = ['U200', 'V200', 'T200', 'TLML', 'QLML', 'THETA_E_LML',
               'U850', 'V850']
 datafiles['latlon'] = {nm : filestr % nm for nm in nms_latlon}
 
-# theta_eb in individual years, for latmax calcs
-# yrs_theta = range(1980, 2004) + range(2005, 2016) # Remove wonky year 2004
-# filestr2 = filestr.replace(yearstr, '%d')
-# datafiles['theta_eb'] = [filestr2 % ('THETA_E_LML', yr) for yr in yrs_theta]
+# Energy budget data
+nms_ebudget = ['UFLXCPT', 'UFLXQV', 'UFLXPHI', 'VFLXCPT', 'VFLXQV', 'VFLXPHI',
+               'LWTUP', 'SWGNT', 'LWGNT', 'SWTNT', 'HFLUX', 'EFLUX']
+
+filestr2 = datadir + version + '_%s_dailyrel_CHP_MFC_' + yearstr + '.nc'
+datafiles['ebudget'] = {nm : filestr2 % nm for nm in nms_ebudget}
 
 
 savefiles = {}
 savestr = savedir + version + '_%s_' + yearstr + '.nc'
-for nm in ['latp', 'hov', 'latlon', 'tseries', 'psi_comp']:
+for nm in ['latp', 'hov', 'latlon', 'tseries', 'psi_comp', 'ebudget']:
     savefiles[nm] = savestr % nm
 savefiles['gpcp'] = savedir + 'gpcp_dailyrel_1997-2015.nc'
 
@@ -119,6 +121,24 @@ plev = 500
 psi = atm.subset(data_latp['PSI'], {'plev' : (plev, plev)}, squeeze=True)
 data_hov['PSI%d' % plev] = psi
 
+
+# Vertically integrated psi and zeros
+pmin, pmax = 300e2, 700e2
+psi_avg = atm.int_pres(data_latp['PSI'], pmin=pmin, pmax=pmax, pdim=-2)
+psi_avg = psi_avg / (pmax - pmin)
+psi_avg.attrs['long_name'] = ('Streamfunction averaged %.0f-%.0f mb'
+                              % (pmin/100, pmax/100))
+data_hov['PSI_AVG'] = psi_avg
+
+# zerolat = np.nan * np.ones(len(days))
+# latmin, latmax = -20, 30
+# for i, day in enumerate(days[ndays:-ndays]):
+#     zerolat[i] = utils.find_zeros_1d(lat, psi_avg.sel(dayrel=day), latmin, latmax,
+#                                      interp=0.1, return_type='min')
+# zerolat = xray.DataArray(zerolat, coords={'dayrel' : data_latp['dayrel']})
+# zerolat.attrs['long_name'] = 'Latitude of ITCZ from PSI_AVG'
+# data_hov['ZEROLAT_PSI_AVG'] = zerolat
+
 print('Saving to ' + savefiles['hov'])
 data_hov.to_netcdf(savefiles['hov'])
 
@@ -140,46 +160,6 @@ for nm in datafiles['latlon']:
 
 print('Saving to ' + savefiles['latlon'])
 data_latlon.to_netcdf(savefiles['latlon'])
-
-# ----------------------------------------------------------------------
-# Latitude of maximum theta_eb (sector mean) in each year
-#
-# def theta_eb_latmax(var):
-#     lat = atm.get_coord(var, 'lat')
-#     coords={'year' : var['year'], 'dayrel': var['dayrel']}
-#     latdim = atm.get_coord(var, 'lat', 'dim')
-#     latmax = lat[np.nanargmax(var, axis=latdim)]
-#     latmax = xray.DataArray(latmax, dims=['year', 'dayrel'], coords=coords)
-#     return latmax
-#
-# def process_theta_eb(filenm, lon1, lon2, ndays):
-#     print('Loading ' + filenm)
-#     with xray.open_dataset(filenm) as ds:
-#         theta_eb = atm.subset(ds['THETA_E'], {'lat' : (-30, 30)})
-#         theta_eb = atm.dim_mean(theta_eb, 'lon', lon1, lon2)
-#
-#     daydim = atm.get_coord(theta_eb, coord_name='dayrel', return_type='dim')
-#     theta_eb = atm.rolling_mean(theta_eb, ndays, axis=daydim, center=True)
-#
-#     # Temporary - take subset to avoid wonky data at end of timeseries
-#     theta_eb = atm.subset(theta_eb, {'dayrel' : (-120, 160)})
-#     # ------------------------------------------
-#
-#     latmax = theta_eb_latmax(theta_eb)
-#     ds = xray.Dataset({'THETA_EB' : theta_eb, 'LATMAX' : latmax})
-#     return ds
-#
-# for filenm, year in zip(datafiles['theta_eb'], years):
-#     ds = process_theta_eb(filenm, lon1, lon2, ndays)
-#     if year == years[0]:
-#         data_latmax = ds
-#     else:
-#         data_latmax = xray.concat([data_latmax, ds], dim='year')
-#
-# data_latmax = data_latmax.mean(dim='year')
-#
-# print('Saving to ' + savefiles['theta_eb_latmax'])
-# data_latmax.to_netcdf(savefiles['theta_eb_latmax'])
 
 # ----------------------------------------------------------------------
 # GPCP lat-lon, Hovmoller data, and average over box tseries
@@ -271,4 +251,29 @@ psi_comp.to_netcdf(savefiles['psi_comp'])
 
 
 # ----------------------------------------------------------------------
-# Cross-equatorial MSE fluxes
+# Energy budget
+
+data = xray.Dataset()
+for nm in nms_ebudget:
+    filenm = datafiles['ebudget'][nm]
+    print('Loading ' + filenm)
+    with xray.open_dataset(filenm) as ds:
+        var = atm.subset(ds[nm], {'lat' : (-60, 60)})
+        daydim = atm.get_coord(var, 'dayrel', 'dim')
+        data[nm] = atm.rolling_mean(var, ndays, axis=daydim)
+
+data['NETRAD'] = data['SWTNT'] - data['LWTUP'] - data['SWGNT']- data['LWGNT']
+data['FNET'] = data['NETRAD'] + data['EFLUX'] + data['HFLUX']
+
+Lv = atm.constants.Lv.values
+for nm in ['UFLXQV', 'VFLXQV']:
+    key = nm.replace('QV', 'LQV')
+    data[key] = data[nm] * Lv
+    data[key].attrs['units'] = 'J m-1 s-1'
+
+data['UH'] = data['UFLXCPT'] + data['UFLXPHI'] + data['UFLXLQV']
+data['VH'] = data['VFLXCPT'] + data['VFLXPHI'] + data['VFLXLQV']
+data.attrs['ndays'] = ndays
+
+print('Saving to ' + savefiles['ebudget'])
+data.to_netcdf(savefiles['ebudget'])
