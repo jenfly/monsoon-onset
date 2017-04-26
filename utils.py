@@ -789,6 +789,7 @@ def calc_ubudget(datafiles, ndays, lon1, lon2, plev=200):
             if 'Day' in var.dims:
                 var = var.rename({'Day' : 'day'})
             data[nm] = atm.squeeze(var)
+            data[nm].load()
     data['PHI'] = atm.constants.g.values * data['H']
 
     # Put zeros in for any missing variables (e.g. du/dp)
