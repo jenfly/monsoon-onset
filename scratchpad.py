@@ -14,6 +14,31 @@ import indices
 
 
 # ----------------------------------------------------------------------
+# 4/26/2016 Re-calculate ubudget climatologies with corrupted data replaced
+version = 'merra2'
+years = np.arange(1980, 2016)
+onset_nm = 'CHP_MFC'
+plevs = [1000,925,850,775,700,600,500,400,300,250,200,150,100,70,50,30,20]
+
+datadir = atm.homedir() + 'datastore/%s/analysis/' % version
+savedir = atm.homedir() + 'eady/datastore/%s/analysis/ubudget/' % version
+filestr = (version + '_ubudget%d_dailyrel_' + onset_nm +
+           '_ndays5_60E-100E')
+datafiles = {}
+for plev in plevs:
+    datafiles[plev] = [datadir + filestr % plev + '_%d.nc' % yr for yr in years]
+
+# Compute climatologies and save
+yearstr = '_%d-%d.nc' % (min(years), max(years))
+for plev in plevs:
+    relfiles = datafiles[plev]
+    savefile = savedir + filestr % plev + yearstr
+    ds = atm.mean_over_files(relfiles)
+    ds.attrs['years'] = years
+    print('Saving to ' + savefile)
+    ds.to_netcdf(savefile)
+
+# ----------------------------------------------------------------------
 # JJAS precip and fraction of annual totals
 
 datadir = atm.homedir() + 'datastore/merra2/figure_data/'
