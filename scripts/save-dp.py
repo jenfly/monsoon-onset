@@ -6,7 +6,7 @@ sys.path.append('/home/jwalker/dynamics/python/atmos-tools')
 sys.path.append('/home/jwalker/dynamics/python/atmos-read')
 
 import numpy as np
-import xray
+import xarray as xray
 import pandas as pd
 import collections
 

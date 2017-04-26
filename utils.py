@@ -4,7 +4,7 @@ sys.path.append('/home/jwalker/dynamics/python/atmos-read')
 
 import numpy as np
 import pandas as pd
-import xray
+import xarray as xray
 import matplotlib.pyplot as plt
 import collections
 import os
@@ -958,4 +958,3 @@ def precip_centroid(precip, lat=None, latmin=-20, latmax=20, N=10):
         lat = atm.get_coord(precip, 'lat')
     latrad = np.radians(lat)
     coslat = np.cos(latrad)
-    

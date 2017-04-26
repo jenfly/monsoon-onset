@@ -2,7 +2,7 @@ import sys
 sys.path.append('/home/jwalker/dynamics/python/atmos-tools')
 sys.path.append('/home/jwalker/dynamics/python/atmos-read')
 
-import xray
+import xarray as xray
 import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt

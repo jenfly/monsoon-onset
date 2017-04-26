@@ -3,7 +3,7 @@ sys.path.append('/home/jwalker/dynamics/python/atmos-tools')
 sys.path.append('/home/jwalker/dynamics/python/atmos-read')
 sys.path.append('/home/jwalker/dynamics/python/monsoon-onset')
 
-import xray
+import xarray as xray
 import numpy as np
 import collections
 import pandas as pd

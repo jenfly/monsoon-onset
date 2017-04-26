@@ -5,7 +5,7 @@ sys.path.append('/home/jwalker/dynamics/python/monsoon-onset')
 
 import os
 import numpy as np
-import xray
+import xarray as xray
 import pandas as pd
 import matplotlib.pyplot as plt
 import collections
