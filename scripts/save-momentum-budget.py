@@ -52,7 +52,7 @@ for year in years:
         files = datafiles(version, datadir, year, plev, dp, ana)
 
         # Read data and calculate momentum budget
-        ubudget, data = utils.calc_ubudget(files, ndays, lon1, lon2)
+        ubudget, data = utils.calc_ubudget(files, ndays, lon1, lon2, plev)
         filenm = savefile(version, savedir, year, ndays, lon1, lon2, plev)
         print('Saving to ' + filenm)
         ubudget.to_netcdf(filenm)
