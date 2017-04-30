@@ -18,12 +18,16 @@ import indices
 version = 'merra2'
 years = np.arange(1980, 2016)
 onset_nm = 'CHP_MFC'
+ind_nm = 'onset'
+# ind_nm = 'retreat'
 plevs = [1000,925,850,775,700,600,500,400,300,250,200,150,100,70,50,30,20]
 
 datadir = atm.homedir() + 'datastore/%s/analysis/' % version
 savedir = atm.homedir() + 'eady/datastore/%s/analysis/' % version
-filestr = (version + '_ubudget%d_dailyrel_' + onset_nm +
-           '_ndays5_60E-100E')
+filestr = version + '_ubudget%d_dailyrel_'
+if ind_nm == 'retreat':
+    filestr = filestr + 'retreat_'
+filestr = filestr + onset_nm + '_ndays5_60E-100E'
 datafiles = {}
 for plev in plevs:
     datafiles[plev] = [datadir + filestr % plev + '_%d.nc' % yr for yr in years]
