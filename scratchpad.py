@@ -21,7 +21,7 @@ onset_nm = 'CHP_MFC'
 plevs = [1000,925,850,775,700,600,500,400,300,250,200,150,100,70,50,30,20]
 
 datadir = atm.homedir() + 'datastore/%s/analysis/' % version
-savedir = atm.homedir() + 'eady/datastore/%s/analysis/ubudget/' % version
+savedir = atm.homedir() + 'eady/datastore/%s/analysis/' % version
 filestr = (version + '_ubudget%d_dailyrel_' + onset_nm +
            '_ndays5_60E-100E')
 datafiles = {}
