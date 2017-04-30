@@ -26,8 +26,10 @@ ind_nm, npre, npost = 'onset', 140, 230
 datadir = atm.homedir() + 'datastore/%s/analysis/' % version
 savedir = atm.homedir() + 'datastore/%s/analysis/' % version
 filestr = datadir + version + '_ubudget%d_ndays5_60E-100E_%d.nc'
-savestr = (savedir + version + '_ubudget%d_dailyrel_' + onset_nm +
-           '_ndays5_60E-100E')
+savestr = savedir + version + '_ubudget%d_dailyrel_'
+if ind_nm == 'retreat':
+    savestr = savestr + 'retreat_'
+savestr = savestr + onset_nm +'_ndays5_60E-100E'
 datafiles, savefiles = {}, {}
 for plev in plevs:
     datafiles[plev] = [filestr % (plev, yr) for yr in years]
