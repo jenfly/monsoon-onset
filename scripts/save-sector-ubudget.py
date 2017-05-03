@@ -17,16 +17,21 @@ import utils
 # ----------------------------------------------------------------------
 version = 'merra2'
 onset_nm = 'CHP_MFC'
-datadir1 = atm.homedir() + 'datastore/%s/analysis/ubudget_temp/' % version
+datadir1 = atm.homedir() + 'datastore/%s/analysis/' % version
 datadir2 = atm.homedir() + 'datastore/%s/analysis/' % version
-yearstr = '1980-2014_excl'
+yearstr = '1980-2015'
 plevs = [1000,925,850,775,700,600,500,400,300,250,200,150,100,70,50,30,20]
 lon1, lon2 = 60, 100
 ndays = 5     # n-day rolling mean for smoothing
 scale = 1e-4  # Scaling factor for all terms in momentum budget
+ind_nm = 'onset'
+# ind_nm = 'retreat
+
 
 filestr = (datadir1 + version + '_ubudget%d_dailyrel_' + onset_nm +
            '_ndays%d_%dE-%dE_%s.nc' % (ndays, lon1, lon2, yearstr))
+if ind_nm == 'retreat':
+    filestr = filestr.replace('dailyrel', 'dailyrel_retreat')
 datafiles = [filestr % plev for plev in plevs]
 savefile_ubudget = datafiles[0].replace('%d' % plevs[0], '_sector')
 
