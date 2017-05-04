@@ -26,10 +26,14 @@ lonstr = '%dE-%dE' % (lon1, lon2)
 ndays = 5     # n-day rolling mean for smoothing
 eqbuf = 5.0   # Latitude buffer around equator for psi decomposition
 compdays = [0, 15] # Days for lat-lon composites
+ubudget_retreat = False
 
 datafiles = {}
 datafiles['index'] = datadir + version + '_index_%s_%s.nc' % (onset_nm,  yearstr)
-datafiles['ubudget'] = savedir + 'merra2_ubudget_1980-2014_excl.nc'
+if ubudget_retreat:
+    datafiles['ubudget'] = savedir + 'merra2_ubudget_retreat_1980-2015.nc'
+else:
+    datafiles['ubudget'] = savedir + 'merra2_ubudget_1980-2015.nc'
 datafiles['ps'] = atm.homedir() + 'dynamics/python/atmos-tools/data/topo/ncep2_ps.nc'
 datafiles['gpcp_dailyrel'] = datadir + 'gpcp_dailyrel_' + onset_nm + '_1997-2015.nc'
 datafiles['gpcp_daily'] = atm.homedir() + 'datastore/gpcp/gpcp_daily_1997-2014.nc'
@@ -54,7 +58,11 @@ datafiles['ebudget'] = {nm : filestr2 % nm for nm in nms_ebudget}
 
 savefiles = {}
 savestr = savedir + version + '_%s_' + yearstr + '.nc'
-for nm in ['latp', 'hov', 'latlon', 'tseries', 'psi_comp', 'ebudget']:
+if ubudget_retreat:
+    savefiles['psi_comp'] = savestr % 'psi_comp_retreat'
+else:
+    savefiles['psi_comp'] = savestr % 'psi_comp'
+for nm in ['latp', 'hov', 'latlon', 'tseries', 'ebudget']:
     savefiles[nm] = savestr % nm
 savefiles['gpcp'] = savedir + 'gpcp_dailyrel_1997-2015.nc'
 

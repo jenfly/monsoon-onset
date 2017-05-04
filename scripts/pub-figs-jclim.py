@@ -14,7 +14,7 @@ import indices
 import utils
 
 # Format for article publication or presentation slides
-pres = True
+pres = False
 if pres:
     figwidth = 12
     style = atm.homedir() + 'dynamics/python/mpl-styles/presentation.mplstyle'
@@ -38,10 +38,17 @@ eqlat1, eqlat2 = -5, 5
 plev_ubudget = 200
 npre, npost =  120, 200
 
-datafiles = {}
-datafiles['ubudget'] = datadir + 'merra2_ubudget_1980-2014_excl.nc'
+ubudget_retreat = True
 filestr = datadir + version + '_%s_' + yearstr + '.nc'
-for nm in ['latp', 'hov', 'latlon', 'tseries', 'psi_comp', 'ebudget']:
+datafiles = {}
+
+if ubudget_retreat:
+    datafiles['ubudget'] = datadir + 'merra2_ubudget_retreat_1980-2015.nc'
+    datafiles['psi_comp'] = filestr % 'psi_comp_retreat'
+else:
+    datafiles['ubudget'] = datadir + 'merra2_ubudget_1980-2015.nc'
+    datafiles['psi_comp'] = filestr % 'psi_comp'
+for nm in ['latp', 'hov', 'latlon', 'tseries', 'ebudget']:
     datafiles[nm] = filestr % nm
 datafiles['gpcp'] = datadir + 'gpcp_dailyrel_1997-2015.nc'
 datafiles['index'] = filestr % 'index_CHP_MFC'
