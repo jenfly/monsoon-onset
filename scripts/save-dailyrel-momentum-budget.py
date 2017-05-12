@@ -82,7 +82,7 @@ for plev in plevs:
         ds_rel.attrs = ds.attrs
         for nm in ds.data_vars:
             var = atm.expand_dims(ds[nm], 'year', year)
-            ds_rel[nm] = utils.daily_rel2onset(var, d_onset, npre, npost)
+            ds_rel[nm] = utils.daily_rel2onset(var, d0, npre, npost)
         ds_rel.attrs['d_onset'] = d_onset
         ds_rel.attrs['d_retreat'] = d_retreat
         savefile = savefiles[plev][y]
