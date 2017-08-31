@@ -5,13 +5,8 @@ sys.path.append('/home/jwalker/dynamics/python/monsoon-onset')
 
 import numpy as np
 import xarray as xray
-import pandas as pd
-import matplotlib.pyplot as plt
-import collections
 
 import atmos as atm
-import merra
-import indices
 import utils
 
 # ----------------------------------------------------------------------
@@ -26,20 +21,22 @@ lonstr = '%dE-%dE' % (lon1, lon2)
 ndays = 5     # n-day rolling mean for smoothing
 eqbuf = 5.0   # Latitude buffer around equator for psi decomposition
 compdays = [0, 15] # Days for lat-lon composites
-ubudget_retreat = False
+# ind_nm = 'onset'
+ind_nm = 'retreat'
 
 datafiles = {}
 datafiles['index'] = datadir + version + '_index_%s_%s.nc' % (onset_nm,  yearstr)
-if ubudget_retreat:
-    datafiles['ubudget'] = savedir + 'merra2_ubudget_retreat_1980-2015.nc'
-else:
-    datafiles['ubudget'] = savedir + 'merra2_ubudget_1980-2015.nc'
 datafiles['ps'] = atm.homedir() + 'dynamics/python/atmos-tools/data/topo/ncep2_ps.nc'
-datafiles['gpcp_dailyrel'] = datadir + 'gpcp_dailyrel_' + onset_nm + '_1997-2015.nc'
+if ind_nm == 'retreat':
+    datafiles['gpcp_dailyrel'] = datadir + 'gpcp_dailyrel_retreat_' + onset_nm + '_1997-2015.nc'
+else:
+    datafiles['gpcp_dailyrel'] = datadir + 'gpcp_dailyrel_' + onset_nm + '_1997-2015.nc'
 datafiles['gpcp_daily'] = atm.homedir() + 'datastore/gpcp/gpcp_daily_1997-2014.nc'
 
 # Sector mean data
 filestr = datadir + version + '_%s' + '_dailyrel_%s_%s.nc' % (onset_nm, yearstr)
+if ind_nm == 'retreat':
+    filestr = filestr.replace('dailyrel', 'dailyrel_retreat')
 nms_sector = ['U', 'V']
 datafiles['sector'] = {nm : filestr % (nm + '_sector_' + lonstr) for nm in nms_sector}
 
@@ -48,23 +45,33 @@ nms_latlon = ['U200', 'V200', 'T200', 'TLML', 'QLML', 'THETA_E_LML',
               'U850', 'V850']
 datafiles['latlon'] = {nm : filestr % nm for nm in nms_latlon}
 
+# Momentum budget
+if ind_nm == 'retreat':
+    datafiles['ubudget'] = savedir + 'merra2_ubudget_retreat_1980-2015.nc'
+else:
+    datafiles['ubudget'] = savedir + 'merra2_ubudget_1980-2015.nc'
+
 # Energy budget data
-nms_ebudget = ['UFLXCPT', 'UFLXQV', 'UFLXPHI', 'VFLXCPT', 'VFLXQV', 'VFLXPHI',
-               'LWTUP', 'SWGNT', 'LWGNT', 'SWTNT', 'HFLUX', 'EFLUX']
+nms_ebudget = ['UFLXCPT', 'UFLXQV', 'UFLXPHI', 'VFLXCPT', 'VFLXQV', 'VFLXPHI']
+if ind_nm == 'onset':
+    nms_ebudget = nms_ebudget + ['LWTUP', 'SWGNT', 'LWGNT', 'SWTNT', 'HFLUX', 'EFLUX']
 
 filestr2 = datadir + version + '_%s_dailyrel_CHP_MFC_' + yearstr + '.nc'
+if ind_nm == 'retreat':
+    filestr2 = filestr2.replace('dailyrel', 'dailyrel_retreat')
 datafiles['ebudget'] = {nm : filestr2 % nm for nm in nms_ebudget}
 
 
 savefiles = {}
-savestr = savedir + version + '_%s_' + yearstr + '.nc'
-if ubudget_retreat:
-    savefiles['psi_comp'] = savestr % 'psi_comp_retreat'
+if ind_nm == 'retreat':
+    savestr = savedir + version + '_%s_retreat_' + yearstr + '.nc'
+    savefiles['gpcp'] = savedir + 'gpcp_dailyrel_retreat_1997-2015.nc'
 else:
-    savefiles['psi_comp'] = savestr % 'psi_comp'
-for nm in ['latp', 'hov', 'latlon', 'tseries', 'ebudget']:
+    savestr = savedir + version + '_%s_' + yearstr + '.nc'
+    savefiles['gpcp'] = savedir + 'gpcp_dailyrel_1997-2015.nc'
+for nm in ['latp', 'hov', 'latlon', 'tseries', 'ebudget', 'ubudget', 'psi_comp']:
     savefiles[nm] = savestr % nm
-savefiles['gpcp'] = savedir + 'gpcp_dailyrel_1997-2015.nc'
+
 
 # ----------------------------------------------------------------------
 # Read sector mean data and smooth with nday rolling mean
@@ -210,7 +217,10 @@ data_gpcp.to_netcdf(savefiles['gpcp'])
 # Dailyrel timeseries at various latitudes
 
 lat_extract = [-30, -15, 0, 15, 30]
-npre, npost = 120, 200
+if ind_nm == 'retreat':
+    npre, npost = 270, 100
+else:
+    npre, npost = 120, 200
 
 with xray.open_dataset(datafiles['index']) as index:
     index.load()
@@ -270,8 +280,9 @@ for nm in nms_ebudget:
         daydim = atm.get_coord(var, 'dayrel', 'dim')
         data[nm] = atm.rolling_mean(var, ndays, axis=daydim)
 
-data['NETRAD'] = data['SWTNT'] - data['LWTUP'] - data['SWGNT']- data['LWGNT']
-data['FNET'] = data['NETRAD'] + data['EFLUX'] + data['HFLUX']
+if 'SWTNT' in data:
+    data['NETRAD'] = data['SWTNT'] - data['LWTUP'] - data['SWGNT']- data['LWGNT']
+    data['FNET'] = data['NETRAD'] + data['EFLUX'] + data['HFLUX']
 
 Lv = atm.constants.Lv.values
 for nm in ['UFLXQV', 'VFLXQV']:

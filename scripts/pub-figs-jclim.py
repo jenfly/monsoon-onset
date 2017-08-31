@@ -7,10 +7,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import collections
-import pandas as pd
 
 import atmos as atm
-import indices
 import utils
 
 # Format for article publication or presentation slides
@@ -32,27 +30,29 @@ yearstr = '1980-2015'
 datadir = atm.homedir() + 'datastore/%s/figure_data/' % version
 pcp_nm = 'GPCP'
 ind_nm = 'onset'
+#ind_nm = 'retreat'
+
 lon1, lon2 = 60, 100
 lat1, lat2 = 10, 30
 eqlat1, eqlat2 = -5, 5
 plev_ubudget = 200
-npre, npost =  120, 200
-
-ubudget_retreat = True
-filestr = datadir + version + '_%s_' + yearstr + '.nc'
-datafiles = {}
-
-if ubudget_retreat:
-    datafiles['ubudget'] = datadir + 'merra2_ubudget_retreat_1980-2015.nc'
-    datafiles['psi_comp'] = filestr % 'psi_comp_retreat'
+if ind_nm == 'retreat':
+    filestr = datadir + version + '_%s_retreat_' + yearstr + '.nc'
+    npre, npost = 270, 100
 else:
-    datafiles['ubudget'] = datadir + 'merra2_ubudget_1980-2015.nc'
-    datafiles['psi_comp'] = filestr % 'psi_comp'
-for nm in ['latp', 'hov', 'latlon', 'tseries', 'ebudget']:
-    datafiles[nm] = filestr % nm
-datafiles['gpcp'] = datadir + 'gpcp_dailyrel_1997-2015.nc'
-datafiles['index'] = filestr % 'index_CHP_MFC'
+    filestr = datadir + version + '_%s_' + yearstr + '.nc'
+    npre, npost =  120, 200
+
+datafiles = {}
+datafiles['index'] = datadir + version +  '_index_CHP_MFC_' + yearstr + '.nc'
 datafiles['mld'] = atm.homedir() + 'datastore/mld/ifremer_mld_DT02_c1m_reg2.0.nc'
+for nm in ['latp', 'hov', 'latlon', 'tseries', 'ebudget', 'ubudget', 'psi_comp']:
+    datafiles[nm] = filestr % nm
+if ind_nm == 'retreat':
+    datafiles['gpcp'] = datadir + 'gpcp_dailyrel_retreat_1997-2015.nc'
+else:
+    datafiles['gpcp'] = datadir + 'gpcp_dailyrel_1997-2015.nc'
+
 
 # ----------------------------------------------------------------------
 # Read data
@@ -77,7 +77,10 @@ data_hov['GPCP'] = data['gpcp']['PCP_SECTOR']
 # Temporary fix for missing data in THETA_E_LML
 var = data_hov['THETA_E_LML']
 dmin, dmax = var['dayrel'].values.min(), var['dayrel'].values.max()
-d1, d2 = 178, 183
+if ind_nm == 'onset':
+    d1, d2 = 178, 183
+else:
+    d1, d2 = 19, 24
 var1 = var.sel(dayrel=range(dmin, d1))
 var2 = var.sel(dayrel=range(d2, dmax + 1))
 data_hov['THETA_E_LML'] = xray.concat((var1, var2), dim='dayrel')
@@ -177,6 +180,10 @@ def get_mld(ds):
 def mld_map(mld, m=None, month=5, cmap='hot_r', climits=(0, 70),
             cticks=range(0, 71, 10), clevs=None):
     cb_kwargs = {'ticks' : cticks, 'extend' : 'max'}
+    if m is None:
+        m = atm.init_latlon(0, 35, 58, 102, resolution='l', coastlines=False,
+                            fillcontinents=True)
+        m.drawcoastlines(linewidth=0.5, color='0.5')
     if min(climits) > 0 :
         cb_kwargs['extend'] = 'both'
     if clevs is None:
@@ -189,6 +196,7 @@ def mld_map(mld, m=None, month=5, cmap='hot_r', climits=(0, 70),
                             cmap=cmap, extend=cb_kwargs['extend'],
                             cb_kwargs=cb_kwargs)
     plt.clim(climits)
+    return m
 
 
 def precip_frac(pcp_frac, m=None):
@@ -297,7 +305,7 @@ def contourf_latday(var, clev=None, title='', cticks=None, climits=None,
                     nc_pref=40, grp=None,
                     xlims=(-120, 200), xticks=np.arange(-120, 201, 30),
                     ylims=(-60, 60), yticks=np.arange(-60, 61, 20),
-                    dlist=None, grid=False, ind_nm='onset'):
+                    dlist=None, grid=False, ind_nm='onset', xlabels=True):
     var = atm.subset(var, {'lat' : ylims})
     vals = var.values.T
     lat = atm.get_coord(var, 'lat')
@@ -325,12 +333,15 @@ def contourf_latday(var, clev=None, title='', cticks=None, climits=None,
     plt.clim(climits)
     atm.ax_lims_ticks(xlims, xticks, ylims, yticks)
     plt.grid(grid)
-    plt.title(title)
+    #plt.title(title)
     if dlist is not None:
         for d0 in dlist:
             plt.axvline(d0, color='k')
-    if grp is not None and grp.row == grp.nrow - 1:
+    if xlabels:
+        plt.gca().set_xticklabels(xticks)
         plt.xlabel('Days Since ' + ind_nm.capitalize())
+    else:
+        plt.gca().set_xticklabels([])
     if grp is not None and grp.col == 0:
         plt.ylabel('Latitude')
 
@@ -447,17 +458,15 @@ mld = get_mld(data['mld'])
 fig_kw = {'figsize' : (0.5 * figwidth, 0.35 * figwidth)}
 gridspec_kw = {'left' : 0.1, 'right' : 0.95, 'bottom' : 0.1, 'top' : 0.95}
 plt.subplots(1, 1, gridspec_kw=gridspec_kw, **fig_kw)
-m = atm.init_latlon(0, 35, 58, 102, resolution='l', coastlines=False,
-                    fillcontinents=True)
-m.drawcoastlines(linewidth=0.5, color='0.5')
 
 # Mixed layer depths
+mld_month = 5
 clevs = None
 #clevs = np.arange(0, 71, 2.5)
 climits = (10, 70)
 cticks = np.arange(10, 71, 10)
-mld_map(mld, m=m, month=5, cmap='hot_r', clevs=clevs, climits=climits,
-        cticks=cticks)
+m = mld_map(mld, month=mld_month, cmap='hot_r', clevs=clevs,
+        climits=climits, cticks=cticks)
 
 # JJAS fraction of annual precip
 precip_frac(data['gpcp']['FRAC_JJAS'], m=m)
@@ -466,6 +475,20 @@ precip_frac(data['gpcp']['FRAC_JJAS'], m=m)
 x = [lon1, lon1, lon2, lon2, lon1]
 y = [lat1, lat2, lat2, lat1, lat1]
 plt.plot(x, y, color='b', linewidth=2)
+
+# Plot mixed layer depths in several months
+extra_mld = True
+mld_months = [4, 5, 9, 10]
+fig_kw = {'figsize' : (figwidth, 0.7 * figwidth)}
+gridspec_kw = {'wspace' : 0.4, 'hspace' : 0.3, 'left' : 0.1, 'right' : 0.9}
+if extra_mld:
+    grp = atm.FigGroup(2, 2, fig_kw=fig_kw, gridspec_kw=gridspec_kw,
+                       suptitle='Mixed Layer Depths')
+    for mld_month in mld_months:
+        grp.next()
+        mld_map(mld, month=mld_month, cmap='hot_r', clevs=clevs,
+                climits=climits, cticks=cticks)
+        plt.title(atm.month_str(mld_month))
 
 # ----------------------------------------------------------------------
 # Daily tseries
@@ -557,8 +580,7 @@ clim_dict = {pcp_nm : (0, 10), 'U200' : (-50, 50),
 plot_latmax = False
 
 nrow, ncol = 3, 2
-fig_kw = {'figsize' : (figwidth, 0.9 * figwidth), 'sharex' : True,
-          'sharey' : True}
+fig_kw = {'figsize' : (figwidth, 0.9 * figwidth),  'sharey' : True}
 gridspec_kw = {'left' : 0.07, 'right' : 0.99, 'bottom' : 0.07, 'top' : 0.94,
                'wspace' : 0.05}
 grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, gridspec_kw=gridspec_kw)
@@ -568,17 +590,24 @@ for key in keys:
     clev = clevs.get(key)
     cticks = cticks_dict.get(key)
     climits = clim_dict.get(key)
+    if grp.row == grp.nrow - 1 or key == keys[-2]:
+        xlabels = True
+    else:
+        xlabels = False
     print(key, clev, climits, cticks)
     contourf_latday(var, clev=clev, cticks=cticks, climits=climits,
                     title=key.upper(), grp=grp,
-                    dlist=dlist, ind_nm=ind_nm)
+                    dlist=dlist, ind_nm=ind_nm, xlabels=xlabels)
     if d0 is not None:
         plt.axvline(d0, color='k', linestyle='--', dashes=dashes)
     if plot_latmax and key.startswith('THETA_E'):
         latmax = annotate_latmax(var, nroll=None)
 
-plt.xticks(xticks, xtick_labels)
-plt.xlim(-npre, npost)
+#plt.xticks(xticks, xtick_labels)
+if ind_nm == 'onset':
+    plt.xlim(-npre, npost)
+else:
+    plt.xlim(-npre, 90)
 labels = ['a', 'b', 'c', 'd', 'e']
 x1, x2, y0 = -0.15, -0.05, 1.05
 pos = [(x1, y0), (x2, y0), (x1, y0), (x2, y0), (x1, y0), (x2, y0)]
@@ -717,10 +746,13 @@ for key in keys:
 # ----------------------------------------------------------------------
 # Energy budget - contour plots
 
-def contour_londay(var, clev=None, grp=None,n_pref=40,
-                   yticks=np.arange(-120, 201, 30)):
+def contour_londay(var, clev=None, grp=None,n_pref=40):
     lon = atm.get_coord(var, 'lon')
     days = atm.get_coord(var, 'dayrel')
+    if max(days) > 100:
+        yticks = np.arange(-120, 201, 30)
+    else:
+        yticks = np.arange(-270, 101, 30)
     if clev is None:
         cint = atm.cinterval(var, n_pref=n_pref, symmetric=True)
         clev = atm.clevels(var, cint, symmetric=True)
@@ -752,7 +784,7 @@ for nm in ['VMSE', 'VCPT', 'VPHI', 'VLQV']:
     grp.next()
     var = atm.subset(vmse_eq[nm], {'lon' : lonrange})
     contour_londay(var, grp=grp)
-    plt.title(nm, fontsize=11)
+    #plt.title(nm, fontsize=11)
 plt.gca().invert_yaxis()
 
 labels = ['a', 'b', 'c', 'd']
@@ -783,8 +815,6 @@ for lonrange in lonranges:
 # Convert to PW
 eq_int = eq_int / 1e6
 
-
-
 days = atm.get_coord(eq_int, 'dayrel')
 nms = ['VMSE', 'VCPT', 'VPHI', 'VLQV']
 colors = {'40-60E' : 'r', '60-100E' : 'b'}
@@ -801,12 +831,16 @@ for lonrange in lonranges:
         style['color'] = colors[lonrange]
         key = nm + '_' + lonrange
         plt.plot(days, eq_int[key], label=key, **style)
-#plt.legend(loc='upper left', ncol=1, handlelength=3)
+plt.legend(loc='upper left', ncol=1, handlelength=3)
 #plt.grid()
-plt.xticks(np.arange(-120, 211, 30))
-plt.xlim(-120, 210)
+if ind_nm == 'onset':
+    plt.xticks(np.arange(-120, 211, 30))
+    plt.xlim(-120, 210)
+else:
+    plt.xticks(np.arange(-270, 101, 30))
+    plt.xlim(-270, 100)
 plt.axvline(0, color='0.5')
-plt.xlabel('Days Since Onset')
+plt.xlabel('Days Since ' + ind_nm.capitalize())
 plt.ylabel('<V*MSE> (PW)')
 
 
