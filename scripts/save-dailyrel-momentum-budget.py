@@ -40,6 +40,7 @@ indfile = savedir + version + '_index_%s_%s.nc' % (onset_nm, yearstr)
 # ----------------------------------------------------------------------
 # Onset index for each year
 
+print('Opening ' + indfile)
 with xray.open_dataset(indfile) as index:
     index.load()
 onset = index['onset'].values
