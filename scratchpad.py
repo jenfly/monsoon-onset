@@ -14,6 +14,84 @@ import indices
 
 
 # ----------------------------------------------------------------------
+url = 'http://iridl.ldeo.columbia.edu/SOURCES/.OSU/.PRISM/.monthly/dods'
+ds = xray.open_dataset(url, decode_times=False, engine='pydap')
+
+tmax = ds['tmax'][:500, ::3, ::3]
+tmax[0].plot()
+
+
+# ----------------------------------------------------------------------
+from pydap.client import open_url
+
+authfile = atm.homedir() + '.netrc'
+
+with open(authfile) as f:
+    lines = f.readlines()
+
+username = lines[1].split()[1]
+password = lines[2].split()[1]
+
+url = ('https://%s:%s@' % (username, password) +
+       'goldsmr5.sci.gsfc.nasa.gov/opendap/MERRA2/M2I3NPASM.5.12.4/'
+       '1986/01/MERRA2_100.inst3_3d_asm_Np.19860101.nc4.nc4')
+
+ds = open_url(url)
+
+# ----------------------------------------------------------------------
+# 8/24/2017 West African monsoon region
+
+#filnm = '/home/jwalker/datastore/gpcp/gpcp_daily_1997-2014.nc'
+year = 1997
+filenm = '/home/jwalker/datastore/gpcp/gpcp_daily_%d.nc' % year
+suptitle = 'GPCP %d' % year
+ds = xray.open_dataset(filenm)
+pcp = ds['PREC'].load()
+pcp = atm.set_lon(pcp, lonmax=180)
+
+ssns = ['JAN', 'APR', 'JUL', 'OCT']
+#ssns = ['DJF', 'MAM', 'JJA', 'SON']
+
+lat1, lat2 = 0, 20
+lon1, lon2 = -20, 15
+#axlims = (-60, 60, -30, 120)
+axlims = (-45, 45, -45, 60)
+xticks = np.arange(-30, 61, 30)
+clev = np.arange(0, 10.5, 1)
+climits = (0, 10)
+nrow, ncol = 2, 2
+
+fig_kw = {'figsize' : (8, 6.5), 'sharex' : True, 'sharey' : True}
+gridspec_kw = {'left' : 0.07, 'right' : 0.9, 'bottom' : 0.07, 'top' : 0.9,
+               'wspace' : 0.3}
+grp = atm.FigGroup(nrow, ncol, fig_kw=fig_kw, suptitle=suptitle,
+                   gridspec_kw=gridspec_kw)
+
+for ssn in ssns:
+    days = atm.season_days(ssn)
+
+    pcpbar = atm.dim_mean(pcp, 'day', min(days), max(days))
+    grp.next()
+    m = atm.init_latlon(lat1=axlims[0], lat2=axlims[1], lon1=axlims[2],
+                        lon2=axlims[3])
+    atm.contourf_latlon(pcpbar, clev=clev, cmap='PuBuGn', extend='max', m=m)
+    atm.geobox(lat1, lat2, lon1, lon2, m=m)
+    plt.xticks(xticks, atm.latlon_labels(xticks, 'lon'))
+    plt.clim(climits)
+    plt.title(ssn)
+
+ts = atm.mean_over_geobox(pcp, lat1, lat2, lon1, lon2)
+ts_acc = ts.cumsum(axis=0)
+plt.figure(figsize=(10, 4))
+plt.subplot(1, 2, 1)
+ts.plot()
+plt.title('Precip')
+plt.subplot(1, 2, 2)
+ts_acc.plot()
+plt.title('Cumulative precip')
+
+
+# ----------------------------------------------------------------------
 # 4/26/2016 Re-calculate ubudget climatologies with corrupted data replaced
 version = 'merra2'
 years = np.arange(1980, 2016)
@@ -146,23 +224,6 @@ files = [datadir + 'merra2_RAD_%d.nc4' % yr for yr in years]
 
  ds = atm.mean_over_files(files)
 
-
-# ----------------------------------------------------------------------
-from pydap.client import open_url
-
-authfile = atm.homedir() + '.netrc'
-
-with open(authfile) as f:
-    lines = f.readlines()
-
-username = lines[1].split()[1]
-password = lines[2].split()[1]
-
-url = ('https://%s:%s@' % (username, password) +
-       'goldsmr5.sci.gsfc.nasa.gov/opendap/MERRA2/M2I3NPASM.5.12.4/'
-       '1986/01/MERRA2_100.inst3_3d_asm_Np.19860101.nc4.nc4')
-
-ds = open_url(url)
 
 # ----------------------------------------------------------------------
 plev = 200
