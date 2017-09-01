@@ -7,6 +7,7 @@ import xarray as xray
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+from pydap.client import open_url
 
 import atmos as atm
 import merra
@@ -15,15 +16,16 @@ import indices
 
 # ----------------------------------------------------------------------
 url = 'http://iridl.ldeo.columbia.edu/SOURCES/.OSU/.PRISM/.monthly/dods'
-ds = xray.open_dataset(url, decode_times=False, engine='pydap')
+ds = xray.open_dataset(url, decode_times=False)
+#ds = xray.open_dataset(url, decode_times=False, engine='pydap')
 
 tmax = ds['tmax'][:500, ::3, ::3]
 tmax[0].plot()
 
+# Use pydap's open_url
+ds2 = open_url(url)
 
 # ----------------------------------------------------------------------
-from pydap.client import open_url
-
 authfile = atm.homedir() + '.netrc'
 
 with open(authfile) as f:
