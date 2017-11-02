@@ -1,16 +1,21 @@
 name: monsoon
+channels:
+- conda-forge
 dependencies:
 - python=2.7
-- ipython=4.0.0
-- xarray=0.9.6
-- basemap=1.0.7
-- numpy=1.10.4
-- pandas=0.18.1
-- matplotlib=1.4.3
-- scipy=0.16.0
-- statsmodels=0.6.1
-- netcdf4=1.1.9
 - pip
-- pip:
-  - pydap==3.2.2
-  - PyPDF2==1.25.1
+- ipython
+- jupyter
+- notebook
+- numpy
+- scipy
+- statsmodels
+- matplotlib
+- pandas
+- netcdf4
+- xarray
+- basemap
+- proj4
+- cartopy
+- PyPDF2
+- pydap
