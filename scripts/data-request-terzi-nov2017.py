@@ -102,6 +102,7 @@ if nroll is not None:
         mfc_budget[nm] = atm.rolling_mean(mfc_budget[nm], nroll, center=True)
 mfc_budget['CMFC'] = index['tseries']
 df = mfc_budget.sel(year=2000).drop('year').to_dataframe()
+df =  df[(df.index > 2) & (df.index < 399)]
 mfc_budget.to_netcdf('data/data_fig1a_allyears.nc')
 df.to_csv('data/data_fig1a.csv')
 
