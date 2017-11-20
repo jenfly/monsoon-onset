@@ -19,9 +19,6 @@ years = np.arange(1980, 2016)
 datadir = atm.homedir() + 'datastore/%s/analysis/' % version
 onset_nm = 'CHP_MFC'
 onset_nms = ['CHP_MFC', 'MOK', 'HOWI', 'OCI']
-#pts_nm = 'CHP_PCP'
-#pts_nm = 'CHP_GPCP'
-#pcp_nm = 'PRECTOT'
 pcp_nm = 'GPCP'
 varnms = ['PRECTOT', 'U200', 'V200', 'U850', 'V850']
 lat_extract = {'U200' : 0, 'V200' : 15, 'U850' : 15, 'V850' : 15}
@@ -44,31 +41,6 @@ datafiles['CMAP'] = datadir + 'cmap_dailyrel_' + onset_nm + '_1980-2014.nc'
 datafiles['GPCP'] = datadir + 'gpcp_dailyrel_' + onset_nm + '_1997-2015.nc'
 mfcbudget_file = datadir + version + '_mfc_budget_' + yearstr
 
-
-# ptsfile = datadir + version + '_index_pts_%s_' % pts_nm
-# ptsmaskfile = None
-# if pts_nm == 'CHP_CMAP':
-#     ptsfile = ptsfile + '1980-2014.nc'
-#     pts_xroll, pts_yroll = None, None
-# elif pts_nm == 'CHP_GPCP':
-#     ptsfile = ptsfile + '1997-2015.nc'
-#     ptsmaskfile = atm.homedir() + 'datastore/gpcp/gpcp_daily_1997-2014.nc'
-#     pts_xroll, pts_yroll = None, None
-# else:
-#     ptsfile = ptsfile + yearstr
-#     pts_xroll, pts_yroll = 3, 3
-
-
-# if ind_nm == 'retreat':
-#     for nm in datafiles:
-#         datafiles[nm] = datafiles[nm].replace('dailyrel', 'dailyrel_retreat')
-
-# enso_nm = 'NINO3'
-# #enso_nm = 'NINO3.4'
-# ensodir = atm.homedir() + 'dynamics/python/data/ENSO/'
-# ensofile = ensodir + ('enso_sst_monthly_%s.csv' %
-#                       enso_nm.lower().replace('.', '').replace('+', ''))
-# enso_keys = ['MAM', 'JJA']
 
 # ----------------------------------------------------------------------
 # Read data
