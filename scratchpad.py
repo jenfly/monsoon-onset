@@ -15,6 +15,21 @@ import indices
 
 
 # ----------------------------------------------------------------------
+# Day of year climatology of U850, V850
+datadir = atm.homedir() + 'datastore/merra2/daily/'
+filestr = datadir + '%d/merra2_%s850_40E-120E_90S-90N_%d.nc'
+savestr = atm.homedir() + 'eady/filetransfer/merra2_%s850_daily_clim_1980-2015.nc'
+years = range(1980, 2016)
+data = {}
+for nm in ['U', 'V']:
+    datafiles = [filestr % (yr, nm, yr) for yr in years]
+    data[nm] = atm.mean_over_files(datafiles)
+    data[nm].to_netcdf(savestr % nm)
+
+
+
+
+# ----------------------------------------------------------------------
 url = 'http://iridl.ldeo.columbia.edu/SOURCES/.OSU/.PRISM/.monthly/dods'
 ds = xray.open_dataset(url, decode_times=False)
 #ds = xray.open_dataset(url, decode_times=False, engine='pydap')
