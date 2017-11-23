@@ -95,16 +95,20 @@ def precip_winds(data0, days, ax=None, axlims=(-30, 45, 40, 120), climits=(0, 20
     return m
 
 
+#days1 = atm.season_days('MAM')
+#days2 = atm.season_days('JJAS')
+days1 = range(atm.mmdd_to_jday(4, 29), atm.mmdd_to_jday(5, 3))
+days2 = range(atm.mmdd_to_jday(6, 13), atm.mmdd_to_jday(6, 18))
 
+#box=(10, 30, 60, 100)
+box = None
 gridspec_kw = {'left' : 0.05, 'right' : 0.95, 'bottom' : 0.05, 'top' : 0.95,
                'wspace' : 0.05}
 fig, axes = plt.subplots(1, 2, figsize=(11, 5), sharex='all', sharey='all',
                          gridspec_kw=gridspec_kw)
-days = atm.season_days('MAM')
-precip_winds(data0, days, ax=axes[0])
 
-days = atm.season_days('JJAS')
-precip_winds(data0, days, ax=axes[1])
+precip_winds(data0, days1, ax=axes[0], box=box)
+precip_winds(data0, days2, ax=axes[1], box=box)
 fig.savefig('figs/agu2017_01.png')
 
 # Map of averaging region
@@ -131,6 +135,7 @@ for nm in indfiles:
         with xr.open_dataset(indfiles[nm]) as ds:
             index_all[nm] = ds.load()
 index = index_all[onset_nm]
+index['length'] = index['retreat'] - index['onset']
 
 onset_all = pd.DataFrame()
 for nm in index_all:
@@ -277,3 +282,80 @@ for x0 in ind['onset'], ind['retreat']:
 figs.append(plt.gcf())
 for i, fig in enumerate(figs):
     fig.savefig('figs/agu2017_mfc_%02d.png' % (i + 1))
+
+# -------------------------------------------------------------------------
+# Onset day vs. year
+
+plt.figure(figsize=(6, 4))
+plt.plot(index['year'].values, index['onset'].values, 'k')
+plt.xlabel('Year')
+plt.ylabel('Onset (day of year)')
+plt.savefig('figs/agu2017_ind.png')
+
+# -------------------------------------------------------------------------
+def daily_tseries(tseries, index, npre, npost,dashes=[6, 2], labelpad=1.5):
+    """Plot dailyrel timeseries climatology"""
+    xlims = (-npre, npost)
+    xticks = range(-npre, npost + 10, 30)
+    days = tseries['dayrel'].values
+    plt.plot(days, tseries['MFC'], 'k', label='MFC')
+    plt.plot(days, tseries['GPCP'], 'k', linewidth=2, label='Precipitation')
+    plt.xlabel('Days Since Onset')
+    plt.ylabel('mm day$^{-1}$')
+    plt.xticks(xticks)
+    plt.xlim(xlims)
+    x0_list = [0,  index['length'].mean(dim='year')]
+    for x0 in x0_list:
+        plt.axvline(x0, color='b')
+    plt.axvline(15, color='b', linestyle='--', dashes=dashes)
+
+    ax1 = plt.gca()
+    ax2 = plt.twinx()
+    plt.sca(ax2)
+    #label = 'U$_{850}$ (15$^{\circ}$N)'
+    label = 'U$_{850}$'
+    plt.plot(days, tseries['U850'], 'm', linewidth=2, alpha=0.7,
+             label=label)
+    atm.fmt_axlabels('y', 'm s$^{-1}$', color='m', alpha=0.7)
+    plt.gca().set_ylabel('m s$^{-1}$', labelpad=labelpad)
+    legend_kw = {'fontsize' : 13, 'loc' : 'upper left',
+                 'handlelength' : 2}
+    atm.legend_2ax(ax1, ax2, **legend_kw)
+
+plt.figure(figsize=(6, 4))
+daily_tseries(tseries, index, npre, npost)
+plt.savefig('figs/agu2017_ts.png')
+
+    #
+    #
+    # keypairs = [(['MFC', pcp_nm], ['CMFC']), (['U850'], ['V850'])]
+    # opts = [('upper left', 'mm day$^{-1}$', 'mm'),
+    #         ('upper left', '   m s$^{-1}$', '   m s$^{-1}$')]
+    # ylim_list = [(-3.5, 9), (-7, 15)]
+    # y2_opts={'color' : 'r', 'alpha' : 0.6}
+    # dashed = {'color' : 'k', 'linestyle' : '--', 'dashes' : dashes}
+    # styles = ['k', dashed, 'g', 'm']
+    # legend_kw = {}
+    # for pair, opt, ylims in zip(keypairs, opts, ylim_list):
+    #     grp.next()
+    #     keys1, keys2 = pair
+    #     legend_kw['loc'] = opt[0]
+    #     y1_label = opt[1]
+    #     y2_label = opt[2]
+    #     data1 = tseries[keys1]
+    #     if keys2 is not None:
+    #         data2 = tseries[keys2]
+    #     else:
+    #         data2 = None
+    #     data1_styles = {nm : style for (nm, style) in zip(keys1, styles)}
+    #     axs = utils.plotyy(data1, data2, xname='dayrel', data1_styles=data1_styles,
+    #                        y2_opts=y2_opts, xlims=xlims, xticks=xticks, ylims=ylims,
+    #                        xlabel=xlabel, y1_label=y1_label, y2_label=y2_label,
+    #                        legend=legend, legend_kw=legend_kw, x0_axvlines=x0,
+    #                        grid=grid)
+    #     for ax, label in zip(axs, [y1_label, y2_label]):
+    #         ax.set_ylabel(label, labelpad=labelpad)
+    #     plt.gca().set_xticklabels(xtick_labels)
+    #     if dlist is not None:
+    #         for d0 in dlist:
+    #             plt.axvline(d0, color='k', linestyle='--', dashes=dashes)
